@@ -2,6 +2,7 @@ import { spawn } from 'child_process'
 import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
 
 import { detectPiiMatches, PiiMatch } from '@/utils/pii'
 import { createClient } from '@/utils/supabase/server'
@@ -22,6 +23,13 @@ type WhisperResponse = {
   words?: WhisperWord[]
 }
 
+type AiInteractionSegment = {
+  start: number
+  end: number
+  label: string
+  text: string
+}
+
 type InteractionSegment = {
   start: number
   end: number
@@ -31,7 +39,7 @@ type InteractionSegment = {
 
 const OPENAI_MAX_BYTES = 25 * 1024 * 1024
 
-const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg'
+const ffmpegPath = process.env.FFMPEG_PATH || ffmpegInstaller.path || 'ffmpeg'
 
 const DEFAULT_FETCH_TIMEOUT_MS = 600_000 // 10 minutes
 const SEGMENT_GAP_SECONDS = 3 // pause threshold to split interactions
@@ -179,6 +187,66 @@ async function summarizeSegments(segments: InteractionSegment[], apiKey: string)
   }
 
   return summarized
+}
+
+async function buildAiInteractionSegments(words: WhisperWord[], apiKey: string): Promise<AiInteractionSegment[]> {
+  if (!words.length) return []
+
+  const serialized = words
+    .slice(0, 2400) // guard prompt size
+    .map((w) => `${w.start.toFixed(2)}|${w.end.toFixed(2)}|${w.word}`)
+    .join(' ')
+
+  const systemPrompt =
+    'Identify speaker turns or interaction shifts in a sales call transcript. Use the provided word timings. Return 3-15 segments covering the full call. Each segment must have start, end (seconds), label (short speaker/phase), and text (concise summary). Output ONLY JSON array.'
+
+  const userPrompt = `Words (start|end|word): ${serialized}`
+
+  try {
+    const resp = await fetchWithTimeout(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.2,
+          max_tokens: 320,
+        }),
+      },
+      45_000
+    )
+
+    if (!resp.ok) {
+      console.error('AI segment request failed', await resp.text())
+      return []
+    }
+
+    const data = await resp.json()
+    const raw = data?.choices?.[0]?.message?.content
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+
+    return parsed
+      .map((seg) => ({
+        start: Number(seg.start) || 0,
+        end: Number(seg.end) || 0,
+        label: (seg.label || '').toString().slice(0, 60),
+        text: (seg.text || '').toString().slice(0, 280),
+      }))
+      .filter((seg) => seg.end > seg.start)
+  } catch (e) {
+    console.error('AI segment parse error', e)
+    return []
+  }
 }
 
 function mergeRanges(ranges: PiiMatch[]): PiiMatch[] {
@@ -425,6 +493,7 @@ export async function POST(request: NextRequest) {
     const words = transcription.words || []
 
     let interactionSegments = buildInteractionSegments(words)
+    const aiInteractionSegments = await buildAiInteractionSegments(words, openaiKey)
     const interactionSummary = await summarizeInteraction(transcription.text || '', openaiKey)
     interactionSegments = await summarizeSegments(interactionSegments, openaiKey)
 
@@ -472,6 +541,7 @@ export async function POST(request: NextRequest) {
           words,
           interaction_segments: interactionSegments,
           interaction_summary: interactionSummary,
+          interaction_segments_ai: aiInteractionSegments,
           pii_matches: piiMatches,
           redacted_file_storage_path: redactedFilePath,
         },
