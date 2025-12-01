@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
         .split(',')
         .map((field: string) => field.trim())
         .filter(Boolean)
-        .filter((field) => allowedPolicies.has(field))
+        .filter((field: string) => allowedPolicies.has(field))
       return parsed.length ? parsed : defaultPolicies
     })()
 
