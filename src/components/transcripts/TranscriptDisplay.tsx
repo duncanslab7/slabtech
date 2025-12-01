@@ -14,6 +14,12 @@ interface TranscriptDisplayProps {
     text: string
     summary?: string | null
   }[]
+  interactionSegmentsAi?: {
+    start: number
+    end: number
+    label: string
+    text: string
+  }[]
 }
 
 function formatTimestamp(seconds: number) {
@@ -28,6 +34,7 @@ export function TranscriptDisplay({
   transcriptData,
   interactionSummary,
   interactionSegments,
+  interactionSegmentsAi,
 }: TranscriptDisplayProps) {
   const [copySuccess, setCopySuccess] = useState(false)
 
@@ -57,6 +64,31 @@ export function TranscriptDisplay({
             <div className="p-4 rounded-md bg-midnight-blue bg-opacity-5 border border-midnight-blue border-opacity-10">
               <Text className="font-medium text-midnight-blue">Sale Summary</Text>
               <Text className="mt-1">{interactionSummary}</Text>
+            </div>
+          )}
+          {interactionSegmentsAi && interactionSegmentsAi.length > 0 && (
+            <div className="space-y-2">
+              <Text variant="muted" size="sm" className="uppercase tracking-wide">
+                AI Interactions
+              </Text>
+              <div className="space-y-3">
+                {interactionSegmentsAi.map((seg, idx) => (
+                  <div
+                    key={`${seg.start}-${seg.end}-${seg.label}-${idx}`}
+                    className="p-3 rounded-md border border-midnight-blue border-opacity-15 bg-white"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <Text className="text-xs font-semibold text-midnight-blue uppercase tracking-wide">
+                        {formatTimestamp(seg.start)} – {formatTimestamp(seg.end)}
+                      </Text>
+                      <span className="text-xxs px-2 py-1 rounded-full bg-midnight-blue text-white font-semibold">
+                        {seg.label}
+                      </span>
+                    </div>
+                    <Text className="mt-2 leading-relaxed">{seg.text}</Text>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           {interactionSegments && interactionSegments.length > 0 && (

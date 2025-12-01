@@ -20,7 +20,9 @@ const regexes: Record<string, RegExp> = {
   url: /\bhttps?:\/\/[^\s]+/i,
   // Require number + street + suffix to reduce false positives
   address:
-    /\b\d{1,5}\s+\w+(?:\s+\w+)?\s+(st|street|ave|avenue|blvd|boulevard|rd|road|dr|drive|ln|lane|ct|court|cir|circle|way)\b/i,
+    /\b\d{1,6}\s+[A-Z0-9][\w'-]*(?:\s+[A-Z0-9][\w'-]*)*\s+(st|street|ave|avenue|blvd|boulevard|rd|road|dr|drive|ln|lane|ct|court|cir|circle|way|pkwy|parkway|terrace|ter|pl|place)\b/i,
+  // City, ST [ZIP]
+  city_state: /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2}(?:\s+\d{5}(?:-\d{4})?)?\b/,
 }
 
 const aliasMap: Record<string, Set<string>> = {
@@ -111,6 +113,29 @@ export function detectPiiMatches(words: WordLike[], piiConfig: string): PiiMatch
         const digitsOnly = combined.replace(/\D/g, '')
         if (digitsOnly.length >= 7 && digitsOnly.length <= 15 && regexes.phone.test(combined)) {
           addMatch(start, end, 'phone')
+          break
+        }
+      }
+    }
+  }
+
+  // Multi-word address/location detection: scan 3-8 word windows for street or city/state patterns
+  if (shouldUseField('address', piiConfig)) {
+    const maxWindow = 8
+    for (let i = 0; i < words.length; i++) {
+      let combined = ''
+      let start = words[i].start
+      let end = words[i].end
+      for (let w = 0; w < maxWindow && i + w < words.length; w++) {
+        const segment = (words[i + w].word || '').trim()
+        if (segment) {
+          combined = combined ? `${combined} ${segment}` : segment
+          end = words[i + w].end
+        }
+        const hasStreet = regexes.address.test(combined)
+        const hasCityState = regexes.city_state.test(combined)
+        if (hasStreet || hasCityState) {
+          addMatch(start, end, 'address')
           break
         }
       }
