@@ -396,7 +396,9 @@ export async function POST(request: NextRequest) {
 
     // 4) Transcribe with Whisper (word timestamps enabled)
     const form = new FormData()
-    const file = new File([whisperBuffer], originalFilename || 'audio.mp3', { type: whisperContentType })
+    const file = new File([new Uint8Array(whisperBuffer)], originalFilename || 'audio.mp3', {
+      type: whisperContentType,
+    })
     form.append('file', file)
     form.append('model', 'whisper-1')
     form.append('response_format', 'verbose_json')
