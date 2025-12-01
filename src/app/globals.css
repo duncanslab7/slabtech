@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* SLAB Brand Colors */
+  --midnight-blue: #2c3e50;
+  --steel-gray: #34495e;
+  --success-gold: #f39c12;
+  --pure-white: #FFFFFF;
+  --charcoal: #1a1a1a;
+
+  /* Legacy variables - mapped to brand colors */
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+}
+
+body {
+  color: var(--charcoal);
+  background: var(--pure-white);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Brand Typography Utilities */
+@layer components {
+  .heading-xl {
+    @apply text-heading-xl text-midnight-blue;
+  }
+
+  .heading-lg {
+    @apply text-heading-lg text-midnight-blue;
+  }
+
+  .subheading {
+    @apply text-heading-lg text-steel-gray;
+  }
+
+  .tagline {
+    @apply text-tagline text-midnight-blue;
+  }
+
+  .tagline-sm {
+    @apply text-tagline-sm text-midnight-blue;
+  }
+
+  .body-text {
+    @apply text-body text-charcoal;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
