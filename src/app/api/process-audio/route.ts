@@ -394,7 +394,7 @@ async function transcodeForWhisper(inputBuffer: Buffer, originalContentType: str
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { filePath, originalFilename, salespersonName, customerName } = body
+    const { filePath, originalFilename, salespersonId } = body
 
     if (!filePath) {
       return NextResponse.json({ error: 'File path is required' }, { status: 400 })
@@ -402,8 +402,8 @@ export async function POST(request: NextRequest) {
     if (!originalFilename) {
       return NextResponse.json({ error: 'Original filename is required' }, { status: 400 })
     }
-    if (!salespersonName) {
-      return NextResponse.json({ error: 'Salesperson name is required' }, { status: 400 })
+    if (!salespersonId) {
+      return NextResponse.json({ error: 'Salesperson is required' }, { status: 400 })
     }
 
     const openaiKey = process.env.OPENAI_API_KEY
@@ -528,12 +528,21 @@ export async function POST(request: NextRequest) {
       console.error('Redacted audio upload error:', redactedUploadError)
     }
 
-    // 8) Save transcript + redaction metadata
+    // 8) Get salesperson name for backwards compatibility
+    const { data: salespersonData } = await supabase
+      .from('salespeople')
+      .select('name')
+      .eq('id', salespersonId)
+      .single()
+
+    const salespersonName = salespersonData?.name || 'Unknown'
+
+    // 9) Save transcript + redaction metadata
     const { data: transcriptData, error: transcriptError } = await supabase
       .from('transcripts')
       .insert({
+        salesperson_id: salespersonId,
         salesperson_name: salespersonName,
-        customer_name: customerName || null,
         original_filename: originalFilename,
         file_storage_path: filePath,
         transcript_redacted: {

@@ -1,0 +1,100 @@
+import { createClient } from '@/utils/supabase/server'
+import { NextRequest, NextResponse } from 'next/server'
+
+// GET /api/admin/salespeople - Get all salespeople (including Misc) for admin
+export async function GET() {
+  try {
+    const supabase = await createClient()
+
+    // Check if user is authenticated
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data, error } = await supabase
+      .from('salespeople')
+      .select('id, name, display_order, created_at')
+      .order('display_order', { ascending: true })
+
+    if (error) {
+      console.error('Error fetching salespeople:', error)
+      return NextResponse.json(
+        { error: 'Failed to fetch salespeople' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ salespeople: data })
+  } catch (error: any) {
+    console.error('Unexpected error:', error)
+    return NextResponse.json(
+      { error: error.message || 'An unexpected error occurred' },
+      { status: 500 }
+    )
+  }
+}
+
+// POST /api/admin/salespeople - Add a new salesperson
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+
+    // Check if user is authenticated
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const { name } = body
+
+    if (!name || !name.trim()) {
+      return NextResponse.json(
+        { error: 'Name is required' },
+        { status: 400 }
+      )
+    }
+
+    // Get the current max display_order (excluding Misc which is 999)
+    const { data: maxOrderData } = await supabase
+      .from('salespeople')
+      .select('display_order')
+      .lt('display_order', 999)
+      .order('display_order', { ascending: false })
+      .limit(1)
+      .single()
+
+    const nextOrder = (maxOrderData?.display_order || 0) + 1
+
+    const { data, error } = await supabase
+      .from('salespeople')
+      .insert({ name: name.trim(), display_order: nextOrder })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error adding salesperson:', error)
+      return NextResponse.json(
+        { error: 'Failed to add salesperson' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ salesperson: data, message: 'Salesperson added successfully' })
+  } catch (error: any) {
+    console.error('Unexpected error:', error)
+    return NextResponse.json(
+      { error: error.message || 'An unexpected error occurred' },
+      { status: 500 }
+    )
+  }
+}
