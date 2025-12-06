@@ -12,242 +12,26 @@ import { NextRequest, NextResponse } from 'next/server'
 export const maxDuration = 300 // 5 minutes max execution time
 export const dynamic = 'force-dynamic'
 
-type WhisperWord = {
-  word: string
+type AssemblyAIWord = {
+  text: string
   start: number
   end: number
+  confidence: number
+  speaker?: string
 }
 
-type WhisperResponse = {
+type AssemblyAITranscript = {
+  id: string
+  status: 'queued' | 'processing' | 'completed' | 'error'
   text: string
-  words?: WhisperWord[]
+  words: AssemblyAIWord[]
+  error?: string
 }
-
-type AiInteractionSegment = {
-  start: number
-  end: number
-  label: string
-  text: string
-}
-
-type InteractionSegment = {
-  start: number
-  end: number
-  text: string
-  summary?: string | null
-}
-
-const OPENAI_MAX_BYTES = 25 * 1024 * 1024
 
 const ffmpegPath = process.env.FFMPEG_PATH || ffmpegInstaller.path || 'ffmpeg'
 
 const DEFAULT_FETCH_TIMEOUT_MS = 600_000 // 10 minutes
-const SEGMENT_GAP_SECONDS = 3 // pause threshold to split interactions
-const MIN_SEGMENT_WORDS = 3
-
-function buildInteractionSegments(words: WhisperWord[]): InteractionSegment[] {
-  if (!words.length) return []
-
-  const sorted = [...words].sort((a, b) => a.start - b.start)
-  const segments: InteractionSegment[] = []
-
-  let current: WhisperWord[] = []
-
-  const pushCurrent = () => {
-    if (!current.length) return
-    const text = current.map((w) => w.word).join(' ').trim()
-    if (!text) {
-      current = []
-      return
-    }
-    segments.push({
-      start: current[0].start,
-      end: current[current.length - 1].end,
-      text,
-    })
-    current = []
-  }
-
-  for (let i = 0; i < sorted.length; i++) {
-    const word = sorted[i]
-    if (!current.length) {
-      current.push(word)
-      continue
-    }
-
-    const gap = word.start - current[current.length - 1].end
-    if (gap > SEGMENT_GAP_SECONDS) {
-      pushCurrent()
-    }
-    current.push(word)
-  }
-
-  pushCurrent()
-
-  return segments.filter((seg) => seg.text.split(/\s+/).length >= MIN_SEGMENT_WORDS)
-}
-
-async function summarizeInteraction(text: string, apiKey: string): Promise<string | null> {
-  if (!text.trim()) return null
-
-  try {
-    const resp = await fetchWithTimeout(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            {
-              role: 'system',
-              content:
-                'You summarize sales calls. Return one brief paragraph (max 3 sentences) describing how the interaction went and whether the sale progressed.',
-            },
-            {
-              role: 'user',
-              content: text.slice(0, 6000), // guard token cost
-            },
-          ],
-          max_tokens: 120,
-          temperature: 0.3,
-        }),
-      },
-      60_000
-    )
-
-    if (!resp.ok) {
-      console.error('Summary request failed', await resp.text())
-      return null
-    }
-
-    const data = await resp.json()
-    const summary = data?.choices?.[0]?.message?.content?.trim()
-    return summary || null
-  } catch (e) {
-    console.error('Summary generation error', e)
-    return null
-  }
-}
-
-async function summarizeSegments(segments: InteractionSegment[], apiKey: string): Promise<InteractionSegment[]> {
-  const summarized: InteractionSegment[] = []
-
-  for (const seg of segments) {
-    if (!seg.text.trim()) {
-      summarized.push(seg)
-      continue
-    }
-
-    try {
-      const resp = await fetchWithTimeout(
-        'https://api.openai.com/v1/chat/completions',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-3.5-turbo',
-            messages: [
-              {
-                role: 'system',
-                content:
-                  'You summarize individual sales call interactions. Return exactly two concise sentences describing what happened and how the sale progressed in that segment.',
-              },
-              {
-                role: 'user',
-                content: seg.text.slice(0, 2000),
-              },
-            ],
-            max_tokens: 120,
-            temperature: 0.3,
-          }),
-        },
-        30_000
-      )
-
-      if (!resp.ok) {
-        console.error('Segment summary request failed', await resp.text())
-        summarized.push(seg)
-        continue
-      }
-
-      const data = await resp.json()
-      const summary = data?.choices?.[0]?.message?.content?.trim() || null
-      summarized.push({ ...seg, summary })
-    } catch (e) {
-      console.error('Segment summary generation error', e)
-      summarized.push(seg)
-    }
-  }
-
-  return summarized
-}
-
-async function buildAiInteractionSegments(words: WhisperWord[], apiKey: string): Promise<AiInteractionSegment[]> {
-  if (!words.length) return []
-
-  const serialized = words
-    .slice(0, 2400) // guard prompt size
-    .map((w) => `${w.start.toFixed(2)}|${w.end.toFixed(2)}|${w.word}`)
-    .join(' ')
-
-  const systemPrompt =
-    'Identify speaker turns or interaction shifts in a sales call transcript. Use the provided word timings. Return 3-15 segments covering the full call. Each segment must have start, end (seconds), label (short speaker/phase), and text (concise summary). Output ONLY JSON array.'
-
-  const userPrompt = `Words (start|end|word): ${serialized}`
-
-  try {
-    const resp = await fetchWithTimeout(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          temperature: 0.2,
-          max_tokens: 320,
-        }),
-      },
-      45_000
-    )
-
-    if (!resp.ok) {
-      console.error('AI segment request failed', await resp.text())
-      return []
-    }
-
-    const data = await resp.json()
-    const raw = data?.choices?.[0]?.message?.content
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-
-    return parsed
-      .map((seg) => ({
-        start: Number(seg.start) || 0,
-        end: Number(seg.end) || 0,
-        label: (seg.label || '').toString().slice(0, 60),
-        text: (seg.text || '').toString().slice(0, 280),
-      }))
-      .filter((seg) => seg.end > seg.start)
-  } catch (e) {
-    console.error('AI segment parse error', e)
-    return []
-  }
-}
+const POLLING_INTERVAL_MS = 3000 // 3 seconds
 
 function mergeRanges(ranges: PiiMatch[]): PiiMatch[] {
   if (!ranges.length) return []
@@ -296,40 +80,32 @@ async function runFfmpegBleep(inputPath: string, outputPath: string, ranges: Pii
 
   const mergedRanges = mergeRanges(ranges)
 
-  // Build filter graph: mute base audio during PII ranges and mix in sine beeps at those times.
-  const volumeFilters = mergedRanges
+  // Build filter to mute audio during PII ranges (silence instead of beep)
+  const volumeFilter = mergedRanges
     .map(
       (range) =>
         `volume=enable='between(t,${range.start.toFixed(2)},${range.end.toFixed(2)})':volume=0`
     )
     .join(',')
 
-  const beepFilters = mergedRanges
-    .map((range, idx) => {
-      const duration = Math.max(range.end - range.start, 0.01)
-      const delayMs = Math.max(range.start, 0) * 1000
-      return `sine=frequency=1000:duration=${duration.toFixed(
-        2
-      )}:sample_rate=44100,adelay=${delayMs}|${delayMs},volume=0.35[beep${idx}]`
-    })
-    .join(';')
-
-  const inputs = ['[base]', ...mergedRanges.map((_, idx) => `[beep${idx}]`)].join('')
-  const amix = `${inputs}amix=inputs=${mergedRanges.length + 1}:normalize=0[out]`
-  const baseChain = `[0:a]${volumeFilters ? `${volumeFilters}` : ''}[base]`
-
-  const filterComplex = [baseChain, beepFilters, amix].filter(Boolean).join(';')
-
-  const args = ['-y', '-i', inputPath, '-filter_complex', filterComplex, '-map', '[out]', '-c:a', 'mp3', outputPath]
+  const args = ['-y', '-i', inputPath, '-af', volumeFilter, '-c:a', 'mp3', outputPath]
 
   await new Promise<void>((resolve, reject) => {
-    const ff = spawn(ffmpegPath, args, { stdio: 'ignore' })
+    const ff = spawn(ffmpegPath, args, { stdio: 'pipe' })
+    let stderr = ''
+
+    ff.stderr?.on('data', (data) => {
+      stderr += data.toString()
+    })
+
     ff.on('error', reject)
     ff.on('close', (code) => {
       if (code === 0) {
         resolve()
       } else {
-        reject(new Error(`ffmpeg exited with code ${code}`))
+        console.error('FFmpeg stderr:', stderr)
+        console.error('FFmpeg args:', args)
+        reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(-500)}`))
       }
     })
   })
@@ -350,45 +126,87 @@ async function fetchWithTimeout(
   }
 }
 
-async function transcodeForWhisper(inputBuffer: Buffer, originalContentType: string) {
-  if (inputBuffer.byteLength <= OPENAI_MAX_BYTES) {
-    return { buffer: inputBuffer, contentType: originalContentType }
+async function uploadToAssemblyAI(audioUrl: string, apiKey: string): Promise<string> {
+  // Upload audio file to AssemblyAI
+  const uploadResponse = await fetchWithTimeout(
+    'https://api.assemblyai.com/v2/upload',
+    {
+      method: 'POST',
+      headers: {
+        authorization: apiKey,
+      },
+      body: await (await fetch(audioUrl)).arrayBuffer(),
+    },
+    60_000
+  )
+
+  if (!uploadResponse.ok) {
+    const error = await uploadResponse.text()
+    throw new Error(`AssemblyAI upload failed: ${error}`)
   }
 
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'slab-whisper-'))
-  const inputPath = path.join(tmpDir, 'input')
-  const outputPath = path.join(tmpDir, 'compressed.mp3')
-  await fs.writeFile(inputPath, inputBuffer)
+  const { upload_url } = await uploadResponse.json()
+  return upload_url
+}
 
-  const args = [
-    '-y',
-    '-i',
-    inputPath,
-    '-vn',
-    '-ar',
-    '16000',
-    '-ac',
-    '1',
-    '-b:a',
-    '24k',
-    outputPath,
-  ]
+async function createTranscript(
+  audioUrl: string,
+  apiKey: string
+): Promise<string> {
+  const response = await fetchWithTimeout(
+    'https://api.assemblyai.com/v2/transcript',
+    {
+      method: 'POST',
+      headers: {
+        authorization: apiKey,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        audio_url: audioUrl,
+        speaker_labels: true, // Enable speaker diarization
+      }),
+    },
+    30_000
+  )
 
-  await new Promise<void>((resolve, reject) => {
-    const ff = spawn(ffmpegPath, args, { stdio: 'ignore' })
-    ff.on('error', reject)
-    ff.on('close', (code) => {
-      if (code === 0) resolve()
-      else reject(new Error(`ffmpeg compression exited with code ${code}`))
-    })
-  })
-
-  const compressed = await fs.readFile(outputPath)
-  if (compressed.byteLength > OPENAI_MAX_BYTES) {
-    throw new Error('Audio too large after compression (25MB Whisper limit)')
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`AssemblyAI transcript creation failed: ${error}`)
   }
 
-  return { buffer: compressed, contentType: 'audio/mpeg' }
+  const { id } = await response.json()
+  return id
+}
+
+async function pollTranscript(transcriptId: string, apiKey: string): Promise<AssemblyAITranscript> {
+  while (true) {
+    const response = await fetchWithTimeout(
+      `https://api.assemblyai.com/v2/transcript/${transcriptId}`,
+      {
+        method: 'GET',
+        headers: {
+          authorization: apiKey,
+        },
+      },
+      30_000
+    )
+
+    if (!response.ok) {
+      const error = await response.text()
+      throw new Error(`AssemblyAI polling failed: ${error}`)
+    }
+
+    const transcript: AssemblyAITranscript = await response.json()
+
+    if (transcript.status === 'completed') {
+      return transcript
+    } else if (transcript.status === 'error') {
+      throw new Error(`AssemblyAI transcription error: ${transcript.error}`)
+    }
+
+    // Wait before polling again
+    await new Promise((resolve) => setTimeout(resolve, POLLING_INTERVAL_MS))
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -406,9 +224,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Salesperson is required' }, { status: 400 })
     }
 
-    const openaiKey = process.env.OPENAI_API_KEY
-    if (!openaiKey) {
-      return NextResponse.json({ error: 'OPENAI_API_KEY not configured' }, { status: 500 })
+    const assemblyaiKey = process.env.ASSEMBLYAI_API_KEY
+    if (!assemblyaiKey) {
+      return NextResponse.json({ error: 'ASSEMBLYAI_API_KEY not configured' }, { status: 500 })
     }
 
     const supabase = await createClient()
@@ -439,7 +257,7 @@ export async function POST(request: NextRequest) {
 
     const piiFields = (configData?.pii_fields || 'all').toLowerCase()
 
-    // 3) Download audio buffer
+    // 3) Download audio buffer for FFmpeg processing
     const audioResp = await fetch(signedUrl)
     if (!audioResp.ok) {
       const text = await audioResp.text()
@@ -450,52 +268,23 @@ export async function POST(request: NextRequest) {
     const audioBuffer = Buffer.from(audioArrayBuffer)
     const contentType = audioResp.headers.get('content-type') || 'audio/mpeg'
 
-    // Compress if needed to satisfy Whisper 25MB limit
-    let whisperBuffer: Buffer
-    let whisperContentType: string
-    try {
-      const prepared = await transcodeForWhisper(audioBuffer, contentType)
-      whisperBuffer = prepared.buffer
-      whisperContentType = prepared.contentType
-    } catch (e: any) {
-      console.error('Whisper compression error:', e)
-      return NextResponse.json({ error: e.message || 'Audio too large after compression' }, { status: 400 })
-    }
+    // 4) Transcribe with AssemblyAI
+    console.log('Uploading to AssemblyAI...')
+    const uploadUrl = await uploadToAssemblyAI(signedUrl, assemblyaiKey)
 
-    // 4) Transcribe with Whisper (word timestamps enabled)
-    const form = new FormData()
-    const file = new File([new Uint8Array(whisperBuffer)], originalFilename || 'audio.mp3', {
-      type: whisperContentType,
-    })
-    form.append('file', file)
-    form.append('model', 'whisper-1')
-    form.append('response_format', 'verbose_json')
-    form.append('timestamp_granularities[]', 'word')
+    console.log('Creating transcript...')
+    const transcriptId = await createTranscript(uploadUrl, assemblyaiKey)
 
-    const transcriptionResp = await fetchWithTimeout(
-      'https://api.openai.com/v1/audio/transcriptions',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${openaiKey}`,
-        },
-        body: form as any,
-      }
-    )
+    console.log('Polling for transcript completion...')
+    const transcript = await pollTranscript(transcriptId, assemblyaiKey)
 
-    if (!transcriptionResp.ok) {
-      const err = await transcriptionResp.text()
-      console.error('Whisper error:', err)
-      return NextResponse.json({ error: 'Transcription failed' }, { status: 500 })
-    }
-
-    const transcription = (await transcriptionResp.json()) as WhisperResponse
-    const words = transcription.words || []
-
-    let interactionSegments = buildInteractionSegments(words)
-    const aiInteractionSegments = await buildAiInteractionSegments(words, openaiKey)
-    const interactionSummary = await summarizeInteraction(transcription.text || '', openaiKey)
-    interactionSegments = await summarizeSegments(interactionSegments, openaiKey)
+    // Convert AssemblyAI words to our format (convert ms to seconds)
+    const words = transcript.words.map((w) => ({
+      word: w.text,
+      start: w.start / 1000,
+      end: w.end / 1000,
+      speaker: w.speaker,
+    }))
 
     // 5) PII detection using regex (email, phone, ssn, credit card, address-ish, name-ish)
     const piiMatches = detectPiiMatches(words, piiFields)
@@ -546,11 +335,8 @@ export async function POST(request: NextRequest) {
         original_filename: originalFilename,
         file_storage_path: filePath,
         transcript_redacted: {
-          text: transcription.text,
+          text: transcript.text,
           words,
-          interaction_segments: interactionSegments,
-          interaction_summary: interactionSummary,
-          interaction_segments_ai: aiInteractionSegments,
           pii_matches: piiMatches,
           redacted_file_storage_path: redactedFilePath,
         },

@@ -82,10 +82,6 @@ export default async function TranscriptDetailsPage({ params }: TranscriptDetail
   }
 
   const transcriptText = getTranscriptText()
-  const interactionSummary = (transcript.transcript_redacted as any)?.interaction_summary || null
-  const interactionSegments = ((transcript.transcript_redacted as any)?.interaction_segments as any[]) || []
-  const interactionSegmentsAi =
-    ((transcript.transcript_redacted as any)?.interaction_segments_ai as any[]) || []
 
   return (
     <Container maxWidth="xl" padding="lg">
@@ -122,13 +118,6 @@ export default async function TranscriptDetailsPage({ params }: TranscriptDetail
                   Salesperson
                 </Text>
                 <Text variant="emphasis">{transcript.salesperson_name}</Text>
-              </div>
-
-              <div>
-                <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1">
-                  Customer
-                </Text>
-                <Text variant="emphasis">{transcript.customer_name || 'Not specified'}</Text>
               </div>
 
               <div>
@@ -181,9 +170,6 @@ export default async function TranscriptDetailsPage({ params }: TranscriptDetail
             transcriptText={transcriptText}
             redactionConfigUsed={transcript.redaction_config_used}
             transcriptData={transcript.transcript_redacted}
-            interactionSummary={interactionSummary}
-            interactionSegments={interactionSegments}
-            interactionSegmentsAi={interactionSegmentsAi}
           />
         </div>
       </div>

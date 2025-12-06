@@ -66,3 +66,5 @@ Required in `.env.local`:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `ASSEMBLYAI_API_KEY`
+
+Refer to me as Duncan

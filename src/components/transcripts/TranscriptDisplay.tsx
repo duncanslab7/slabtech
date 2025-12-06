@@ -3,6 +3,19 @@
 import { Heading, Text, Card } from '@/components'
 import { useState } from 'react'
 
+interface Word {
+  word: string
+  start: number
+  end: number
+  speaker?: string
+}
+
+interface PiiMatch {
+  start: number
+  end: number
+  label: string
+}
+
 interface TranscriptDisplayProps {
   transcriptText: string
   redactionConfigUsed: string
@@ -13,6 +26,7 @@ interface TranscriptDisplayProps {
     end: number
     text: string
     summary?: string | null
+    speaker?: string
   }[]
   interactionSegmentsAi?: {
     start: number
@@ -28,13 +42,62 @@ function formatTimestamp(seconds: number) {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
+function buildColorCodedTranscript(words: Word[], piiMatches: PiiMatch[]) {
+  if (!words || words.length === 0) return null
+
+  const hasOverlap = (wordStart: number, wordEnd: number) =>
+    piiMatches?.some((m) => wordStart < (m.end ?? 0) && wordEnd > (m.start ?? 0))
+
+  // Determine which speaker is "first" - the one who speaks first in the transcript
+  const firstSpeaker = words.find(w => w.speaker)?.speaker || 'A'
+
+  const elements: JSX.Element[] = []
+  let lastMinute = -1
+
+  words.forEach((word, idx) => {
+    const currentMinute = Math.floor(word.start / 60)
+
+    // Insert timestamp marker at the start of each new minute
+    if (currentMinute > lastMinute) {
+      if (lastMinute >= 0) {
+        // Add a line break before the timestamp (except for first one)
+        elements.push(
+          <br key={`br-${currentMinute}`} />
+        )
+      }
+      elements.push(
+        <span
+          key={`ts-${currentMinute}`}
+          className="inline-block bg-midnight-blue text-white text-xs px-2 py-1 rounded mr-2 my-1 font-mono"
+        >
+          {formatTimestamp(currentMinute * 60)}
+        </span>
+      )
+      lastMinute = currentMinute
+    }
+
+    const isRedacted = hasOverlap(word.start, word.end)
+    const text = isRedacted ? '[REDACTED]' : word.word
+
+    // Speaker detection - compare to first speaker
+    const speaker = word.speaker || ''
+    const isFirstSpeaker = speaker === firstSpeaker || speaker === ''
+    const color = isFirstSpeaker ? 'text-charcoal' : 'text-[#f39c12]'
+
+    elements.push(
+      <span key={idx} className={color}>
+        {text}{' '}
+      </span>
+    )
+  })
+
+  return elements
+}
+
 export function TranscriptDisplay({
   transcriptText,
   redactionConfigUsed,
   transcriptData,
-  interactionSummary,
-  interactionSegments,
-  interactionSegmentsAi,
 }: TranscriptDisplayProps) {
   const [copySuccess, setCopySuccess] = useState(false)
 
@@ -43,6 +106,12 @@ export function TranscriptDisplay({
     setCopySuccess(true)
     setTimeout(() => setCopySuccess(false), 2000)
   }
+
+  // Extract words and PII matches from transcript data
+  const words = (transcriptData?.words as Word[]) || []
+  const piiMatches = (transcriptData?.pii_matches as PiiMatch[]) || []
+
+  const colorCodedTranscript = buildColorCodedTranscript(words, piiMatches)
 
   return (
     <Card variant="elevated" padding="lg">
@@ -58,82 +127,32 @@ export function TranscriptDisplay({
         </button>
       </div>
 
-      {(interactionSummary || (interactionSegments && interactionSegments.length)) && (
-        <div className="mb-6 space-y-3">
-          {interactionSummary && (
-            <div className="p-4 rounded-md bg-midnight-blue bg-opacity-5 border border-midnight-blue border-opacity-10">
-              <Text className="font-medium text-midnight-blue">Sale Summary</Text>
-              <Text className="mt-1">{interactionSummary}</Text>
-            </div>
-          )}
-          {interactionSegmentsAi && interactionSegmentsAi.length > 0 && (
-            <div className="space-y-2">
-              <Text variant="muted" size="sm" className="uppercase tracking-wide">
-                AI Interactions
-              </Text>
-              <div className="space-y-3">
-                {interactionSegmentsAi.map((seg, idx) => (
-                  <div
-                    key={`${seg.start}-${seg.end}-${seg.label}-${idx}`}
-                    className="p-3 rounded-md border border-midnight-blue border-opacity-15 bg-white"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <Text className="text-xs font-semibold text-midnight-blue uppercase tracking-wide">
-                        {formatTimestamp(seg.start)} – {formatTimestamp(seg.end)}
-                      </Text>
-                      <span className="text-xxs px-2 py-1 rounded-full bg-midnight-blue text-white font-semibold">
-                        {seg.label}
-                      </span>
-                    </div>
-                    <Text className="mt-2 leading-relaxed">{seg.text}</Text>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {interactionSegments && interactionSegments.length > 0 && (
-            <div className="space-y-2">
-              <Text variant="muted" size="sm" className="uppercase tracking-wide">
-                Interactions
-              </Text>
-              <div className="space-y-3">
-                {interactionSegments.map((seg, idx) => (
-                  <div
-                    key={`${seg.start}-${seg.end}-${idx}`}
-                    className="p-3 rounded-md border border-gray-200 bg-gray-50"
-                  >
-                    <Text className="text-xs font-semibold text-midnight-blue uppercase tracking-wide">
-                      {formatTimestamp(seg.start)} – {formatTimestamp(seg.end)}
-                    </Text>
-                    {seg.summary && (
-                      <div className="mt-2 p-2 rounded-md bg-white border border-midnight-blue border-opacity-20">
-                        <Text className="text-xs font-semibold text-midnight-blue">Summary</Text>
-                        <Text className="leading-relaxed">{seg.summary}</Text>
-                      </div>
-                    )}
-                    <div className="mt-2">
-                      <Text className="text-xs font-semibold text-steel-gray">Transcript Snippet</Text>
-                      <Text className="mt-1 leading-relaxed">{seg.text}</Text>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+      {/* Continuous transcript with speaker color coding and timestamps */}
+      <div className="bg-gray-50 rounded-lg p-6 border border-gray-200 mb-4">
+        <div className="mb-3 flex gap-4 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-charcoal"></div>
+            <span className="text-steel-gray">Speaker 1</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-[#f39c12]"></div>
+            <span className="text-steel-gray">Speaker 2</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-3 rounded bg-midnight-blue"></div>
+            <span className="text-steel-gray">Timestamp</span>
+          </div>
         </div>
-      )}
-
-      <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-        <Text className="whitespace-pre-wrap leading-relaxed">
-          {transcriptText}
-        </Text>
+        <div className="leading-relaxed">
+          {colorCodedTranscript || transcriptText}
+        </div>
       </div>
 
       <div className="mt-6 p-4 bg-success-gold bg-opacity-5 rounded-md border border-success-gold border-opacity-20">
         <Text variant="muted" size="sm">
           <strong>Note:</strong> This transcript has been processed with PII redaction
           settings: <span className="font-medium text-success-gold">{redactionConfigUsed}</span>.
-          Sensitive information may have been removed or masked.
+          Sensitive information has been masked with [REDACTED].
         </Text>
       </div>
 
