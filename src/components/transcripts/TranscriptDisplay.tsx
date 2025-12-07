@@ -20,20 +20,6 @@ interface TranscriptDisplayProps {
   transcriptText: string
   redactionConfigUsed: string
   transcriptData: any
-  interactionSummary?: string | null
-  interactionSegments?: {
-    start: number
-    end: number
-    text: string
-    summary?: string | null
-    speaker?: string
-  }[]
-  interactionSegmentsAi?: {
-    start: number
-    end: number
-    label: string
-    text: string
-  }[]
 }
 
 function formatTimestamp(seconds: number) {
@@ -42,14 +28,15 @@ function formatTimestamp(seconds: number) {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
-function buildColorCodedTranscript(words: Word[], piiMatches: PiiMatch[]) {
+function buildColorCodedTranscript(
+  words: Word[],
+  piiMatches: PiiMatch[],
+  firstSpeaker: string
+) {
   if (!words || words.length === 0) return null
 
   const hasOverlap = (wordStart: number, wordEnd: number) =>
     piiMatches?.some((m) => wordStart < (m.end ?? 0) && wordEnd > (m.start ?? 0))
-
-  // Determine which speaker is "first" - the one who speaks first in the transcript
-  const firstSpeaker = words.find(w => w.speaker)?.speaker || 'A'
 
   const elements: JSX.Element[] = []
   let lastMinute = -1
@@ -60,14 +47,11 @@ function buildColorCodedTranscript(words: Word[], piiMatches: PiiMatch[]) {
     // Insert timestamp marker at the start of each new minute
     if (currentMinute > lastMinute) {
       if (lastMinute >= 0) {
-        // Add a line break before the timestamp (except for first one)
-        elements.push(
-          <br key={`br-${currentMinute}`} />
-        )
+        elements.push(<br key={`br-${currentMinute}-${idx}`} />)
       }
       elements.push(
         <span
-          key={`ts-${currentMinute}`}
+          key={`ts-${currentMinute}-${idx}`}
           className="inline-block bg-midnight-blue text-white text-xs px-2 py-1 rounded mr-2 my-1 font-mono"
         >
           {formatTimestamp(currentMinute * 60)}
@@ -79,13 +63,12 @@ function buildColorCodedTranscript(words: Word[], piiMatches: PiiMatch[]) {
     const isRedacted = hasOverlap(word.start, word.end)
     const text = isRedacted ? '[REDACTED]' : word.word
 
-    // Speaker detection - compare to first speaker
     const speaker = word.speaker || ''
     const isFirstSpeaker = speaker === firstSpeaker || speaker === ''
     const color = isFirstSpeaker ? 'text-charcoal' : 'text-[#f39c12]'
 
     elements.push(
-      <span key={idx} className={color}>
+      <span key={`word-${idx}`} className={color}>
         {text}{' '}
       </span>
     )
@@ -111,7 +94,10 @@ export function TranscriptDisplay({
   const words = (transcriptData?.words as Word[]) || []
   const piiMatches = (transcriptData?.pii_matches as PiiMatch[]) || []
 
-  const colorCodedTranscript = buildColorCodedTranscript(words, piiMatches)
+  // Determine first speaker for color coding
+  const firstSpeaker = words.find(w => w.speaker)?.speaker || 'A'
+
+  const colorCodedTranscript = buildColorCodedTranscript(words, piiMatches, firstSpeaker)
 
   return (
     <Card variant="elevated" padding="lg">
@@ -127,22 +113,24 @@ export function TranscriptDisplay({
         </button>
       </div>
 
+      {/* Legend */}
+      <div className="mb-4 flex gap-4 text-xs">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-charcoal"></div>
+          <span className="text-steel-gray">Speaker 1</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-[#f39c12]"></div>
+          <span className="text-steel-gray">Speaker 2</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-3 rounded bg-midnight-blue"></div>
+          <span className="text-steel-gray">Timestamp</span>
+        </div>
+      </div>
+
       {/* Continuous transcript with speaker color coding and timestamps */}
       <div className="bg-gray-50 rounded-lg p-6 border border-gray-200 mb-4">
-        <div className="mb-3 flex gap-4 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-charcoal"></div>
-            <span className="text-steel-gray">Speaker 1</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[#f39c12]"></div>
-            <span className="text-steel-gray">Speaker 2</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-3 rounded bg-midnight-blue"></div>
-            <span className="text-steel-gray">Timestamp</span>
-          </div>
-        </div>
         <div className="leading-relaxed">
           {colorCodedTranscript || transcriptText}
         </div>

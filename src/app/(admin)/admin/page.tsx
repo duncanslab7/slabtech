@@ -75,7 +75,7 @@ export default function AdminDashboard() {
         </Link>
 
         {/* Upload Card */}
-        <Link href="/" className="group">
+        <Link href="/upload" className="group">
           <Card variant="outlined" padding="lg" className="h-full transition-all hover:border-steel-gray hover:shadow-lg">
             <div className="flex items-start justify-between mb-4">
               <div className="p-3 rounded-lg bg-steel-gray bg-opacity-10">
@@ -100,6 +100,36 @@ export default function AdminDashboard() {
             </Heading>
             <Text variant="muted">
               Go to the upload form to process a new call recording
+            </Text>
+          </Card>
+        </Link>
+
+        {/* User Management Card */}
+        <Link href="/users" className="group">
+          <Card variant="outlined" padding="lg" className="h-full transition-all hover:border-midnight-blue hover:shadow-lg">
+            <div className="flex items-start justify-between mb-4">
+              <div className="p-3 rounded-lg bg-midnight-blue bg-opacity-10">
+                <svg
+                  className="h-6 w-6 text-midnight-blue"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                  />
+                </svg>
+              </div>
+              <span className="text-midnight-blue group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+            <Heading level={3} size="md" className="mb-2">
+              User Management
+            </Heading>
+            <Text variant="muted">
+              Create and manage user accounts, assign roles, and monitor login activity
             </Text>
           </Card>
         </Link>

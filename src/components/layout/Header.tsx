@@ -7,8 +7,9 @@ import { usePathname } from 'next/navigation';
 export const Header = () => {
   const pathname = usePathname();
 
-  // Don't show header on login page
-  if (pathname === '/login') {
+  // Don't show header on these pages (they have their own headers)
+  const hideHeaderPaths = ['/', '/login', '/user/login'];
+  if (hideHeaderPaths.includes(pathname)) {
     return null;
   }
 

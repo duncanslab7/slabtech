@@ -23,6 +23,8 @@ export default function DashboardPage() {
   const [transcripts, setTranscripts] = useState<Transcript[]>([])
   const [selectedTab, setSelectedTab] = useState<string>('all')
   const [loading, setLoading] = useState(true)
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -68,6 +70,31 @@ export default function DashboardPage() {
   // Get count for each salesperson
   const getCount = (spId: string) => {
     return transcripts.filter((t) => t.salesperson_id === spId).length
+  }
+
+  // Handle delete transcript
+  const handleDelete = async (id: string) => {
+    setDeleting(true)
+    try {
+      const response = await fetch(`/api/admin/transcripts/${id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        alert(`Failed to delete transcript: ${data.error || 'Unknown error'}`)
+        return
+      }
+
+      // Remove from local state
+      setTranscripts((prev) => prev.filter((t) => t.id !== id))
+      setDeleteConfirm(null)
+    } catch (error) {
+      console.error('Error deleting transcript:', error)
+      alert('Failed to delete transcript')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   if (loading) {
@@ -220,15 +247,26 @@ export default function DashboardPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <Link
-                          href={`/transcripts/${transcript.id}`}
-                          className="text-purple-400 hover:text-purple-300 transition-colors font-medium text-sm inline-flex items-center gap-1"
-                        >
-                          View Details
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </Link>
+                        <div className="flex items-center justify-end gap-3">
+                          <Link
+                            href={`/transcripts/${transcript.id}`}
+                            className="text-purple-400 hover:text-purple-300 transition-colors font-medium text-sm inline-flex items-center gap-1"
+                          >
+                            View Details
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </Link>
+                          <button
+                            onClick={() => setDeleteConfirm(transcript.id)}
+                            className="text-red-400 hover:text-red-300 transition-colors p-2 hover:bg-red-500/10 rounded-lg"
+                            title="Delete transcript"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -253,6 +291,49 @@ export default function DashboardPage() {
             Back to Admin
           </Link>
         </div>
+
+        {/* Delete Confirmation Modal */}
+        {deleteConfirm && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl border border-white/20 shadow-2xl max-w-md w-full p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">Delete Transcript</h3>
+                  <p className="text-purple-300 text-sm">This action cannot be undone</p>
+                </div>
+              </div>
+
+              <p className="text-purple-200 mb-6">
+                Are you sure you want to delete this transcript?{' '}
+                <span className="font-medium text-white">
+                  {transcripts.find((t) => t.id === deleteConfirm)?.original_filename}
+                </span>
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteConfirm(null)}
+                  disabled={deleting}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium transition-all border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDelete(deleteConfirm)}
+                  disabled={deleting}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-medium transition-all shadow-lg shadow-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

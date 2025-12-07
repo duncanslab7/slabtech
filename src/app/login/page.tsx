@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -26,8 +27,25 @@ export default function LoginPage() {
 
       if (error) throw error
 
-      // Successfully logged in, redirect to admin
-      router.push('/admin')
+      // Log the login for tracking
+      await fetch('/api/auth/log-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      // Check user role and redirect accordingly
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .single()
+
+      if (profile?.role === 'admin') {
+        router.push('/admin')
+      } else {
+        // Regular users go to user dashboard
+        router.push('/user/dashboard')
+      }
       router.refresh()
     } catch (error: any) {
       setMessage({
@@ -39,13 +57,23 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 px-4 py-12 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen items-center justify-center bg-pure-white px-4 py-12 sm:px-6 lg:px-8">
       <div className="w-full max-w-md space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-heading-xl text-midnight-blue">
+        <div className="text-center">
+          <Link href="/">
+            <Image
+              src="/slab-logo.png"
+              alt="SLAB"
+              width={100}
+              height={100}
+              className="h-[100px] w-auto mx-auto hover:opacity-80 transition-opacity"
+              priority
+            />
+          </Link>
+          <h2 className="mt-6 text-heading-xl text-midnight-blue">
             Admin Login
           </h2>
-          <p className="mt-2 text-center text-sm text-steel-gray">
+          <p className="mt-2 text-sm text-steel-gray">
             Sign in to access the Slab Voice admin panel
           </p>
         </div>
@@ -164,9 +192,9 @@ export default function LoginPage() {
         <div className="text-center">
           <Link
             href="/"
-            className="text-sm text-midnight-blue hover:text-steel-gray font-medium transition-colors"
+            className="text-sm text-steel-gray hover:text-success-gold transition-colors"
           >
-            ← Back to Upload
+            &larr; Back to Home
           </Link>
         </div>
       </div>
