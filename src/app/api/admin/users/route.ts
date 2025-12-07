@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server';
+import { createServiceRoleClient } from '@/utils/supabase/service-role';
 import { NextRequest, NextResponse } from 'next/server';
 
 // GET all users (admin only)
@@ -6,7 +7,7 @@ export async function GET() {
   try {
     const supabase = await createClient();
 
-    // Verify admin
+    // Verify admin using regular client (can read own profile)
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -22,8 +23,9 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Fetch all users
-    const { data: users, error } = await supabase
+    // Use service role client to fetch all users (bypasses RLS)
+    const serviceSupabase = createServiceRoleClient();
+    const { data: users, error } = await serviceSupabase
       .from('user_profiles')
       .select('*')
       .order('created_at', { ascending: false });
@@ -71,16 +73,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
     }
 
-    // Use regular signup since we don't have admin API access
-    const { data: signupData, error: signupError } = await supabase.auth.signUp({
+    // Use service role client to create user (bypasses email confirmation)
+    // Note: The database trigger 'handle_new_user' will automatically create the user_profile
+    const serviceSupabase = createServiceRoleClient();
+    const { data: signupData, error: signupError } = await serviceSupabase.auth.admin.createUser({
       email,
       password,
-      options: {
-        emailRedirectTo: `${request.nextUrl.origin}/user/login`,
-        data: {
-          display_name: displayName || email,
-          role: role || 'user',
-        },
+      email_confirm: true, // Auto-confirm the email
+      user_metadata: {
+        display_name: displayName || email,
+        role: role || 'user',
       },
     });
 
@@ -92,26 +94,24 @@ export async function POST(request: NextRequest) {
       throw new Error('Failed to create user');
     }
 
-    // Manually create the profile (trigger may not work)
-    // Use rpc to bypass RLS if needed
-    try {
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .insert({
-          id: signupData.user.id,
-          email: email,
-          display_name: displayName || email,
-          role: role || 'user',
-          created_by: user.id,
-          is_active: true,
-        });
+    // Wait a moment for the trigger to complete
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-      if (profileError) {
-        console.error('Error creating profile:', profileError);
-        // Continue anyway - the trigger might have created it
+    // Verify the profile was created by the trigger
+    const { data: profileCheck, error: profileCheckError } = await serviceSupabase
+      .from('user_profiles')
+      .select('id, email, role')
+      .eq('id', signupData.user.id)
+      .single();
+
+    if (profileCheckError || !profileCheck) {
+      // If profile wasn't created, clean up the auth user
+      try {
+        await serviceSupabase.auth.admin.deleteUser(signupData.user.id);
+      } catch (cleanupError) {
+        console.error('Failed to cleanup user after profile creation failure:', cleanupError);
       }
-    } catch (err) {
-      console.error('Profile creation error:', err);
+      throw new Error('Profile was not created automatically. Please check database triggers.');
     }
 
     return NextResponse.json({

@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server';
+import { createServiceRoleClient } from '@/utils/supabase/service-role';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Helper to verify admin access
@@ -35,8 +36,11 @@ export async function GET(
       return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status });
     }
 
+    // Use service role client to fetch user data (bypasses RLS)
+    const serviceSupabase = createServiceRoleClient();
+
     // Get user profile
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await serviceSupabase
       .from('user_profiles')
       .select('*')
       .eq('id', id)
@@ -47,7 +51,7 @@ export async function GET(
     }
 
     // Get login history
-    const { data: loginHistory } = await supabase
+    const { data: loginHistory } = await serviceSupabase
       .from('login_logs')
       .select('*')
       .eq('user_id', id)
@@ -55,7 +59,7 @@ export async function GET(
       .limit(50);
 
     // Get assigned transcripts
-    const { data: assignments } = await supabase
+    const { data: assignments } = await serviceSupabase
       .from('transcript_assignments')
       .select(`
         id,
@@ -113,7 +117,9 @@ export async function PATCH(
 
     updates.updated_at = new Date().toISOString();
 
-    const { data, error } = await supabase
+    // Use service role client to update (bypasses RLS)
+    const serviceSupabase = createServiceRoleClient();
+    const { data, error } = await serviceSupabase
       .from('user_profiles')
       .update(updates)
       .eq('id', id)
@@ -150,22 +156,30 @@ export async function DELETE(
       return NextResponse.json({ error: 'Cannot delete your own account' }, { status: 400 });
     }
 
+    // Use service role client to delete (bypasses RLS)
+    const serviceSupabase = createServiceRoleClient();
+
+    // Delete from auth first (this is the critical step)
+    try {
+      const { error: authError } = await serviceSupabase.auth.admin.deleteUser(id);
+      if (authError) {
+        console.error('Auth deletion error:', authError);
+        throw new Error(`Failed to delete user from auth: ${authError.message}`);
+      }
+    } catch (authError: any) {
+      console.error('Could not delete user from auth:', authError);
+      throw new Error(`Failed to delete user from authentication system: ${authError.message || 'Unknown error'}`);
+    }
+
     // Delete user profile (cascade will handle assignments and logs)
-    const { error: profileError } = await supabase
+    const { error: profileError } = await serviceSupabase
       .from('user_profiles')
       .delete()
       .eq('id', id);
 
     if (profileError) {
+      console.error('Profile deletion error:', profileError);
       throw profileError;
-    }
-
-    // Try to delete from auth (requires admin API)
-    try {
-      await supabase.auth.admin.deleteUser(id);
-    } catch (authError) {
-      console.warn('Could not delete user from auth:', authError);
-      // Continue anyway - profile is deleted
     }
 
     return NextResponse.json({ success: true });

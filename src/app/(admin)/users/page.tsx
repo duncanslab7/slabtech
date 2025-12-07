@@ -32,6 +32,9 @@ export default function UserManagementPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
+  const [showCleanupModal, setShowCleanupModal] = useState(false);
+  const [orphanedUsers, setOrphanedUsers] = useState<any[]>([]);
+  const [cleanupLoading, setCleanupLoading] = useState(false);
 
   // Create user form
   const [newEmail, setNewEmail] = useState('');
@@ -137,6 +140,47 @@ export default function UserManagementPage() {
     }
   };
 
+  const handleCheckOrphanedUsers = async () => {
+    setCleanupLoading(true);
+    try {
+      const response = await fetch('/api/admin/cleanup-orphaned');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to check orphaned users');
+      }
+
+      setOrphanedUsers(data.orphanedUsers || []);
+      setShowCleanupModal(true);
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setCleanupLoading(false);
+    }
+  };
+
+  const handleCleanupOrphanedUsers = async () => {
+    setCleanupLoading(true);
+    try {
+      const response = await fetch('/api/admin/cleanup-orphaned', {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to cleanup orphaned users');
+      }
+
+      alert(data.message);
+      setShowCleanupModal(false);
+      setOrphanedUsers([]);
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setCleanupLoading(false);
+    }
+  };
+
   return (
     <Container maxWidth="xl" padding="lg">
       {/* Header */}
@@ -157,12 +201,21 @@ export default function UserManagementPage() {
           </Text>
         </div>
 
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 bg-success-gold text-white font-semibold rounded-lg hover:bg-amber-500 transition-colors"
-        >
-          + Create User
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={handleCheckOrphanedUsers}
+            disabled={cleanupLoading}
+            className="px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
+          >
+            {cleanupLoading ? 'Checking...' : 'Cleanup Orphaned'}
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2 bg-success-gold text-white font-semibold rounded-lg hover:bg-amber-500 transition-colors"
+          >
+            + Create User
+          </button>
+        </div>
       </div>
 
       {/* Users Table */}
@@ -391,6 +444,77 @@ export default function UserManagementPage() {
               >
                 Delete
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cleanup Orphaned Users Modal */}
+      {showCleanupModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6">
+            <h2 className="text-xl font-bold text-midnight-blue mb-4">Orphaned Users Cleanup</h2>
+
+            {orphanedUsers.length === 0 ? (
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4">
+                No orphaned users found. All auth users have corresponding profiles.
+              </div>
+            ) : (
+              <>
+                <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg mb-4">
+                  Found {orphanedUsers.length} orphaned user(s) - users in auth without profiles.
+                </div>
+
+                <div className="max-h-64 overflow-y-auto mb-4">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Confirmed</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {orphanedUsers.map((user) => (
+                        <tr key={user.id}>
+                          <td className="px-4 py-2 text-sm text-gray-900">{user.email}</td>
+                          <td className="px-4 py-2 text-sm text-gray-500">
+                            {new Date(user.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="px-4 py-2 text-sm">
+                            {user.email_confirmed_at ? (
+                              <span className="text-green-600">Yes</span>
+                            ) : (
+                              <span className="text-gray-400">No</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowCleanupModal(false);
+                  setOrphanedUsers([]);
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Close
+              </button>
+              {orphanedUsers.length > 0 && (
+                <button
+                  onClick={handleCleanupOrphanedUsers}
+                  disabled={cleanupLoading}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 disabled:opacity-50"
+                >
+                  {cleanupLoading ? 'Cleaning...' : `Delete ${orphanedUsers.length} User(s)`}
+                </button>
+              )}
             </div>
           </div>
         </div>

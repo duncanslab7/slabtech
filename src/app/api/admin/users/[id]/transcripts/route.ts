@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server';
+import { createServiceRoleClient } from '@/utils/supabase/service-role';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Helper to verify admin access
@@ -42,8 +43,11 @@ export async function POST(
       return NextResponse.json({ error: 'No transcripts specified' }, { status: 400 });
     }
 
+    // Use service role client to bypass RLS
+    const serviceSupabase = createServiceRoleClient();
+
     // Verify user exists
-    const { data: targetUser } = await supabase
+    const { data: targetUser } = await serviceSupabase
       .from('user_profiles')
       .select('id')
       .eq('id', userId)
@@ -60,7 +64,7 @@ export async function POST(
       assigned_by: adminCheck.user.id,
     }));
 
-    const { error: assignError } = await supabase
+    const { error: assignError } = await serviceSupabase
       .from('transcript_assignments')
       .upsert(assignments, {
         onConflict: 'transcript_id,user_id',
@@ -92,7 +96,10 @@ export async function GET(
       return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status });
     }
 
-    const { data: assignments, error } = await supabase
+    // Use service role client to bypass RLS
+    const serviceSupabase = createServiceRoleClient();
+
+    const { data: assignments, error } = await serviceSupabase
       .from('transcript_assignments')
       .select(`
         id,
