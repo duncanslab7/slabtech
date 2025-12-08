@@ -5,10 +5,10 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { VideoIntro } from '@/components/VideoIntro';
 
-// Video URL - update after uploading to Supabase Storage
+// Video URL - served from public folder
 const INTRO_VIDEO_URL = '/intro-video.mp4';
-// Set to false to disable video intro until video is uploaded
-const ENABLE_VIDEO_INTRO = false;
+// Set to true to enable video intro
+const ENABLE_VIDEO_INTRO = true;
 
 export default function HomePage() {
   const [showIntro, setShowIntro] = useState(false);
