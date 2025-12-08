@@ -1,6 +1,26 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
+// Helper to verify admin access
+async function verifyAdmin(supabase: any) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: 'Unauthorized', status: 401 }
+  }
+
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'admin') {
+    return { error: 'Forbidden', status: 403 }
+  }
+
+  return { user, profile }
+}
+
 // PUT /api/admin/salespeople/[id] - Update a salesperson
 export async function PUT(
   request: NextRequest,
@@ -10,14 +30,10 @@ export async function PUT(
     const supabase = await createClient()
     const { id } = await params
 
-    // Check if user is authenticated
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Verify admin access
+    const adminCheck = await verifyAdmin(supabase)
+    if ('error' in adminCheck) {
+      return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status })
     }
 
     const body = await request.json()
@@ -69,14 +85,10 @@ export async function DELETE(
     const supabase = await createClient()
     const { id } = await params
 
-    // Check if user is authenticated
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Verify admin access
+    const adminCheck = await verifyAdmin(supabase)
+    if ('error' in adminCheck) {
+      return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status })
     }
 
     // Check if this is the "Misc" salesperson (can't delete it)

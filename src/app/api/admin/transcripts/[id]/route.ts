@@ -7,20 +7,36 @@ interface RouteContext {
   }>
 }
 
+// Helper to verify admin access
+async function verifyAdmin(supabase: any) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: 'Unauthorized', status: 401 }
+  }
+
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'admin') {
+    return { error: 'Forbidden', status: 403 }
+  }
+
+  return { user, profile }
+}
+
 // DELETE /api/admin/transcripts/[id] - Delete a transcript
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params
     const supabase = await createClient()
 
-    // Check if user is authenticated
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Verify admin access
+    const adminCheck = await verifyAdmin(supabase)
+    if ('error' in adminCheck) {
+      return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status })
     }
 
     // Get transcript to find audio files

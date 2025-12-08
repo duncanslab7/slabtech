@@ -294,68 +294,69 @@ export async function POST(request: NextRequest) {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'slab-redact-'))
     const inputPath = path.join(tmpDir, 'input.mp3')
     const outputPath = path.join(tmpDir, 'redacted.mp3')
-    await fs.writeFile(inputPath, audioBuffer)
 
     try {
+      await fs.writeFile(inputPath, audioBuffer)
       await runFfmpegBleep(inputPath, outputPath, piiMatches)
-    } catch (e) {
-      console.error('ffmpeg redaction error:', e)
-      return NextResponse.json({ error: 'Audio redaction failed' }, { status: 500 })
-    }
+      const redactedBuffer = await fs.readFile(outputPath)
 
-    const redactedBuffer = await fs.readFile(outputPath)
+      // 7) Upload redacted audio to Supabase storage
+      const redactedFilePath = `redacted/${filePath}`
+      const { error: redactedUploadError } = await supabase.storage
+        .from('call-recordings')
+        .upload(redactedFilePath, redactedBuffer, {
+          contentType,
+          upsert: true,
+        })
 
-    // 7) Upload redacted audio to Supabase storage
-    const redactedFilePath = `redacted/${filePath}`
-    const { error: redactedUploadError } = await supabase.storage
-      .from('call-recordings')
-      .upload(redactedFilePath, redactedBuffer, {
-        contentType,
-        upsert: true,
+      if (redactedUploadError) {
+        console.error('Redacted audio upload error:', redactedUploadError)
+      }
+
+      // 8) Get salesperson name for backwards compatibility
+      const { data: salespersonData } = await supabase
+        .from('salespeople')
+        .select('name')
+        .eq('id', salespersonId)
+        .single()
+
+      const salespersonName = salespersonData?.name || 'Unknown'
+
+      // 9) Save transcript + redaction metadata
+      const { data: transcriptData, error: transcriptError } = await supabase
+        .from('transcripts')
+        .insert({
+          salesperson_id: salespersonId,
+          salesperson_name: salespersonName,
+          original_filename: originalFilename,
+          file_storage_path: filePath,
+          transcript_redacted: {
+            text: transcript.text,
+            words,
+            pii_matches: piiMatches,
+            redacted_file_storage_path: redactedFilePath,
+          },
+          redaction_config_used: piiFields,
+        })
+        .select()
+        .single()
+
+      if (transcriptError) {
+        console.error('Database insert error:', transcriptError)
+        return NextResponse.json({ error: 'Failed to save transcript to database' }, { status: 500 })
+      }
+
+      return NextResponse.json({
+        success: true,
+        transcriptId: transcriptData.id,
+        message: 'Audio processed and redacted successfully',
       })
-
-    if (redactedUploadError) {
-      console.error('Redacted audio upload error:', redactedUploadError)
-    }
-
-    // 8) Get salesperson name for backwards compatibility
-    const { data: salespersonData } = await supabase
-      .from('salespeople')
-      .select('name')
-      .eq('id', salespersonId)
-      .single()
-
-    const salespersonName = salespersonData?.name || 'Unknown'
-
-    // 9) Save transcript + redaction metadata
-    const { data: transcriptData, error: transcriptError } = await supabase
-      .from('transcripts')
-      .insert({
-        salesperson_id: salespersonId,
-        salesperson_name: salespersonName,
-        original_filename: originalFilename,
-        file_storage_path: filePath,
-        transcript_redacted: {
-          text: transcript.text,
-          words,
-          pii_matches: piiMatches,
-          redacted_file_storage_path: redactedFilePath,
-        },
-        redaction_config_used: piiFields,
+    } finally {
+      // Always clean up temporary files
+      await fs.rm(tmpDir, { recursive: true, force: true }).catch((err) => {
+        console.error('Failed to clean up temp directory:', err)
       })
-      .select()
-      .single()
-
-    if (transcriptError) {
-      console.error('Database insert error:', transcriptError)
-      return NextResponse.json({ error: 'Failed to save transcript to database' }, { status: 500 })
     }
-
-    return NextResponse.json({
-      success: true,
-      transcriptId: transcriptData.id,
-      message: 'Audio processed and redacted successfully',
-    })
   } catch (error: any) {
     console.error('Unexpected error:', error)
     return NextResponse.json(
