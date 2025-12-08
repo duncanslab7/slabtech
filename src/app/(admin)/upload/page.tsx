@@ -201,7 +201,6 @@ export default function AdminUploadPage() {
                 <input
                   id="file-upload"
                   type="file"
-                  accept="audio/*,.mp3"
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                   onChange={(e) => {
                     const selectedFile = e.target.files?.[0];

@@ -22,7 +22,7 @@ type AssemblyAIWord = {
 
 type AssemblyAITranscript = {
   id: string
-  status: 'queued' | 'processing' | 'completed' | 'error'
+  status: 'queued' | 'processing' | 'completed' | 'error' | 'terminated'
   text: string
   words: AssemblyAIWord[]
   error?: string
@@ -200,8 +200,9 @@ async function pollTranscript(transcriptId: string, apiKey: string): Promise<Ass
 
     if (transcript.status === 'completed') {
       return transcript
-    } else if (transcript.status === 'error') {
-      throw new Error(`AssemblyAI transcription error: ${transcript.error}`)
+    } else if (transcript.status === 'error' || transcript.status === 'terminated') {
+      const errorMsg = transcript.error || 'Transcription was terminated by AssemblyAI'
+      throw new Error(`AssemblyAI transcription failed: ${errorMsg}. This may happen if the audio format is unsupported or corrupted.`)
     }
 
     // Wait before polling again
