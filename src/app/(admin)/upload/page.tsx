@@ -87,7 +87,7 @@ export default function AdminUploadPage() {
                 </button>
 
                 {dropdownOpen && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                  <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
                     {salespeople.map((sp) => (
                       <button
                         key={sp.id}
