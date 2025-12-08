@@ -6,6 +6,7 @@ import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
 
 import { detectPiiMatches, PiiMatch } from '@/utils/pii'
 import { createClient } from '@/utils/supabase/server'
+import { checkRateLimit } from '@/utils/rateLimit'
 import { NextRequest, NextResponse } from 'next/server'
 
 // Route segment config to allow large file uploads
@@ -231,6 +232,45 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await createClient()
+
+    // Check authentication and get user role
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Get user profile to check if admin
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    const isAdmin = profile?.role === 'admin'
+
+    // Apply rate limiting for non-admin users (10 uploads per hour)
+    if (!isAdmin) {
+      const rateLimitResult = checkRateLimit(user.id, 10, 60 * 60 * 1000) // 10 requests per hour
+
+      if (!rateLimitResult.allowed) {
+        const minutes = Math.ceil(rateLimitResult.retryAfter! / 60)
+        return NextResponse.json(
+          {
+            error: `Upload limit reached. You can upload again in ${minutes} minute${minutes !== 1 ? 's' : ''}.`,
+            retryAfter: rateLimitResult.retryAfter,
+          },
+          {
+            status: 429,
+            headers: {
+              'Retry-After': rateLimitResult.retryAfter!.toString(),
+              'X-RateLimit-Limit': '10',
+              'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+              'X-RateLimit-Reset': new Date(rateLimitResult.resetTime).toISOString(),
+            },
+          }
+        )
+      }
+    }
 
     // 1) Signed URL for the uploaded audio
     const { data: signedUrlData, error: signedUrlError } = await supabase.storage
