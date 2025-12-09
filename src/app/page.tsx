@@ -30,7 +30,8 @@ export default function HomePage() {
     setShowIntro(false);
   };
 
-  if (isLoading) {
+  // Don't show loading screen if video intro is enabled
+  if (isLoading && !ENABLE_VIDEO_INTRO) {
     return (
       <div className="min-h-screen bg-pure-white flex items-center justify-center">
         <div className="animate-pulse">
