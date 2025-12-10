@@ -195,27 +195,29 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
   return (
     <Container maxWidth="xl" padding="lg">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <Link href="/users" className="text-steel-gray hover:text-midnight-blue">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </Link>
-        <div>
-          <Heading level={1} size="xl">
-            {profile.display_name || profile.email}
-          </Heading>
-          <Text variant="muted">{profile.email}</Text>
+      <div className="mb-6">
+        <div className="flex items-center gap-4 mb-4">
+          <Link href="/users" className="text-steel-gray hover:text-midnight-blue">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Link>
+          <div className="flex-1 min-w-0">
+            <Heading level={1} size="xl" className="truncate">
+              {profile.display_name || profile.email}
+            </Heading>
+            <Text variant="muted" className="truncate">{profile.email}</Text>
+          </div>
         </div>
-        <div className="ml-auto flex gap-2">
-          <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+        <div className="flex gap-2 flex-wrap">
+          <span className={`px-3 py-1 text-xs sm:text-sm font-medium rounded-full ${
             profile.role === 'admin'
               ? 'bg-purple-100 text-purple-700'
               : 'bg-blue-100 text-blue-700'
           }`}>
             {profile.role}
           </span>
-          <span className={`px-3 py-1 text-sm font-medium rounded-full ${
+          <span className={`px-3 py-1 text-xs sm:text-sm font-medium rounded-full ${
             profile.is_active
               ? 'bg-green-100 text-green-700'
               : 'bg-gray-100 text-gray-700'
@@ -226,13 +228,13 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 mb-6">
-        <div className="flex gap-8">
+      <div className="border-b border-gray-200 mb-6 overflow-x-auto">
+        <div className="flex gap-4 sm:gap-8 min-w-max sm:min-w-0">
           {(['details', 'transcripts', 'activity'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`py-3 px-1 border-b-2 font-medium capitalize transition-colors ${
+              className={`py-3 px-1 border-b-2 font-medium capitalize transition-colors text-sm sm:text-base whitespace-nowrap ${
                 activeTab === tab
                   ? 'border-success-gold text-success-gold'
                   : 'border-transparent text-steel-gray hover:text-midnight-blue'

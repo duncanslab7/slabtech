@@ -184,34 +184,32 @@ export default function UserManagementPage() {
   return (
     <Container maxWidth="xl" padding="lg">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <div className="flex items-center gap-4 mb-2">
-            <Link href="/admin" className="text-steel-gray hover:text-midnight-blue">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </Link>
-            <Heading level={1} size="xl">
-              User Management
-            </Heading>
-          </div>
-          <Text variant="muted">
-            Create, manage, and monitor user accounts
-          </Text>
+      <div className="mb-6 sm:mb-8">
+        <div className="flex items-center gap-4 mb-2">
+          <Link href="/admin" className="text-steel-gray hover:text-midnight-blue">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Link>
+          <Heading level={1} size="xl">
+            User Management
+          </Heading>
         </div>
+        <Text variant="muted" className="mb-4">
+          Create, manage, and monitor user accounts
+        </Text>
 
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <button
             onClick={handleCheckOrphanedUsers}
             disabled={cleanupLoading}
-            className="px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
+            className="px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 text-sm sm:text-base"
           >
             {cleanupLoading ? 'Checking...' : 'Cleanup Orphaned'}
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-success-gold text-white font-semibold rounded-lg hover:bg-amber-500 transition-colors"
+            className="px-4 py-2 bg-success-gold text-white font-semibold rounded-lg hover:bg-amber-500 transition-colors text-sm sm:text-base"
           >
             + Create User
           </button>
@@ -228,8 +226,97 @@ export default function UserManagementPage() {
           <Text variant="muted">No users found. Create your first user to get started.</Text>
         </Card>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
+        <>
+          {/* Horizontal Scroll Indicator */}
+          <div className="mb-4 flex items-center justify-center gap-2 text-xs text-steel-gray lg:hidden">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
+            </svg>
+            <span>Swipe to see more</span>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+            </svg>
+          </div>
+
+          {/* Mobile Card Layout */}
+          <div className="lg:hidden space-y-4">
+            {users.map((user) => (
+              <Card key={user.user_id} variant="outlined" padding="md" className={user.is_suspicious ? 'border-red-300 bg-red-50' : ''}>
+                <div className="space-y-3">
+                  {/* User Info */}
+                  <div>
+                    <div className="font-semibold text-midnight-blue flex items-center gap-2 flex-wrap">
+                      {user.display_name || user.email}
+                      {user.is_suspicious && (
+                        <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded-full">
+                          Suspicious
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm text-steel-gray">{user.email}</div>
+                  </div>
+
+                  {/* Badges */}
+                  <div className="flex flex-wrap gap-2">
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                      user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {user.role}
+                    </span>
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                      user.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                    }`}>
+                      {user.is_active ? 'Active' : 'Disabled'}
+                    </span>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-steel-gray text-xs">Logins (7 days)</div>
+                      <div className="font-medium">{user.logins_last_7_days}</div>
+                    </div>
+                    <div>
+                      <div className="text-steel-gray text-xs">Last Login</div>
+                      <div className="font-medium">
+                        {user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-2 border-t">
+                    <Link
+                      href={`/users/${user.user_id}`}
+                      className="flex-1 text-center px-3 py-2 bg-success-gold text-white text-sm font-medium rounded-lg hover:bg-amber-500"
+                    >
+                      Manage
+                    </Link>
+                    <button
+                      onClick={() => handleToggleActive(user.user_id, user.is_active)}
+                      className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg border ${
+                        user.is_active
+                          ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                          : 'border-green-300 text-green-700 hover:bg-green-50'
+                      }`}
+                    >
+                      {user.is_active ? 'Disable' : 'Enable'}
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteModal(user.user_id)}
+                      className="px-3 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {/* Desktop Table Layout */}
+          <div className="hidden lg:block bg-white rounded-lg shadow overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -330,6 +417,7 @@ export default function UserManagementPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {/* Create User Modal */}
