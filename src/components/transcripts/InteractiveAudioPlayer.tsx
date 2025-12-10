@@ -347,23 +347,30 @@ export function InteractiveAudioPlayer({
         </div>
 
         {/* Legend */}
-        <div className="mb-4 flex gap-4 text-xs flex-wrap">
-          {hasSpeakerLabels && (
-            <>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-charcoal"></div>
-                <span className="text-steel-gray">Speaker 1</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[#f39c12]"></div>
-                <span className="text-steel-gray">Speaker 2</span>
-              </div>
-            </>
-          )}
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-success-gold bg-opacity-30"></div>
-            <span className="text-steel-gray">Currently playing</span>
+        <div className="mb-4">
+          <div className="flex gap-4 text-xs flex-wrap mb-2">
+            {hasSpeakerLabels && (
+              <>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-charcoal"></div>
+                  <span className="text-steel-gray">Speaker 1</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[#f39c12]"></div>
+                  <span className="text-steel-gray">Speaker 2</span>
+                </div>
+              </>
+            )}
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-success-gold bg-opacity-30"></div>
+              <span className="text-steel-gray">Currently playing</span>
+            </div>
           </div>
+          {hasSpeakerLabels && (
+            <div className="text-xs text-gray-500 italic">
+              Note: Speaker detection is automated and may not be 100% accurate, especially with background noise or overlapping speech.
+            </div>
+          )}
         </div>
 
         {/* Scrollable Transcript */}
