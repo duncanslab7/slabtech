@@ -154,6 +154,57 @@ export function InteractiveAudioPlayer({
       {/* Hidden audio element */}
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
 
+      {/* Sticky Floating Audio Controls (Bottom) */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-midnight-blue shadow-2xl border-t-2 border-success-gold md:hidden">
+        <div className="max-w-4xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-center gap-4">
+            {/* Skip Backward */}
+            <button
+              onClick={skipBackward}
+              className="p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+              title="Skip backward 10s"
+            >
+              <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
+              </svg>
+            </button>
+
+            {/* Play/Pause */}
+            <button
+              onClick={togglePlayPause}
+              className="p-4 rounded-full bg-success-gold hover:bg-success-gold/90 transition-colors shadow-lg"
+            >
+              {isPlaying ? (
+                <svg className="w-7 h-7 text-midnight-blue" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                </svg>
+              ) : (
+                <svg className="w-7 h-7 text-midnight-blue" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              )}
+            </button>
+
+            {/* Skip Forward */}
+            <button
+              onClick={skipForward}
+              className="p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+              title="Skip forward 10s"
+            >
+              <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4zM19.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.333-4z" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Time Display */}
+          <div className="flex justify-between text-xs text-success-gold font-mono mt-2">
+            <span>{formatTime(currentTime)}</span>
+            <span>{formatTime(duration)}</span>
+          </div>
+        </div>
+      </div>
+
       {/* Audio Controls */}
       <Card variant="elevated" padding="lg">
         <div className="space-y-4">
@@ -282,7 +333,7 @@ export function InteractiveAudioPlayer({
         </div>
 
         {/* Scrollable Transcript */}
-        <div className="bg-gray-50 rounded-lg p-6 border border-gray-200 max-h-[600px] overflow-y-auto">
+        <div className="bg-gray-50 rounded-lg p-6 border border-gray-200 max-h-[600px] overflow-y-auto pb-24 md:pb-6">
           <div className="leading-relaxed select-text">
             {words.map((word, idx) => {
               const isRedacted = hasOverlap(word.start, word.end)
