@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/utils/supabase/client';
+import { InteractiveAudioPlayer } from '@/components/transcripts/InteractiveAudioPlayer';
 
 interface TranscriptData {
   id: string;
@@ -240,35 +241,63 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
             </div>
           </div>
 
-          {/* Audio Player */}
-          {audioUrl && (
-            <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-b">
-              <p className="text-xs sm:text-sm font-medium text-midnight-blue mb-2">Listen to Recording</p>
-              <audio
-                controls
-                className="w-full h-10 sm:h-12"
-                controlsList="nodownload"
-                src={audioUrl}
-              >
-                Your browser does not support the audio element.
-              </audio>
-              <p className="text-xs text-gray-500 mt-1">
-                Audio playback only. Downloads are disabled.
-              </p>
-              <p className="text-xs text-success-gold mt-2 font-medium">
-                💡 Tip: Swipe left/right on the audio player to seek, or pinch to adjust volume
-              </p>
-            </div>
-          )}
-
-          {/* Transcript Content */}
+          {/* Interactive Audio Player & Transcript */}
           <div className="px-4 sm:px-6 py-4 sm:py-6">
-            <h2 className="text-base sm:text-lg font-semibold text-midnight-blue mb-3 sm:mb-4">Transcript</h2>
-            <div className="prose prose-sm sm:prose max-w-none overflow-x-auto">
-              <div className="min-w-0 break-words">
-                {formatTranscript()}
+            {audioUrl && transcript?.transcript_redacted ? (
+              <>
+                {(() => {
+                  const data = transcript.transcript_redacted as any;
+                  const words = data.words || [];
+                  const piiMatches = data.pii_matches || [];
+
+                  // If we have word-level data, use interactive player
+                  if (words.length > 0) {
+                    return (
+                      <InteractiveAudioPlayer
+                        audioUrl={audioUrl}
+                        words={words}
+                        piiMatches={piiMatches}
+                        originalFilename={transcript.original_filename}
+                        hideDownload={true}
+                      />
+                    );
+                  }
+
+                  // Fallback to basic player with transcript below
+                  return (
+                    <>
+                      <div className="mb-6 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                        <p className="text-xs sm:text-sm font-medium text-midnight-blue mb-2">Listen to Recording</p>
+                        <audio
+                          controls
+                          className="w-full h-10 sm:h-12"
+                          controlsList="nodownload"
+                          src={audioUrl}
+                        >
+                          Your browser does not support the audio element.
+                        </audio>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Audio playback only. Downloads are disabled.
+                        </p>
+                      </div>
+
+                      <div>
+                        <h2 className="text-base sm:text-lg font-semibold text-midnight-blue mb-3 sm:mb-4">Transcript</h2>
+                        <div className="prose prose-sm sm:prose max-w-none overflow-x-auto">
+                          <div className="min-w-0 break-words">
+                            {formatTranscript()}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </>
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                No audio or transcript available
               </div>
-            </div>
+            )}
           </div>
 
           {/* Metadata */}

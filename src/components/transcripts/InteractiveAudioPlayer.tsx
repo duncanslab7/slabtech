@@ -21,6 +21,7 @@ interface InteractiveAudioPlayerProps {
   words: Word[]
   piiMatches: PiiMatch[]
   originalFilename: string
+  hideDownload?: boolean
 }
 
 const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2]
@@ -36,6 +37,7 @@ export function InteractiveAudioPlayer({
   words,
   piiMatches,
   originalFilename,
+  hideDownload = false,
 }: InteractiveAudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -238,15 +240,17 @@ export function InteractiveAudioPlayer({
           </div>
 
           {/* Download Link */}
-          <div className="pt-4 border-t border-gray-200">
-            <a
-              href={audioUrl}
-              download={originalFilename}
-              className="block w-full text-center rounded-md bg-gray-100 px-4 py-2 text-midnight-blue hover:bg-gray-200 transition-colors text-sm font-medium"
-            >
-              Download Audio
-            </a>
-          </div>
+          {!hideDownload && (
+            <div className="pt-4 border-t border-gray-200">
+              <a
+                href={audioUrl}
+                download={originalFilename}
+                className="block w-full text-center rounded-md bg-gray-100 px-4 py-2 text-midnight-blue hover:bg-gray-200 transition-colors text-sm font-medium"
+              >
+                Download Audio
+              </a>
+            </div>
+          )}
         </div>
       </Card>
 
