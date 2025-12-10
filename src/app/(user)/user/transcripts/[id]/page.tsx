@@ -117,26 +117,37 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
   };
 
   const formatTranscript = () => {
-    if (!transcript?.transcript_redacted) return null;
+    if (!transcript?.transcript_redacted) {
+      return <p className="text-gray-500 italic">No transcript available</p>;
+    }
 
-    const data = transcript.transcript_redacted;
+    const data = transcript.transcript_redacted as any;
+
+    // Try to get text from various possible fields
+    if (data.text) {
+      return <p className="text-charcoal whitespace-pre-wrap leading-relaxed">{data.text}</p>;
+    }
+
+    if (data.redacted_text) {
+      return <p className="text-charcoal whitespace-pre-wrap leading-relaxed">{data.redacted_text}</p>;
+    }
 
     // If we have utterances (speaker diarization), use those
-    if (data.utterances && data.utterances.length > 0) {
-      return data.utterances.map((utterance, index) => (
+    if (data.utterances && Array.isArray(data.utterances) && data.utterances.length > 0) {
+      return data.utterances.map((utterance: any, index: number) => (
         <div key={index} className="mb-4">
           <span className="font-semibold text-success-gold">
             Speaker {utterance.speaker}:
           </span>
-          <p className="text-charcoal ml-4">{utterance.text}</p>
+          <p className="text-charcoal ml-4 leading-relaxed">{utterance.text}</p>
         </div>
       ));
     }
 
     // Fallback to words
-    if (data.words && data.words.length > 0) {
-      const text = data.words.map(w => w.text).join(' ');
-      return <p className="text-charcoal whitespace-pre-wrap">{text}</p>;
+    if (data.words && Array.isArray(data.words) && data.words.length > 0) {
+      const text = data.words.map((w: any) => w.text || w.word || '').join(' ');
+      return <p className="text-charcoal whitespace-pre-wrap leading-relaxed">{text}</p>;
     }
 
     return <p className="text-gray-500 italic">No transcript content available</p>;
@@ -198,11 +209,11 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
       </header>
 
       {/* Content */}
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {/* Back Link */}
         <Link
           href="/user/dashboard"
-          className="inline-flex items-center text-steel-gray hover:text-success-gold mb-6"
+          className="inline-flex items-center text-steel-gray hover:text-success-gold mb-4 sm:mb-6 text-sm sm:text-base"
         >
           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -213,9 +224,9 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
         {/* Transcript Info */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
           {/* Header */}
-          <div className="bg-midnight-blue text-white px-6 py-4">
-            <h1 className="text-xl font-bold">{transcript?.original_filename}</h1>
-            <div className="flex gap-6 mt-2 text-sm text-gray-300">
+          <div className="bg-midnight-blue text-white px-4 sm:px-6 py-3 sm:py-4">
+            <h1 className="text-base sm:text-xl font-bold break-words">{transcript?.original_filename}</h1>
+            <div className="flex flex-col sm:flex-row sm:gap-6 mt-2 text-xs sm:text-sm text-gray-300 gap-1">
               <span>
                 {transcript?.created_at
                   ? new Date(transcript.created_at).toLocaleDateString('en-US', {
@@ -231,11 +242,11 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
 
           {/* Audio Player */}
           {audioUrl && (
-            <div className="px-6 py-4 bg-gray-50 border-b">
-              <p className="text-sm font-medium text-midnight-blue mb-2">Listen to Recording</p>
+            <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-b">
+              <p className="text-xs sm:text-sm font-medium text-midnight-blue mb-2">Listen to Recording</p>
               <audio
                 controls
-                className="w-full"
+                className="w-full h-10 sm:h-12"
                 controlsList="nodownload"
                 src={audioUrl}
               >
@@ -244,19 +255,24 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
               <p className="text-xs text-gray-500 mt-1">
                 Audio playback only. Downloads are disabled.
               </p>
+              <p className="text-xs text-success-gold mt-2 font-medium">
+                💡 Tip: Swipe left/right on the audio player to seek, or pinch to adjust volume
+              </p>
             </div>
           )}
 
           {/* Transcript Content */}
-          <div className="px-6 py-6">
-            <h2 className="text-lg font-semibold text-midnight-blue mb-4">Transcript</h2>
-            <div className="prose max-w-none">
-              {formatTranscript()}
+          <div className="px-4 sm:px-6 py-4 sm:py-6">
+            <h2 className="text-base sm:text-lg font-semibold text-midnight-blue mb-3 sm:mb-4">Transcript</h2>
+            <div className="prose prose-sm sm:prose max-w-none overflow-x-auto">
+              <div className="min-w-0 break-words">
+                {formatTranscript()}
+              </div>
             </div>
           </div>
 
           {/* Metadata */}
-          <div className="px-6 py-4 bg-gray-50 border-t text-sm text-gray-500">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-t text-xs sm:text-sm text-gray-500">
             <p>Redaction config: {transcript?.redaction_config_used || 'N/A'}</p>
           </div>
         </div>
