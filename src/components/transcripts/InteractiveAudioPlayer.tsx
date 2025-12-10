@@ -47,12 +47,42 @@ export function InteractiveAudioPlayer({
   const [currentWordIndex, setCurrentWordIndex] = useState(-1)
   const activeWordRef = useRef<HTMLSpanElement>(null)
 
-  // Determine first speaker for consistent color coding
+  // Check if speaker diarization is enabled
+  const hasSpeakerLabels = words.some(w => w.speaker)
   const firstSpeaker = words.find(w => w.speaker)?.speaker || 'A'
 
   // Check if a word overlaps with PII
   const hasOverlap = (wordStart: number, wordEnd: number) =>
     piiMatches?.some((m) => wordStart < (m.end ?? 0) && wordEnd > (m.start ?? 0))
+
+  // Determine speaker color with smart fallback
+  const getSpeakerColor = (word: Word, previousSpeaker: string | null): { speaker: string; color: string } => {
+    // If no speaker diarization at all, everything is the same color
+    if (!hasSpeakerLabels) {
+      return { speaker: 'none', color: 'text-charcoal' }
+    }
+
+    // If this word has a speaker label, use it
+    if (word.speaker) {
+      const isFirstSpeaker = word.speaker === firstSpeaker
+      return {
+        speaker: word.speaker,
+        color: isFirstSpeaker ? 'text-charcoal' : 'text-[#f39c12]'
+      }
+    }
+
+    // If no label, inherit from previous word
+    if (previousSpeaker && previousSpeaker !== 'none') {
+      const isFirstSpeaker = previousSpeaker === firstSpeaker
+      return {
+        speaker: previousSpeaker,
+        color: isFirstSpeaker ? 'text-charcoal' : 'text-[#f39c12]'
+      }
+    }
+
+    // Default fallback
+    return { speaker: firstSpeaker, color: 'text-charcoal' }
+  }
 
   // Update current time and find active word
   useEffect(() => {
@@ -318,14 +348,18 @@ export function InteractiveAudioPlayer({
 
         {/* Legend */}
         <div className="mb-4 flex gap-4 text-xs flex-wrap">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-charcoal"></div>
-            <span className="text-steel-gray">Speaker 1</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[#f39c12]"></div>
-            <span className="text-steel-gray">Speaker 2</span>
-          </div>
+          {hasSpeakerLabels && (
+            <>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-charcoal"></div>
+                <span className="text-steel-gray">Speaker 1</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#f39c12]"></div>
+                <span className="text-steel-gray">Speaker 2</span>
+              </div>
+            </>
+          )}
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded bg-success-gold bg-opacity-30"></div>
             <span className="text-steel-gray">Currently playing</span>
@@ -338,9 +372,12 @@ export function InteractiveAudioPlayer({
             {words.map((word, idx) => {
               const isRedacted = hasOverlap(word.start, word.end)
               const text = isRedacted ? '[REDACTED]' : word.word
-              const speaker = word.speaker || ''
-              const isFirstSpeaker = speaker === firstSpeaker || speaker === ''
-              const color = isFirstSpeaker ? 'text-charcoal' : 'text-[#f39c12]'
+
+              // Get speaker and color with smart fallback
+              const previousWord = idx > 0 ? words[idx - 1] : null
+              const previousSpeaker = previousWord?.speaker || null
+              const { color } = getSpeakerColor(word, previousSpeaker)
+
               const isActive = idx === currentWordIndex
 
               return (
