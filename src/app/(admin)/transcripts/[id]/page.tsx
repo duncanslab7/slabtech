@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { Heading, Text, Card, Container } from '@/components'
 import { TranscriptDisplay } from '@/components/transcripts/TranscriptDisplay'
+import { InteractiveAudioPlayer } from '@/components/transcripts/InteractiveAudioPlayer'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
@@ -83,6 +84,10 @@ export default async function TranscriptDetailsPage({ params }: TranscriptDetail
 
   const transcriptText = getTranscriptText()
 
+  // Extract words and PII matches for interactive player
+  const words = (transcript.transcript_redacted as any)?.words || []
+  const piiMatches = (transcript.transcript_redacted as any)?.pii_matches || []
+
   return (
     <Container maxWidth="xl" padding="lg">
       <div className="mb-8">
@@ -135,42 +140,26 @@ export default async function TranscriptDetailsPage({ params }: TranscriptDetail
                   {transcript.redaction_config_used}
                 </span>
               </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <Text variant="muted" size="sm" className="uppercase tracking-wide mb-3">
-                  Audio File
-                </Text>
-                {downloadUrl ? (
-                  <div className="space-y-2">
-                    <a
-                      href={downloadUrl}
-                      download={transcript.original_filename}
-                      className="block w-full text-center rounded-md bg-midnight-blue px-4 py-2 text-pure-white hover:bg-steel-gray transition-colors"
-                    >
-                      Download Audio
-                    </a>
-                    <audio controls className="w-full mt-2">
-                      <source src={downloadUrl} type="audio/mpeg" />
-                      Your browser does not support the audio element.
-                    </audio>
-                  </div>
-                ) : (
-                  <Text variant="muted" size="sm">
-                    Audio file not available
-                  </Text>
-                )}
-              </div>
             </div>
           </Card>
         </div>
 
-        {/* Transcript Column */}
+        {/* Interactive Audio Player & Transcript Column */}
         <div className="lg:col-span-2">
-          <TranscriptDisplay
-            transcriptText={transcriptText}
-            redactionConfigUsed={transcript.redaction_config_used}
-            transcriptData={transcript.transcript_redacted}
-          />
+          {downloadUrl && words.length > 0 ? (
+            <InteractiveAudioPlayer
+              audioUrl={downloadUrl}
+              words={words}
+              piiMatches={piiMatches}
+              originalFilename={transcript.original_filename}
+            />
+          ) : (
+            <TranscriptDisplay
+              transcriptText={transcriptText}
+              redactionConfigUsed={transcript.redaction_config_used}
+              transcriptData={transcript.transcript_redacted}
+            />
+          )}
         </div>
       </div>
     </Container>
