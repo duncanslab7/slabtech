@@ -198,82 +198,142 @@ export default function DashboardPage() {
             </p>
           </div>
         ) : (
-          <div className="bg-white/10 backdrop-blur rounded-2xl border border-white/20 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full">
-                <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="px-6 py-4 text-left text-xs font-medium text-purple-300 uppercase tracking-wider">
-                      Date
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-purple-300 uppercase tracking-wider">
-                      Salesperson
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-purple-300 uppercase tracking-wider">
-                      Filename
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-purple-300 uppercase tracking-wider">
-                      Config Used
-                    </th>
-                    <th className="px-6 py-4 text-right">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/10">
-                  {filteredTranscripts.map((transcript) => (
-                    <tr key={transcript.id} className="hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-white text-sm">{formatDate(transcript.created_at)}</span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white text-sm font-bold">
-                            {transcript.salesperson_name.charAt(0).toUpperCase()}
-                          </div>
-                          <span className="text-white font-medium text-sm">
-                            {transcript.salesperson_name}
-                          </span>
+          <>
+            {/* Mobile Card Layout */}
+            <div className="lg:hidden space-y-4">
+              {filteredTranscripts.map((transcript) => (
+                <div
+                  key={transcript.id}
+                  className="bg-white/10 backdrop-blur rounded-2xl border border-white/20 p-4"
+                >
+                  {/* Header with Salesperson */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white font-bold">
+                        {transcript.salesperson_name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="text-white font-semibold">
+                          {transcript.salesperson_name}
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-purple-200 text-sm truncate max-w-xs block">
-                          {transcript.original_filename}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                          {transcript.redaction_config_used}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <div className="flex items-center justify-end gap-3">
-                          <Link
-                            href={`/transcripts/${transcript.id}`}
-                            className="text-purple-400 hover:text-purple-300 transition-colors font-medium text-sm inline-flex items-center gap-1"
-                          >
-                            View Details
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </Link>
-                          <button
-                            onClick={() => setDeleteConfirm(transcript.id)}
-                            className="text-red-400 hover:text-red-300 transition-colors p-2 hover:bg-red-500/10 rounded-lg"
-                            title="Delete transcript"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
+                        <div className="text-purple-300 text-xs">
+                          {formatDate(transcript.created_at)}
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      {transcript.redaction_config_used}
+                    </span>
+                  </div>
+
+                  {/* Filename */}
+                  <div className="mb-4 pb-3 border-b border-white/10">
+                    <div className="text-purple-300 text-xs mb-1">Filename</div>
+                    <div className="text-purple-200 text-sm break-all">
+                      {transcript.original_filename}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-3">
+                    <Link
+                      href={`/transcripts/${transcript.id}`}
+                      className="flex-1 text-center py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium transition-all hover:shadow-lg hover:shadow-purple-500/25"
+                    >
+                      View Details
+                    </Link>
+                    <button
+                      onClick={() => setDeleteConfirm(transcript.id)}
+                      className="p-2.5 rounded-xl text-red-400 hover:text-red-300 transition-colors hover:bg-red-500/10 border border-red-500/30"
+                      title="Delete transcript"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+
+            {/* Desktop Table Layout */}
+            <div className="hidden lg:block bg-white/10 backdrop-blur rounded-2xl border border-white/20 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      <th className="px-6 py-4 text-left text-xs font-medium text-purple-300 uppercase tracking-wider">
+                        Date
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-medium text-purple-300 uppercase tracking-wider">
+                        Salesperson
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-medium text-purple-300 uppercase tracking-wider">
+                        Filename
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-medium text-purple-300 uppercase tracking-wider">
+                        Config Used
+                      </th>
+                      <th className="px-6 py-4 text-right">
+                        <span className="sr-only">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10">
+                    {filteredTranscripts.map((transcript) => (
+                      <tr key={transcript.id} className="hover:bg-white/5 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-white text-sm">{formatDate(transcript.created_at)}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white text-sm font-bold">
+                              {transcript.salesperson_name.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-white font-medium text-sm">
+                              {transcript.salesperson_name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-purple-200 text-sm truncate max-w-xs block">
+                            {transcript.original_filename}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                            {transcript.redaction_config_used}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="flex items-center justify-end gap-3">
+                            <Link
+                              href={`/transcripts/${transcript.id}`}
+                              className="text-purple-400 hover:text-purple-300 transition-colors font-medium text-sm inline-flex items-center gap-1"
+                            >
+                              View Details
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </Link>
+                            <button
+                              onClick={() => setDeleteConfirm(transcript.id)}
+                              className="text-red-400 hover:text-red-300 transition-colors p-2 hover:bg-red-500/10 rounded-lg"
+                              title="Delete transcript"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
         )}
 
         {/* Footer */}
