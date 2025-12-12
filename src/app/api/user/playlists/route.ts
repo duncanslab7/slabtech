@@ -65,9 +65,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch all conversations for this user to calculate statistics
+    // Use the same join as the detail endpoint to ensure counts match
     const { data: conversations, error } = await supabase
       .from('conversations')
-      .select('objections')
+      .select(`
+        objections,
+        transcripts!inner (
+          id
+        )
+      `)
       .in('transcript_id', allTranscriptIds)
 
     if (error) {
