@@ -19,6 +19,9 @@ import { analyzeConversation } from '@/utils/conversationAnalysis'
 // Route segment config to allow large file uploads
 export const maxDuration = 300 // 5 minutes max execution time
 export const dynamic = 'force-dynamic'
+export const bodyParser = {
+  sizeLimit: '400mb',
+}
 
 type AssemblyAIWord = {
   text: string

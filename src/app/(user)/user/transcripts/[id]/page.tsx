@@ -125,24 +125,9 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
         setConversations(conversationsData);
       }
 
-      // Get signed URL for audio playback (not download)
+      // Use API proxy route for audio playback (bypasses storage URL issues)
       // Note: Users cannot download, only listen via the audio player
-      const audioPath = transcriptData.file_storage_path.replace(/\.[^/.]+$/, '') + '_redacted.mp3';
-      const { data: signedUrlData } = await supabase.storage
-        .from('call-recordings')
-        .createSignedUrl(`redacted/${audioPath}`, 3600);
-
-      if (signedUrlData?.signedUrl) {
-        setAudioUrl(signedUrlData.signedUrl);
-      } else {
-        // Fallback to original audio if redacted not available
-        const { data: originalUrlData } = await supabase.storage
-          .from('call-recordings')
-          .createSignedUrl(transcriptData.file_storage_path, 3600);
-        if (originalUrlData?.signedUrl) {
-          setAudioUrl(originalUrlData.signedUrl);
-        }
-      }
+      setAudioUrl(`/api/storage/audio/${id}`);
 
       setLoading(false);
     };
@@ -276,10 +261,10 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
 
           {/* Conversations & Interactive Audio Player */}
           <div className="px-4 sm:px-6 py-4 sm:py-6">
-            {audioUrl && transcript?.transcript_redacted ? (
+            {transcript?.transcript_redacted ? (
               <TranscriptWithConversations
                 conversations={conversations}
-                downloadUrl={audioUrl}
+                downloadUrl={audioUrl || undefined}
                 words={(transcript.transcript_redacted as any)?.words || []}
                 piiMatches={(transcript.transcript_redacted as any)?.pii_matches || []}
                 originalFilename={transcript.original_filename}
@@ -289,7 +274,7 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
               />
             ) : (
               <div className="text-center text-gray-500 py-8">
-                No audio or transcript available
+                No transcript available
               </div>
             )}
           </div>

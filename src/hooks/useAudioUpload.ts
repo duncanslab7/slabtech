@@ -31,7 +31,7 @@ export function useAudioUpload(options?: UseAudioUploadOptions) {
         throw new Error('Please select a salesperson');
       }
 
-      const maxSizeMB = 200;
+      const maxSizeMB = 400;
       const maxSizeBytes = maxSizeMB * 1024 * 1024;
       if (file.size > maxSizeBytes) {
         throw new Error(`File size too large. Must be less than ${maxSizeMB}MB.`);
