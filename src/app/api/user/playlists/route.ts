@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
     const { data: conversations, error } = await supabase
       .from('conversations')
       .select(`
+        id,
         objections,
         transcripts!inner (
           id
@@ -80,26 +81,39 @@ export async function GET(request: NextRequest) {
       throw error
     }
 
-    // Count conversations per objection type
-    const objectionCounts: Record<ObjectionType, number> = {
-      diy: 0,
-      spouse: 0,
-      price: 0,
-      competitor: 0,
-      delay: 0,
-      not_interested: 0,
-      no_problem: 0,
-      no_soliciting: 0
+    // Count unique conversations per objection type
+    // Use Set to track which conversations have each objection (count each conversation only once)
+    const objectionConversations: Record<ObjectionType, Set<string>> = {
+      diy: new Set(),
+      spouse: new Set(),
+      price: new Set(),
+      competitor: new Set(),
+      delay: new Set(),
+      not_interested: new Set(),
+      no_problem: new Set(),
+      no_soliciting: new Set()
     }
 
     conversations?.forEach(conv => {
       const objections = conv.objections as ObjectionType[]
       objections?.forEach(objection => {
-        if (objection in objectionCounts) {
-          objectionCounts[objection]++
+        if (objection in objectionConversations) {
+          objectionConversations[objection].add(conv.id)
         }
       })
     })
+
+    // Convert Sets to counts
+    const objectionCounts: Record<ObjectionType, number> = {
+      diy: objectionConversations.diy.size,
+      spouse: objectionConversations.spouse.size,
+      price: objectionConversations.price.size,
+      competitor: objectionConversations.competitor.size,
+      delay: objectionConversations.delay.size,
+      not_interested: objectionConversations.not_interested.size,
+      no_problem: objectionConversations.no_problem.size,
+      no_soliciting: objectionConversations.no_soliciting.size
+    }
 
     // Convert to array format for easier frontend consumption
     const playlists = Object.entries(objectionCounts)
