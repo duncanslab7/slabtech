@@ -16,12 +16,25 @@ interface PiiMatch {
   label: string
 }
 
+interface Conversation {
+  id: string
+  conversation_number: number
+  start_time: number
+  end_time: number
+}
+
 interface InteractiveAudioPlayerProps {
   audioUrl: string
   words: Word[]
   piiMatches: PiiMatch[]
   originalFilename: string
   hideDownload?: boolean
+  seekToTime?: number // External control to seek to a specific time
+  onPlayerReady?: (seekFunction: (time: number) => void) => void // Callback to expose seek function
+  conversations?: Conversation[] | null
+  currentConversationIndex?: number
+  onNextConversation?: () => void
+  onPreviousConversation?: () => void
 }
 
 const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2]
@@ -38,6 +51,12 @@ export function InteractiveAudioPlayer({
   piiMatches,
   originalFilename,
   hideDownload = false,
+  seekToTime,
+  onPlayerReady,
+  conversations,
+  currentConversationIndex = 0,
+  onNextConversation,
+  onPreviousConversation,
 }: InteractiveAudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -46,6 +65,25 @@ export function InteractiveAudioPlayer({
   const [playbackRate, setPlaybackRate] = useState(1)
   const [currentWordIndex, setCurrentWordIndex] = useState(-1)
   const activeWordRef = useRef<HTMLSpanElement>(null)
+
+  // Expose seek function to parent component
+  useEffect(() => {
+    if (onPlayerReady) {
+      onPlayerReady(handleSeek)
+    }
+  }, [onPlayerReady])
+
+  // Handle external seek requests
+  useEffect(() => {
+    if (seekToTime !== undefined && seekToTime >= 0) {
+      handleSeek(seekToTime)
+      // Auto-play when seeking from conversation click
+      if (audioRef.current && !isPlaying) {
+        audioRef.current.play()
+        setIsPlaying(true)
+      }
+    }
+  }, [seekToTime])
 
   // Check if speaker diarization is enabled
   const hasSpeakerLabels = words.some(w => w.speaker)
@@ -131,6 +169,47 @@ export function InteractiveAudioPlayer({
       })
     }
   }, [currentWordIndex, isPlaying])
+
+  // Keyboard shortcut: Spacebar to play/pause (desktop only)
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Only trigger if spacebar is pressed
+      if (event.code === 'Space' || event.key === ' ') {
+        // Don't trigger if user is typing in an input/textarea
+        const target = event.target as HTMLElement
+        if (
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable
+        ) {
+          return
+        }
+
+        // Prevent default spacebar behavior (scrolling)
+        event.preventDefault()
+
+        // Toggle play/pause
+        const audio = audioRef.current
+        if (!audio) return
+
+        if (isPlaying) {
+          audio.pause()
+          setIsPlaying(false)
+        } else {
+          audio.play()
+          setIsPlaying(true)
+        }
+      }
+    }
+
+    // Add event listener
+    window.addEventListener('keydown', handleKeyPress)
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress)
+    }
+  }, [isPlaying]) // Re-bind when isPlaying changes to capture latest state
 
   const togglePlayPause = () => {
     const audio = audioRef.current
@@ -319,6 +398,42 @@ export function InteractiveAudioPlayer({
               </button>
             ))}
           </div>
+
+          {/* Conversation Navigation */}
+          {conversations && conversations.length > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-4 border-t border-gray-200">
+              <Text variant="muted" size="sm" className="mr-2">
+                Conversation:
+              </Text>
+              <button
+                onClick={onPreviousConversation}
+                disabled={currentConversationIndex === 0}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                  currentConversationIndex === 0
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-gray-100 text-steel-gray hover:bg-gray-200'
+                }`}
+                title="Previous conversation"
+              >
+                ← Previous
+              </button>
+              <span className="text-sm font-medium text-steel-gray">
+                {currentConversationIndex + 1} / {conversations.length}
+              </span>
+              <button
+                onClick={onNextConversation}
+                disabled={currentConversationIndex === conversations.length - 1}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                  currentConversationIndex === conversations.length - 1
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-gray-100 text-steel-gray hover:bg-gray-200'
+                }`}
+                title="Next conversation"
+              >
+                Next →
+              </button>
+            </div>
+          )}
 
           {/* Download Link */}
           {!hideDownload && (

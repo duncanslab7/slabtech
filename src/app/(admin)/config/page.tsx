@@ -7,6 +7,8 @@ interface Salesperson {
   id: string
   name: string
   display_order: number
+  profile_picture_url?: string
+  about?: string
 }
 
 export default function ConfigPage() {
@@ -21,6 +23,10 @@ export default function ConfigPage() {
   const [newSalespersonName, setNewSalespersonName] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null)
+  const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null)
+  const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null)
+  const [profileAbout, setProfileAbout] = useState('')
   const [savingSalespeople, setSavingSalespeople] = useState(false)
   const [salespeopleMessage, setSalespeopleMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -186,6 +192,84 @@ export default function ConfigPage() {
     }
   }
 
+  // Profile Editing Handlers
+  const handleStartEditProfile = (sp: Salesperson) => {
+    setEditingProfileId(sp.id)
+    setProfileAbout(sp.about || '')
+    setProfilePicturePreview(sp.profile_picture_url || null)
+    setProfilePictureFile(null)
+  }
+
+  const handleCancelEditProfile = () => {
+    setEditingProfileId(null)
+    setProfileAbout('')
+    setProfilePictureFile(null)
+    setProfilePicturePreview(null)
+  }
+
+  const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setProfilePictureFile(file)
+    // Create preview URL
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setProfilePicturePreview(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleSaveProfile = async (id: string) => {
+    setSavingSalespeople(true)
+    setSalespeopleMessage(null)
+    try {
+      let profilePictureUrl = salespeople.find(sp => sp.id === id)?.profile_picture_url || null
+
+      // Upload profile picture if a new file was selected
+      if (profilePictureFile) {
+        const formData = new FormData()
+        formData.append('file', profilePictureFile)
+        formData.append('salespersonId', id)
+
+        const uploadResponse = await fetch('/api/admin/salespeople/upload-profile-picture', {
+          method: 'POST',
+          body: formData,
+        })
+        const uploadData = await uploadResponse.json()
+
+        if (uploadResponse.ok && uploadData.url) {
+          profilePictureUrl = uploadData.url
+        } else {
+          throw new Error(uploadData.error || 'Failed to upload profile picture')
+        }
+      }
+
+      // Update salesperson with new profile data
+      const response = await fetch(`/api/admin/salespeople/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile_picture_url: profilePictureUrl,
+          about: profileAbout.trim() || null,
+        }),
+      })
+      const data = await response.json()
+
+      if (response.ok && data.salesperson) {
+        setSalespeople(salespeople.map(sp => sp.id === id ? data.salesperson : sp))
+        setSalespeopleMessage({ type: 'success', text: 'Profile updated!' })
+        handleCancelEditProfile()
+      } else {
+        setSalespeopleMessage({ type: 'error', text: data.error || 'Failed to update profile' })
+      }
+    } catch (error: any) {
+      setSalespeopleMessage({ type: 'error', text: error.message || 'Error updating profile' })
+    } finally {
+      setSavingSalespeople(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
@@ -267,68 +351,164 @@ export default function ConfigPage() {
             </div>
 
             {/* Salespeople List */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               {salespeople.map((sp) => (
                 <div
                   key={sp.id}
-                  className={`flex items-center gap-3 p-4 rounded-xl transition-all ${
+                  className={`rounded-xl transition-all ${
                     sp.name === 'Misc'
                       ? 'bg-white/5 border border-white/10'
-                      : 'bg-white/5 border border-white/10 hover:bg-white/10'
+                      : 'bg-white/5 border border-white/10'
                   }`}
                 >
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white font-bold">
-                    {sp.name.charAt(0).toUpperCase()}
+                  {/* Main Row */}
+                  <div className="flex items-center gap-3 p-4">
+                    {/* Profile Picture or Initial */}
+                    {sp.profile_picture_url ? (
+                      <img
+                        src={sp.profile_picture_url}
+                        alt={sp.name}
+                        className="w-10 h-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white font-bold">
+                        {sp.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+
+                    {editingId === sp.id ? (
+                      <>
+                        <input
+                          type="text"
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-purple-500"
+                          autoFocus
+                          onKeyDown={(e) => e.key === 'Enter' && handleUpdateSalesperson(sp.id)}
+                        />
+                        <button
+                          onClick={() => handleUpdateSalesperson(sp.id)}
+                          disabled={savingSalespeople}
+                          className="px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => { setEditingId(null); setEditingName('') }}
+                          className="px-4 py-2 bg-white/10 text-purple-300 rounded-lg hover:bg-white/20 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex-1">
+                          <div className="text-white font-medium">{sp.name}</div>
+                          {sp.about && (
+                            <div className="text-purple-300 text-sm mt-1 line-clamp-2">{sp.about}</div>
+                          )}
+                        </div>
+                        {sp.name !== 'Misc' && (
+                          <>
+                            <button
+                              onClick={() => handleStartEditProfile(sp)}
+                              className="px-4 py-2 bg-purple-500/20 text-purple-300 rounded-lg hover:bg-purple-500/30 transition-colors text-sm"
+                            >
+                              Edit Profile
+                            </button>
+                            <button
+                              onClick={() => { setEditingId(sp.id); setEditingName(sp.name) }}
+                              className="px-4 py-2 bg-white/10 text-purple-300 rounded-lg hover:bg-white/20 transition-colors text-sm"
+                            >
+                              Rename
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSalesperson(sp.id, sp.name)}
+                              disabled={savingSalespeople}
+                              className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors text-sm"
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                        {sp.name === 'Misc' && (
+                          <span className="text-purple-400 text-sm italic">System category</span>
+                        )}
+                      </>
+                    )}
                   </div>
 
-                  {editingId === sp.id ? (
-                    <>
-                      <input
-                        type="text"
-                        value={editingName}
-                        onChange={(e) => setEditingName(e.target.value)}
-                        className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-purple-500"
-                        autoFocus
-                        onKeyDown={(e) => e.key === 'Enter' && handleUpdateSalesperson(sp.id)}
-                      />
-                      <button
-                        onClick={() => handleUpdateSalesperson(sp.id)}
-                        disabled={savingSalespeople}
-                        className="px-4 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors"
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={() => { setEditingId(null); setEditingName('') }}
-                        className="px-4 py-2 bg-white/10 text-purple-300 rounded-lg hover:bg-white/20 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <span className="flex-1 text-white font-medium">{sp.name}</span>
-                      {sp.name !== 'Misc' && (
-                        <>
-                          <button
-                            onClick={() => { setEditingId(sp.id); setEditingName(sp.name) }}
-                            className="px-4 py-2 bg-white/10 text-purple-300 rounded-lg hover:bg-white/20 transition-colors text-sm"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeleteSalesperson(sp.id, sp.name)}
-                            disabled={savingSalespeople}
-                            className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors text-sm"
-                          >
-                            Delete
-                          </button>
-                        </>
-                      )}
-                      {sp.name === 'Misc' && (
-                        <span className="text-purple-400 text-sm italic">System category</span>
-                      )}
-                    </>
+                  {/* Profile Editing Section */}
+                  {editingProfileId === sp.id && (
+                    <div className="border-t border-white/10 p-4 bg-white/5">
+                      <h3 className="text-white font-medium mb-4">Edit Profile</h3>
+
+                      <div className="grid md:grid-cols-2 gap-4">
+                        {/* Profile Picture Upload */}
+                        <div>
+                          <label className="block text-purple-300 text-sm mb-2">Profile Picture</label>
+                          <div className="flex items-center gap-4">
+                            {profilePicturePreview ? (
+                              <img
+                                src={profilePicturePreview}
+                                alt="Preview"
+                                className="w-20 h-20 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white font-bold text-2xl">
+                                {sp.name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div className="flex-1">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleProfilePictureChange}
+                                className="hidden"
+                                id={`profile-pic-${sp.id}`}
+                              />
+                              <label
+                                htmlFor={`profile-pic-${sp.id}`}
+                                className="inline-block px-4 py-2 bg-white/10 text-purple-300 rounded-lg hover:bg-white/20 transition-colors cursor-pointer text-sm"
+                              >
+                                Choose Image
+                              </label>
+                              <p className="text-purple-400 text-xs mt-1">JPG, PNG, or GIF</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* About Section */}
+                        <div>
+                          <label className="block text-purple-300 text-sm mb-2">About</label>
+                          <textarea
+                            value={profileAbout}
+                            onChange={(e) => setProfileAbout(e.target.value)}
+                            placeholder="Brief bio or description..."
+                            rows={4}
+                            className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-purple-400 focus:ring-2 focus:ring-purple-500 resize-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-3 mt-4">
+                        <button
+                          onClick={() => handleSaveProfile(sp.id)}
+                          disabled={savingSalespeople}
+                          className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-500 hover:to-pink-500 disabled:opacity-50 transition-all"
+                        >
+                          {savingSalespeople ? 'Saving...' : 'Save Profile'}
+                        </button>
+                        <button
+                          onClick={handleCancelEditProfile}
+                          disabled={savingSalespeople}
+                          className="px-6 py-2 bg-white/10 text-purple-300 rounded-lg hover:bg-white/20 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
               ))}

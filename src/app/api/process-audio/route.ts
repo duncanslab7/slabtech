@@ -8,6 +8,13 @@ import { detectPiiMatches, PiiMatch } from '@/utils/pii'
 import { createClient } from '@/utils/supabase/server'
 import { checkRateLimit } from '@/utils/rateLimit'
 import { NextRequest, NextResponse } from 'next/server'
+import {
+  segmentConversationsHybrid,
+  getConversationText,
+  countPiiInConversation,
+  findTextTimestamp
+} from '@/utils/conversationSegmentation'
+import { analyzeConversation } from '@/utils/conversationAnalysis'
 
 // Route segment config to allow large file uploads
 export const maxDuration = 300 // 5 minutes max execution time
@@ -384,6 +391,82 @@ export async function POST(request: NextRequest) {
       if (transcriptError) {
         console.error('Database insert error:', transcriptError)
         return NextResponse.json({ error: 'Failed to save transcript to database' }, { status: 500 })
+      }
+
+      // 10) Segment conversations and analyze them
+      try {
+        console.log('Segmenting conversations...')
+        const conversations = segmentConversationsHybrid(words, 'A', 30)
+        console.log(`Found ${conversations.length} conversations`)
+
+        // Get Anthropic API key for objection detection
+        const anthropicKey = process.env.ANTHROPIC_API_KEY
+
+        // Process each conversation
+        for (const conversation of conversations) {
+          const conversationText = getConversationText(conversation)
+          const piiCount = countPiiInConversation(piiMatches, conversation)
+
+          // Analyze conversation
+          const analysis = await analyzeConversation(
+            conversationText,
+            piiCount,
+            anthropicKey
+          )
+
+          // Calculate timestamps for each objection
+          const objectionTimestamps = analysis.objectionsWithText.map(objection => {
+            const timestamp = findTextTimestamp(objection.text, conversation.words)
+            return {
+              type: objection.type,
+              text: objection.text,
+              timestamp: timestamp !== null ? timestamp : conversation.startTime // Fallback to conversation start
+            }
+          })
+
+          // Only save if it has meaningful content:
+          // - Has at least one objection (including "no soliciting"), OR
+          // - Is categorized as a sale
+          // This filters out false positives (talking to self, other salespeople, etc.)
+          const hasMeaningfulContent = analysis.objections.length > 0 || analysis.category === 'sale'
+
+          if (!hasMeaningfulContent) {
+            console.log(`Skipping conversation ${conversation.conversationNumber}: no objections and not a sale`)
+            continue
+          }
+
+          // Save conversation to database
+          const { error: conversationError } = await supabase
+            .from('conversations')
+            .insert({
+              transcript_id: transcriptData.id,
+              conversation_number: conversation.conversationNumber,
+              start_time: conversation.startTime,
+              end_time: conversation.endTime,
+              speakers: conversation.speakers,
+              sales_rep_speaker: 'A',
+              word_count: conversation.wordCount,
+              duration_seconds: conversation.durationSeconds,
+              category: analysis.category,
+              objections: analysis.objections,
+              objections_with_text: analysis.objectionsWithText,
+              objection_timestamps: objectionTimestamps,
+              has_price_mention: analysis.hasPriceMention,
+              pii_redaction_count: analysis.piiRedactionCount,
+              analysis_completed: analysis.analysisCompleted,
+              analysis_error: analysis.analysisError
+            })
+
+          if (conversationError) {
+            console.error('Failed to save conversation:', conversationError)
+            // Continue with other conversations even if one fails
+          }
+        }
+
+        console.log('Conversation segmentation and analysis completed')
+      } catch (error) {
+        console.error('Conversation processing error (non-fatal):', error)
+        // Don't fail the entire request if conversation processing fails
       }
 
       return NextResponse.json({

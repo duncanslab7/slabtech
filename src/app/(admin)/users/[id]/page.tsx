@@ -46,7 +46,13 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
   const [assignments, setAssignments] = useState<TranscriptAssignment[]>([]);
   const [availableTranscripts, setAvailableTranscripts] = useState<AvailableTranscript[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'details' | 'transcripts' | 'activity'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'transcripts' | 'playlists' | 'activity'>('details');
+  const [playlists, setPlaylists] = useState<Array<{ objectionType: string; conversationCount: number }>>([]);
+  const [subscriptions, setSubscriptions] = useState<Array<{ id: string; salesperson_name: string; created_at: string }>>([]);
+  const [availableSalespeople, setAvailableSalespeople] = useState<string[]>([]);
+  const [showSubscribeModal, setShowSubscribeModal] = useState(false);
+  const [selectedSalesperson, setSelectedSalesperson] = useState('');
+  const [subscribeLoading, setSubscribeLoading] = useState(false);
 
   // Edit form
   const [editing, setEditing] = useState(false);
@@ -77,6 +83,32 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
     setLoading(false);
   };
 
+  const fetchSubscriptions = async () => {
+    try {
+      const response = await fetch(`/api/admin/users/${id}/subscriptions`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setSubscriptions(data.subscriptions || []);
+      }
+    } catch (error) {
+      console.error('Error fetching subscriptions:', error);
+    }
+  };
+
+  const fetchAvailableSalespeople = async () => {
+    try {
+      const response = await fetch('/api/admin/salespeople-list');
+      const data = await response.json();
+
+      if (response.ok) {
+        setAvailableSalespeople(data.salespeople || []);
+      }
+    } catch (error) {
+      console.error('Error fetching salespeople:', error);
+    }
+  };
+
   const fetchAvailableTranscripts = async () => {
     const supabase = createClient();
     const { data } = await supabase
@@ -92,8 +124,22 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
     }
   };
 
+  const fetchPlaylists = async () => {
+    try {
+      const response = await fetch(`/api/admin/users/${id}/playlists`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setPlaylists(data.playlists || []);
+      }
+    } catch (error) {
+      console.error('Error fetching playlists:', error);
+    }
+  };
+
   useEffect(() => {
     fetchUserData();
+    fetchSubscriptions();
   }, [id]);
 
   useEffect(() => {
@@ -101,6 +147,18 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
       fetchAvailableTranscripts();
     }
   }, [showAssignModal, assignments]);
+
+  useEffect(() => {
+    if (activeTab === 'playlists') {
+      fetchPlaylists();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (showSubscribeModal) {
+      fetchAvailableSalespeople();
+    }
+  }, [showSubscribeModal]);
 
   const handleSave = async () => {
     setSaveLoading(true);
@@ -169,6 +227,48 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
     }
   };
 
+  const handleAddSubscription = async () => {
+    if (!selectedSalesperson) return;
+
+    setSubscribeLoading(true);
+    try {
+      const response = await fetch(`/api/admin/users/${id}/subscriptions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ salespersonName: selectedSalesperson }),
+      });
+
+      if (response.ok) {
+        setShowSubscribeModal(false);
+        setSelectedSalesperson('');
+        fetchSubscriptions();
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to add subscription');
+      }
+    } catch (error) {
+      alert('Failed to add subscription');
+    }
+    setSubscribeLoading(false);
+  };
+
+  const handleRemoveSubscription = async (salespersonName: string) => {
+    try {
+      const response = await fetch(`/api/admin/users/${id}/subscriptions/${encodeURIComponent(salespersonName)}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        fetchSubscriptions();
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to remove subscription');
+      }
+    } catch (error) {
+      alert('Failed to remove subscription');
+    }
+  };
+
   if (loading) {
     return (
       <Container maxWidth="xl" padding="lg">
@@ -230,7 +330,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-6 overflow-x-auto">
         <div className="flex gap-4 sm:gap-8 min-w-max sm:min-w-0">
-          {(['details', 'transcripts', 'activity'] as const).map((tab) => (
+          {(['details', 'transcripts', 'playlists', 'activity'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -240,7 +340,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                   : 'border-transparent text-steel-gray hover:text-midnight-blue'
               }`}
             >
-              {tab === 'activity' ? 'Login Activity' : tab}
+              {tab === 'activity' ? 'Login Activity' : tab === 'playlists' ? 'Training Playlists' : tab}
             </button>
           ))}
         </div>
@@ -322,6 +422,60 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
         </Card>
       )}
 
+      {activeTab === 'details' && (
+        <Card variant="outlined" padding="lg" className="mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <Heading level={3} size="lg">
+                Salesperson Subscriptions
+              </Heading>
+              <Text variant="muted" size="sm" className="mt-1">
+                Automatically access all audio files from subscribed salespeople
+              </Text>
+            </div>
+            <button
+              onClick={() => setShowSubscribeModal(true)}
+              className="px-4 py-2 bg-success-gold text-white font-semibold rounded-lg hover:bg-amber-500"
+            >
+              + Subscribe
+            </button>
+          </div>
+
+          {subscriptions.length === 0 ? (
+            <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
+              <Text variant="muted">No subscriptions yet</Text>
+              <Text variant="muted" size="sm" className="mt-1">
+                Subscribe to salespeople to automatically access their audio files
+              </Text>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {subscriptions.map((sub) => (
+                <div
+                  key={sub.id}
+                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                >
+                  <div>
+                    <Text variant="emphasis" className="font-medium">
+                      {sub.salesperson_name}
+                    </Text>
+                    <Text variant="muted" size="sm">
+                      Subscribed on {new Date(sub.created_at).toLocaleDateString()}
+                    </Text>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveSubscription(sub.salesperson_name)}
+                    className="px-3 py-1 text-sm text-red-500 hover:text-red-700 font-medium"
+                  >
+                    Unsubscribe
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
       {activeTab === 'transcripts' && (
         <div>
           <div className="flex justify-between items-center mb-4">
@@ -383,6 +537,60 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'playlists' && (
+        <div>
+          <Text variant="muted" className="mb-4">
+            Training playlists organized by objection type
+          </Text>
+
+          {playlists.length === 0 ? (
+            <Card variant="outlined" padding="lg" className="text-center">
+              <Text variant="muted">No conversations with objections found</Text>
+              <Text variant="muted" size="sm" className="mt-2">
+                Assign transcripts to this user to generate training playlists
+              </Text>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {playlists.map((playlist) => (
+                <Link
+                  key={playlist.objectionType}
+                  href={`/users/${id}/playlists/${playlist.objectionType}`}
+                  className="block"
+                >
+                  <Card
+                    variant="outlined"
+                    padding="md"
+                    className="hover:shadow-lg transition-all hover:border-success-gold cursor-pointer h-full"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <Text variant="emphasis" className="text-lg font-semibold capitalize">
+                            {playlist.objectionType.replace('_', ' ')}
+                          </Text>
+                          <Text variant="muted" size="sm" className="mt-1">
+                            {playlist.conversationCount} conversation{playlist.conversationCount !== 1 ? 's' : ''}
+                          </Text>
+                        </div>
+                        <svg className="w-5 h-5 text-steel-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                      <div className="pt-2 border-t border-gray-200">
+                        <Text variant="muted" size="sm">
+                          Click to view playlist →
+                        </Text>
+                      </div>
+                    </div>
+                  </Card>
+                </Link>
+              ))}
             </div>
           )}
         </div>
@@ -502,6 +710,64 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                 className="flex-1 px-4 py-2 bg-success-gold text-white rounded-lg hover:bg-amber-500 disabled:opacity-50"
               >
                 {assignLoading ? 'Assigning...' : `Assign ${selectedTranscripts.length} Transcript${selectedTranscripts.length !== 1 ? 's' : ''}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Subscribe to Salesperson Modal */}
+      {showSubscribeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6 border-b">
+              <h2 className="text-xl font-bold text-midnight-blue">Subscribe to Salesperson</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {profile?.display_name || profile?.email} will automatically access all audio files from this salesperson
+              </p>
+            </div>
+
+            <div className="p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Salesperson
+              </label>
+              <select
+                value={selectedSalesperson}
+                onChange={(e) => setSelectedSalesperson(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-gold"
+              >
+                <option value="">-- Choose a salesperson --</option>
+                {availableSalespeople
+                  .filter(name => !subscriptions.some(sub => sub.salesperson_name === name))
+                  .map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+              </select>
+              {availableSalespeople.length === 0 && (
+                <Text variant="muted" size="sm" className="mt-2">
+                  No salespeople found. Upload audio files with salesperson names first.
+                </Text>
+              )}
+            </div>
+
+            <div className="p-6 border-t flex gap-3">
+              <button
+                onClick={() => {
+                  setShowSubscribeModal(false);
+                  setSelectedSalesperson('');
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddSubscription}
+                disabled={!selectedSalesperson || subscribeLoading}
+                className="flex-1 px-4 py-2 bg-success-gold text-white rounded-lg hover:bg-amber-500 disabled:opacity-50"
+              >
+                {subscribeLoading ? 'Subscribing...' : 'Subscribe'}
               </button>
             </div>
           </div>

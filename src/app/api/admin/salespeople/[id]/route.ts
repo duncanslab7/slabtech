@@ -37,18 +37,39 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { name, display_order } = body
+    const { name, display_order, profile_picture_url, about } = body
 
-    if (!name || !name.trim()) {
-      return NextResponse.json(
-        { error: 'Name is required' },
-        { status: 400 }
-      )
+    // Build update object with only provided fields
+    const updateData: any = {}
+
+    if (name !== undefined) {
+      if (!name || !name.trim()) {
+        return NextResponse.json(
+          { error: 'Name cannot be empty' },
+          { status: 400 }
+        )
+      }
+      updateData.name = name.trim()
     }
 
-    const updateData: { name: string; display_order?: number } = { name: name.trim() }
     if (display_order !== undefined) {
       updateData.display_order = display_order
+    }
+
+    if (profile_picture_url !== undefined) {
+      updateData.profile_picture_url = profile_picture_url
+    }
+
+    if (about !== undefined) {
+      updateData.about = about
+    }
+
+    // Check if there's anything to update
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { error: 'No fields to update' },
+        { status: 400 }
+      )
     }
 
     const { data, error } = await supabase

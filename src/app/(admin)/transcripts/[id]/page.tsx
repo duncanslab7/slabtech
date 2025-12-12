@@ -1,7 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { Heading, Text, Card, Container } from '@/components'
-import { TranscriptDisplay } from '@/components/transcripts/TranscriptDisplay'
-import { InteractiveAudioPlayer } from '@/components/transcripts/InteractiveAudioPlayer'
+import { TranscriptWithConversations } from '@/components/transcripts/TranscriptWithConversations'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
@@ -25,6 +24,13 @@ export default async function TranscriptDetailsPage({ params }: TranscriptDetail
   if (error || !transcript) {
     notFound()
   }
+
+  // Fetch conversations for this transcript
+  const { data: conversations } = await supabase
+    .from('conversations')
+    .select('*')
+    .eq('transcript_id', id)
+    .order('conversation_number', { ascending: true })
 
   // Prefer redacted audio when available
   const redactedFilePath = (transcript.transcript_redacted as any)?.redacted_file_storage_path
@@ -146,20 +152,16 @@ export default async function TranscriptDetailsPage({ params }: TranscriptDetail
 
         {/* Interactive Audio Player & Transcript Column */}
         <div className="lg:col-span-2">
-          {downloadUrl && words.length > 0 ? (
-            <InteractiveAudioPlayer
-              audioUrl={downloadUrl}
-              words={words}
-              piiMatches={piiMatches}
-              originalFilename={transcript.original_filename}
-            />
-          ) : (
-            <TranscriptDisplay
-              transcriptText={transcriptText}
-              redactionConfigUsed={transcript.redaction_config_used}
-              transcriptData={transcript.transcript_redacted}
-            />
-          )}
+          <TranscriptWithConversations
+            conversations={conversations}
+            downloadUrl={downloadUrl}
+            words={words}
+            piiMatches={piiMatches}
+            originalFilename={transcript.original_filename}
+            transcriptText={transcriptText}
+            redactionConfigUsed={transcript.redaction_config_used}
+            transcriptData={transcript.transcript_redacted}
+          />
         </div>
       </div>
     </Container>
