@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/utils/supabase/client';
 import { TranscriptWithConversations } from '@/components/transcripts/TranscriptWithConversations';
+import type { ObjectionType, ConversationCategory } from '@/utils/conversationAnalysis';
 
 interface TranscriptData {
   id: string;
@@ -46,8 +47,8 @@ interface Conversation {
   end_time: number;
   duration_seconds: number;
   word_count: number;
-  category: string;
-  objections: string[];
+  category: ConversationCategory;
+  objections: ObjectionType[];
   objections_with_text: Record<string, string[]>;
   objection_timestamps: Record<string, number[]>;
 }
