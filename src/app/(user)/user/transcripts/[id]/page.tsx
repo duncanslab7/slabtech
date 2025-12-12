@@ -49,8 +49,6 @@ interface Conversation {
   word_count: number;
   category: ConversationCategory;
   objections: ObjectionType[];
-  objections_with_text: Record<string, string[]>;
-  objection_timestamps: Record<string, number[]>;
 }
 
 export default function UserTranscriptPage({ params }: { params: Promise<{ id: string }> }) {
