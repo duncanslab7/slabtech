@@ -25,6 +25,10 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [selectedTranscripts, setSelectedTranscripts] = useState<Set<string>>(new Set())
+  const [showMoveModal, setShowMoveModal] = useState(false)
+  const [moving, setMoving] = useState(false)
+  const [moveMessage, setMoveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -50,6 +54,11 @@ export default function DashboardPage() {
     }
     fetchData()
   }, [])
+
+  // Clear selection when switching tabs
+  useEffect(() => {
+    setSelectedTranscripts(new Set())
+  }, [selectedTab])
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('en-US', {
@@ -94,6 +103,83 @@ export default function DashboardPage() {
       alert('Failed to delete transcript')
     } finally {
       setDeleting(false)
+    }
+  }
+
+  // Handle toggle individual transcript selection
+  const handleToggleTranscript = (id: string) => {
+    setSelectedTranscripts((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+  }
+
+  // Handle toggle all visible transcripts
+  const handleToggleAll = () => {
+    if (selectedTranscripts.size === filteredTranscripts.length && filteredTranscripts.length > 0) {
+      // Deselect all
+      setSelectedTranscripts(new Set())
+    } else {
+      // Select all visible transcripts
+      setSelectedTranscripts(new Set(filteredTranscripts.map((t) => t.id)))
+    }
+  }
+
+  // Handle moving transcripts to a different salesperson
+  const handleMoveTo = async (salespersonId: string, salespersonName: string) => {
+    setMoving(true)
+    try {
+      const response = await fetch('/api/admin/transcripts/reassign', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          transcriptIds: Array.from(selectedTranscripts),
+          salespersonId,
+          salespersonName,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setMoveMessage({ type: 'error', text: data.error || 'Failed to move transcripts' })
+        return
+      }
+
+      // Refetch data to get updated state
+      const spResponse = await fetch('/api/admin/salespeople')
+      const spData = await spResponse.json()
+      if (spData.salespeople) {
+        setSalespeople(spData.salespeople)
+      }
+
+      const transcriptsResponse = await fetch('/api/admin/transcripts')
+      const transcriptsData = await transcriptsResponse.json()
+      if (transcriptsData.transcripts) {
+        setTranscripts(transcriptsData.transcripts)
+      }
+
+      // Clear selection and close modal
+      setSelectedTranscripts(new Set())
+      setShowMoveModal(false)
+      setMoveMessage({ type: 'success', text: data.message })
+
+      // Auto-dismiss success message after 4 seconds
+      setTimeout(() => {
+        setMoveMessage(null)
+      }, 4000)
+    } catch (error) {
+      console.error('Error moving transcripts:', error)
+      setMoveMessage({ type: 'error', text: 'Failed to move transcripts' })
+    } finally {
+      setMoving(false)
     }
   }
 
@@ -182,6 +268,68 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Bulk Action Toolbar */}
+        {selectedTranscripts.size > 0 && (
+          <div className="mb-4 bg-purple-600/20 backdrop-blur rounded-xl border border-purple-500/30 p-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <svg className="w-5 h-5 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-white font-medium">
+                  {selectedTranscripts.size} transcript{selectedTranscripts.size !== 1 ? 's' : ''} selected
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowMoveModal(true)}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium hover:shadow-lg hover:shadow-purple-500/25 transition-all"
+                >
+                  Move to Salesperson
+                </button>
+                <button
+                  onClick={() => setSelectedTranscripts(new Set())}
+                  className="px-4 py-2 rounded-xl bg-white/10 text-purple-200 hover:bg-white/20 transition-all"
+                >
+                  Clear Selection
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Success/Error Message Banner */}
+        {moveMessage && (
+          <div className={`mb-4 p-4 rounded-xl border ${
+            moveMessage.type === 'success'
+              ? 'bg-green-500/20 border-green-500/30 text-green-200'
+              : 'bg-red-500/20 border-red-500/30 text-red-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {moveMessage.type === 'success' ? (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )}
+                <span className="font-medium">{moveMessage.text}</span>
+              </div>
+              <button
+                onClick={() => setMoveMessage(null)}
+                className="text-current opacity-60 hover:opacity-100 transition-opacity"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Horizontal Scroll Indicator */}
         {filteredTranscripts.length > 0 && (
           <div className="mb-4 flex items-center justify-center gap-2 text-xs text-purple-300 lg:hidden">
@@ -217,10 +365,20 @@ export default function DashboardPage() {
               {filteredTranscripts.map((transcript) => (
                 <div
                   key={transcript.id}
-                  className="bg-white/10 backdrop-blur rounded-2xl border border-white/20 p-4"
+                  className="bg-white/10 backdrop-blur rounded-2xl border border-white/20 p-4 relative"
                 >
+                  {/* Checkbox - Top Right */}
+                  <div className="absolute top-4 right-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedTranscripts.has(transcript.id)}
+                      onChange={() => handleToggleTranscript(transcript.id)}
+                      className="w-5 h-5 rounded border-white/20 bg-white/10 text-purple-600 focus:ring-purple-500 focus:ring-2 cursor-pointer"
+                    />
+                  </div>
+
                   {/* Header with Salesperson */}
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between mb-3 pr-8">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white font-bold">
                         {transcript.salesperson_name.charAt(0).toUpperCase()}
@@ -275,6 +433,14 @@ export default function DashboardPage() {
                 <table className="min-w-full">
                   <thead>
                     <tr className="border-b border-white/10">
+                      <th className="px-6 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedTranscripts.size === filteredTranscripts.length && filteredTranscripts.length > 0}
+                          onChange={handleToggleAll}
+                          className="w-4 h-4 rounded border-white/20 bg-white/10 text-purple-600 focus:ring-purple-500 focus:ring-2 cursor-pointer"
+                        />
+                      </th>
                       <th className="px-6 py-4 text-left text-xs font-medium text-purple-300 uppercase tracking-wider">
                         Date
                       </th>
@@ -295,6 +461,14 @@ export default function DashboardPage() {
                   <tbody className="divide-y divide-white/10">
                     {filteredTranscripts.map((transcript) => (
                       <tr key={transcript.id} className="hover:bg-white/5 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={selectedTranscripts.has(transcript.id)}
+                            onChange={() => handleToggleTranscript(transcript.id)}
+                            className="w-4 h-4 rounded border-white/20 bg-white/10 text-purple-600 focus:ring-purple-500 focus:ring-2 cursor-pointer"
+                          />
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-white text-sm">{formatDate(transcript.created_at)}</span>
                         </td>
@@ -404,6 +578,46 @@ export default function DashboardPage() {
                   {deleting ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Move Modal */}
+        {showMoveModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl border border-white/20 shadow-2xl max-w-md w-full p-6">
+              <h3 className="text-xl font-bold text-white mb-4">
+                Move {selectedTranscripts.size} Transcript{selectedTranscripts.size !== 1 ? 's' : ''}
+              </h3>
+              <p className="text-purple-300 text-sm mb-6">
+                Select a salesperson to assign these transcripts to:
+              </p>
+
+              {/* Salesperson List */}
+              <div className="space-y-2 max-h-96 overflow-y-auto mb-6">
+                {salespeople.map((sp) => (
+                  <button
+                    key={sp.id}
+                    onClick={() => handleMoveTo(sp.id, sp.name)}
+                    disabled={moving}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/10 text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center text-white font-bold flex-shrink-0">
+                      {sp.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-white font-medium">{sp.name}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Cancel Button */}
+              <button
+                onClick={() => setShowMoveModal(false)}
+                disabled={moving}
+                className="w-full px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium transition-all border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         )}
