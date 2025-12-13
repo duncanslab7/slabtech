@@ -71,13 +71,13 @@ async function testVAD() {
     console.log('')
 
   } catch (error) {
-    console.error('❌ Error:', error.message)
+    console.error('❌ Error:', error instanceof Error ? error.message : String(error))
     console.error(error)
     process.exit(1)
   }
 }
 
-function formatTime(seconds) {
+function formatTime(seconds: number) {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
   const secs = Math.floor(seconds % 60)
