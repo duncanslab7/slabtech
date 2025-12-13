@@ -51,7 +51,7 @@ src/app/
 
 ### Important Files
 
-- `src/app/api/process-audio/Slab Code.ts` - Core transcription logic, AssemblyAI integration
+- `src/app/api/process-audio/route.ts` - Core transcription logic, AssemblyAI integration
 - `src/utils/supabase/` - Supabase client utilities (client.ts, server.ts, middleware.ts)
 - `src/middleware.ts` - Auth session management, excludes `/api/process-audio` from auth
 - `supabase-schema.sql` - Database schema with RLS policies
@@ -68,3 +68,25 @@ Required in `.env.local`:
 - `ASSEMBLYAI_API_KEY`
 
 Refer to me as Duncan
+
+
+● ## Implementation Approach
+
+  **Default to direct implementation.** For most features and changes:
+  1. Read the relevant files (typically 2-5 files max)
+  2. Ask brief clarifying questions only if genuinely ambiguous
+  3. Implement immediately
+  4. Debug and iterate as issues arise
+
+  **Only use plan mode when:**
+  - Changes could break multiple existing systems or features
+  - Significant architectural decisions are required
+  - The scope is genuinely unclear after reading the code
+
+  **Do NOT use plan mode for:**
+  - Adding UI components following existing patterns
+  - Creating new API endpoints following existing route patterns
+  - Standard CRUD operations
+  - Features contained to 1-3 files
+
+  Duncan prefers speed and iteration over extensive upfront planning. Trust the codebase patterns, implement quickly, and fix issues as they come up.
