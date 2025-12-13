@@ -1,5 +1,26 @@
-import { utils, NonRealTimeVAD } from '@ricky0123/vad-node'
 import * as fs from 'fs'
+
+// Type declarations for @ricky0123/vad-node
+interface VADUtils {
+  audioFileToArray: (buffer: Buffer) => Promise<Float32Array>
+  arrayToWavBuffer: (data: Float32Array, sampleRate: number) => Buffer
+  minFramesForTargetMS: (targetDuration: number, frameSamples: number, sr: number) => number
+}
+
+interface VADSegment {
+  start: number
+  end: number
+  confidence: number
+}
+
+interface NonRealTimeVAD {
+  run: (audioData: Float32Array, sampleRate: number) => Promise<VADSegment[]>
+  destroy: () => void
+}
+
+interface NonRealTimeVADClass {
+  new: () => Promise<NonRealTimeVAD>
+}
 
 export interface SpeechSegment {
   start: number // seconds
@@ -27,6 +48,13 @@ export async function detectSpeechSegments(
   try {
     console.log('[VAD] Starting speech detection...')
 
+    // Use require for better CommonJS compatibility in Next.js
+    const vad = require('@ricky0123/vad-node')
+    const utils = vad.utils as VADUtils
+    const NonRealTimeVAD = vad.NonRealTimeVAD as NonRealTimeVADClass
+
+    console.log('[VAD] Library loaded:', { hasUtils: !!utils, hasVAD: !!NonRealTimeVAD, utilsKeys: Object.keys(utils || {}) })
+
     // Load audio buffer if path is provided
     let buffer: Buffer
     if (typeof audioBuffer === 'string') {
@@ -47,7 +75,7 @@ export async function detectSpeechSegments(
     console.log(`[VAD] Detected ${rawSegments.length} raw speech segments`)
 
     // Convert to our format
-    const segments: SpeechSegment[] = rawSegments.map(segment => ({
+    const segments: SpeechSegment[] = rawSegments.map((segment: VADSegment) => ({
       start: segment.start / 16000, // Convert samples to seconds
       end: segment.end / 16000,
       duration: (segment.end - segment.start) / 16000
@@ -150,7 +178,11 @@ export async function extractAudioSegment(
   endTime: number
 ): Promise<Buffer> {
   try {
-    const audioData = await utils.audioFileToArray(sourceBuffer)
+    // Use require for better CommonJS compatibility
+    const { utils } = require('@ricky0123/vad-node')
+    const typedUtils = utils as VADUtils
+
+    const audioData = await typedUtils.audioFileToArray(sourceBuffer)
     const sampleRate = 16000 // Silero VAD uses 16kHz
 
     const startSample = Math.floor(startTime * sampleRate)
@@ -159,7 +191,7 @@ export async function extractAudioSegment(
     const segmentData = audioData.slice(startSample, endSample)
 
     // Convert back to audio buffer (WAV format)
-    return utils.arrayToWavBuffer(segmentData, sampleRate)
+    return typedUtils.arrayToWavBuffer(segmentData, sampleRate)
   } catch (error: any) {
     console.error('Error extracting audio segment:', error)
     throw new Error(`Failed to extract audio segment: ${error.message}`)
@@ -185,7 +217,11 @@ export async function analyzeAudioSegmentation(audioBuffer: Buffer | string) {
     buffer = audioBuffer
   }
 
-  const audioData = await utils.audioFileToArray(buffer)
+  // Use require for better CommonJS compatibility
+  const { utils } = require('@ricky0123/vad-node')
+  const typedUtils = utils as VADUtils
+
+  const audioData = await typedUtils.audioFileToArray(buffer)
   const totalDuration = audioData.length / 16000 // 16kHz sample rate
 
   return {

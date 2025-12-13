@@ -55,7 +55,10 @@ export function useAudioUpload(options?: UseAudioUploadOptions) {
         throw new Error(`Failed to upload file: ${uploadError.message}`);
       }
 
-      setUploadProgress('Processing audio...');
+      setUploadProgress('Preparing audio for transcription...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      setUploadProgress('Transcribing audio with speaker detection...');
       const response = await fetch('/api/process-audio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -72,9 +75,21 @@ export function useAudioUpload(options?: UseAudioUploadOptions) {
         throw new Error(data.error || 'Failed to process audio');
       }
 
+      setUploadProgress('Saving transcript and applying PII redaction...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Build success message with VAD savings info if available
+      let successText = 'Audio processed successfully! Your transcript has been saved with speaker labels and PII redaction applied.';
+
+      if (data.vadMetadata?.used) {
+        const savings = data.vadMetadata.costSavingsPercent.toFixed(1);
+        const nonSpeechMin = (data.vadMetadata.silenceRemoved / 60).toFixed(1);
+        successText += ` VAD removed ${nonSpeechMin} minutes of non-speech audio (driving, background noise, etc.), saving ${savings}% on transcription costs!`;
+      }
+
       const successMessage = {
         type: 'success' as const,
-        text: 'Audio processed successfully! Your transcript has been saved.',
+        text: successText,
       };
 
       setMessage(successMessage);
