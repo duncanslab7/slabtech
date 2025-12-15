@@ -151,11 +151,17 @@ export async function GET(
 
       // Download redacted audio
       let redactedFilePath = ''
+      console.log('Checking for redacted audio URL:', !!assemblyaiTranscript.redacted_audio_url)
+      console.log('AssemblyAI response keys:', Object.keys(assemblyaiTranscript))
+
       if (assemblyaiTranscript.redacted_audio_url) {
-        console.log('Downloading redacted audio...')
+        console.log('Downloading redacted audio from:', assemblyaiTranscript.redacted_audio_url)
         const redactedAudioResp = await fetch(assemblyaiTranscript.redacted_audio_url)
+        console.log('Redacted audio fetch status:', redactedAudioResp.status)
+
         if (redactedAudioResp.ok) {
           const redactedBuffer = Buffer.from(await redactedAudioResp.arrayBuffer())
+          console.log('Redacted audio buffer size:', redactedBuffer.length)
 
           redactedFilePath = `redacted/${transcript.file_storage_path}`
           const { error: redactedUploadError } = await supabase.storage
@@ -167,8 +173,14 @@ export async function GET(
 
           if (redactedUploadError) {
             console.error('Redacted audio upload error:', redactedUploadError)
+          } else {
+            console.log('Redacted audio uploaded successfully to:', redactedFilePath)
           }
+        } else {
+          console.error('Failed to download redacted audio, status:', redactedAudioResp.status)
         }
+      } else {
+        console.warn('No redacted_audio_url in AssemblyAI response - audio redaction may not be enabled or available')
       }
 
       // Update transcript with results
