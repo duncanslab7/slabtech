@@ -94,7 +94,7 @@ async function createTranscript(
         redact_pii: true, // Enable PII redaction in transcript
         redact_pii_audio: true, // Enable PII redaction in audio (beep sound applied automatically)
         redact_pii_policies: piiFields === 'all'
-          ? ['person_name', 'phone_number', 'email_address', 'credit_card_number', 'credit_card_cvv', 'date_of_birth', 'social_security_number', 'location', 'banking_information']
+          ? ['person_name', 'phone_number', 'email_address', 'credit_card_number', 'credit_card_cvv', 'date_of_birth', 'us_social_security_number', 'location', 'banking_information', 'drivers_license', 'ip_address']
           : piiFields.split(',').map((f: string) => f.trim()),
         redact_pii_sub: 'hash', // Replace PII in transcript with hashtags (####)
       }),
