@@ -230,55 +230,7 @@ export async function POST(request: NextRequest) {
 
     const piiFields = (configData?.pii_fields || 'all').toLowerCase()
 
-    // 3) Transcribe with AssemblyAI (with PII audio redaction)
-    console.log('Uploading to AssemblyAI...')
-    const uploadUrl = await uploadToAssemblyAI(signedUrl, assemblyaiKey)
-
-    console.log('Creating transcript with PII redaction...')
-    const transcriptId = await createTranscript(uploadUrl, assemblyaiKey, piiFields)
-
-    console.log('Polling for transcript completion...')
-    const transcript = await pollTranscript(transcriptId, assemblyaiKey)
-
-    // Convert AssemblyAI words to our format (convert ms to seconds)
-    const words = transcript.words.map((w) => ({
-      word: w.text,
-      start: w.start / 1000,
-      end: w.end / 1000,
-      speaker: w.speaker,
-    }))
-
-    // 4) PII detection using regex (email, phone, ssn, credit card, address-ish, name-ish)
-    const piiMatches = detectPiiMatches(words, piiFields)
-
-    // 5) Download redacted audio from AssemblyAI
-    let redactedFilePath = ''
-    if (transcript.redacted_audio_url) {
-      console.log('Downloading redacted audio from AssemblyAI...')
-      const redactedAudioResp = await fetch(transcript.redacted_audio_url)
-      if (redactedAudioResp.ok) {
-        const redactedBuffer = Buffer.from(await redactedAudioResp.arrayBuffer())
-
-        // 6) Upload redacted audio to Supabase storage
-        redactedFilePath = `redacted/${filePath}`
-        const { error: redactedUploadError } = await supabase.storage
-          .from('call-recordings')
-          .upload(redactedFilePath, redactedBuffer, {
-            contentType: 'audio/mpeg',
-            upsert: true,
-          })
-
-        if (redactedUploadError) {
-          console.error('Redacted audio upload error:', redactedUploadError)
-        } else {
-          console.log('Redacted audio uploaded successfully')
-        }
-      } else {
-        console.error('Failed to download redacted audio from AssemblyAI')
-      }
-    }
-
-    // 7) Get salesperson name for backwards compatibility
+    // 3) Get salesperson name
     const { data: salespersonData } = await supabase
       .from('salespeople')
       .select('name')
@@ -287,7 +239,14 @@ export async function POST(request: NextRequest) {
 
     const salespersonName = salespersonData?.name || 'Unknown'
 
-    // 8) Save transcript + redaction metadata
+    // 4) Start AssemblyAI transcription (async)
+    console.log('Uploading to AssemblyAI...')
+    const uploadUrl = await uploadToAssemblyAI(signedUrl, assemblyaiKey)
+
+    console.log('Creating transcript with PII redaction...')
+    const assemblyaiTranscriptId = await createTranscript(uploadUrl, assemblyaiKey, piiFields)
+
+    // 5) Create database record with "processing" status
     const { data: transcriptData, error: transcriptError } = await supabase
       .from('transcripts')
       .insert({
@@ -295,102 +254,26 @@ export async function POST(request: NextRequest) {
         salesperson_name: salespersonName,
         original_filename: originalFilename,
         file_storage_path: filePath,
-        transcript_redacted: {
-          text: transcript.text,
-          words,
-          pii_matches: piiMatches,
-          redacted_file_storage_path: redactedFilePath,
-        },
+        status: 'processing',
+        assemblyai_transcript_id: assemblyaiTranscriptId,
         redaction_config_used: piiFields,
+        uploaded_by: user.id,
+        processing_started_at: new Date().toISOString(),
       })
       .select()
       .single()
 
     if (transcriptError) {
       console.error('Database insert error:', transcriptError)
-      return NextResponse.json({ error: 'Failed to save transcript to database' }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to create transcript record' }, { status: 500 })
     }
 
-    // 9) Segment conversations and analyze them
-    try {
-      console.log('Segmenting conversations...')
-      const conversations = segmentConversationsHybrid(words, 'A', 30)
-      console.log(`Found ${conversations.length} conversations`)
-
-      // Get Anthropic API key for objection detection
-      const anthropicKey = process.env.ANTHROPIC_API_KEY
-
-      // Process each conversation
-      for (const conversation of conversations) {
-        const conversationText = getConversationText(conversation)
-        const piiCount = countPiiInConversation(piiMatches, conversation)
-
-        // Analyze conversation
-        const analysis = await analyzeConversation(
-          conversationText,
-          piiCount,
-          anthropicKey
-        )
-
-        // Calculate timestamps for each objection
-        const objectionTimestamps = analysis.objectionsWithText.map(objection => {
-          const timestamp = findTextTimestamp(objection.text, conversation.words)
-          return {
-            type: objection.type,
-            text: objection.text,
-            timestamp: timestamp !== null ? timestamp : conversation.startTime // Fallback to conversation start
-          }
-        })
-
-        // Only save if it has meaningful content:
-        // - Has at least one objection (including "no soliciting"), OR
-        // - Is categorized as a sale
-        // This filters out false positives (talking to self, other salespeople, etc.)
-        const hasMeaningfulContent = analysis.objections.length > 0 || analysis.category === 'sale'
-
-        if (!hasMeaningfulContent) {
-          console.log(`Skipping conversation ${conversation.conversationNumber}: no objections and not a sale`)
-          continue
-        }
-
-        // Save conversation to database
-        const { error: conversationError } = await supabase
-          .from('conversations')
-          .insert({
-            transcript_id: transcriptData.id,
-            conversation_number: conversation.conversationNumber,
-            start_time: conversation.startTime,
-            end_time: conversation.endTime,
-            speakers: conversation.speakers,
-            sales_rep_speaker: 'A',
-            word_count: conversation.wordCount,
-            duration_seconds: conversation.durationSeconds,
-            category: analysis.category,
-            objections: analysis.objections,
-            objections_with_text: analysis.objectionsWithText,
-            objection_timestamps: objectionTimestamps,
-            has_price_mention: analysis.hasPriceMention,
-            pii_redaction_count: analysis.piiRedactionCount,
-            analysis_completed: analysis.analysisCompleted,
-            analysis_error: analysis.analysisError
-          })
-
-        if (conversationError) {
-          console.error('Failed to save conversation:', conversationError)
-          // Continue with other conversations even if one fails
-        }
-      }
-
-      console.log('Conversation segmentation and analysis completed')
-    } catch (error) {
-      console.error('Conversation processing error (non-fatal):', error)
-      // Don't fail the entire request if conversation processing fails
-    }
-
+    // 6) Return immediately - processing will continue asynchronously
     return NextResponse.json({
       success: true,
       transcriptId: transcriptData.id,
-      message: 'Audio processed and redacted successfully',
+      status: 'processing',
+      message: 'Transcription started. Check status for completion.',
     })
   } catch (error: any) {
     console.error('Unexpected error:', error)

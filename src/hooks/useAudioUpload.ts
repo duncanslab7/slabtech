@@ -58,7 +58,7 @@ export function useAudioUpload(options?: UseAudioUploadOptions) {
       setUploadProgress('Preparing audio for transcription...');
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      setUploadProgress('Transcribing audio with speaker detection...');
+      setUploadProgress('Starting transcription with PII redaction...');
       const response = await fetch('/api/process-audio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -84,19 +84,53 @@ export function useAudioUpload(options?: UseAudioUploadOptions) {
         throw new Error(data.error || 'Failed to process audio');
       }
 
-      setUploadProgress('Saving transcript and applying PII redaction...');
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const transcriptId = data.transcriptId;
 
-      const successMessage = {
-        type: 'success' as const,
-        text: 'Audio processed successfully! Your transcript has been saved with speaker labels and PII redaction applied.',
-      };
+      // Poll for completion
+      setUploadProgress('Transcribing audio (this may take several minutes)...');
 
-      setMessage(successMessage);
-      setUploadProgress('');
+      let isComplete = false;
+      let pollCount = 0;
+      const maxPolls = 180; // 15 minutes max (5 second intervals)
 
-      if (options?.onSuccess) {
-        options.onSuccess();
+      while (!isComplete && pollCount < maxPolls) {
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds between polls
+
+        const statusResponse = await fetch(`/api/transcripts/${transcriptId}/status`);
+        const statusData = await statusResponse.json();
+
+        if (statusData.status === 'completed') {
+          isComplete = true;
+          setUploadProgress('Finalizing transcript...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+          const successMessage = {
+            type: 'success' as const,
+            text: 'Audio processed successfully! Your transcript has been saved with speaker labels and PII redaction applied.',
+          };
+
+          setMessage(successMessage);
+          setUploadProgress('');
+
+          if (options?.onSuccess) {
+            options.onSuccess();
+          }
+
+          return { success: true };
+        } else if (statusData.status === 'error') {
+          throw new Error(statusData.error || 'Transcription failed');
+        }
+
+        // Update progress message based on file size
+        pollCount++;
+        const elapsed = pollCount * 5;
+        if (elapsed % 30 === 0) {
+          setUploadProgress(`Still transcribing... (${Math.floor(elapsed / 60)} min ${elapsed % 60} sec)`);
+        }
+      }
+
+      if (pollCount >= maxPolls) {
+        throw new Error('Transcription timeout - please check back later');
       }
 
       return { success: true };
