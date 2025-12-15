@@ -209,7 +209,7 @@ export default function AdminUploadPage() {
                   {uploadProgress || 'Processing...'}
                 </span>
               ) : (
-                'Upload and Process'
+                'UPLOAD NOW - LATEST VERSION'
               )}
             </button>
           </form>
