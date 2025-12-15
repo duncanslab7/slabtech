@@ -92,11 +92,11 @@ async function createTranscript(
         audio_url: audioUrl,
         speaker_labels: true, // Enable speaker diarization
         redact_pii: true, // Enable PII redaction in transcript
-        redact_pii_audio: true, // Enable PII redaction in audio
+        redact_pii_audio: true, // Enable PII redaction in audio (beep sound applied automatically)
         redact_pii_policies: piiFields === 'all'
           ? ['person_name', 'phone_number', 'email_address', 'credit_card_number', 'credit_card_cvv', 'date_of_birth', 'social_security_number', 'location', 'banking_information']
           : piiFields.split(',').map((f: string) => f.trim()),
-        redact_pii_sub: 'beep', // Use beep sound for redacted audio
+        redact_pii_sub: 'hash', // Replace PII in transcript with hashtags (####)
       }),
     },
     30_000
