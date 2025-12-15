@@ -69,7 +69,16 @@ export function useAudioUpload(options?: UseAudioUploadOptions) {
         }),
       });
 
-      const data = await response.json();
+      // Get response as text first, then try to parse as JSON
+      const responseText = await response.text();
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        // If JSON parsing fails, show the raw text
+        throw new Error(`Server error (non-JSON response): ${responseText.substring(0, 200)}`);
+      }
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to process audio');
