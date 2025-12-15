@@ -1,9 +1,3 @@
-import { spawn } from 'child_process'
-import { promises as fs } from 'fs'
-import os from 'os'
-import path from 'path'
-import ffmpegStatic from 'ffmpeg-static'
-
 import { detectPiiMatches, PiiMatch } from '@/utils/pii'
 import { createClient } from '@/utils/supabase/server'
 import { checkRateLimit } from '@/utils/rateLimit'
@@ -39,91 +33,56 @@ type AssemblyAITranscript = {
   error?: string
 }
 
-// Get FFmpeg path - ffmpeg-static returns a string path directly
-const ffmpegPath = process.env.FFMPEG_PATH || (ffmpegStatic as string) || 'ffmpeg'
-
-// Log FFmpeg path for debugging
-console.log('FFmpeg path:', ffmpegPath)
-
 const DEFAULT_FETCH_TIMEOUT_MS = 600_000 // 10 minutes
 const POLLING_INTERVAL_MS = 3000 // 3 seconds
+const FFMPEG_SERVICE_URL = process.env.FFMPEG_SERVICE_URL || 'http://localhost:3001'
 
-function mergeRanges(ranges: PiiMatch[]): PiiMatch[] {
-  if (!ranges.length) return []
-  const sorted = [...ranges].sort((a, b) => a.start - b.start)
-  const merged: PiiMatch[] = []
-  for (const r of sorted) {
-    const last = merged[merged.length - 1]
-    if (!last) {
-      merged.push({ ...r })
-      continue
-    }
-    // Merge only overlapping ranges (no gap tolerance)
-    if (r.start <= last.end) {
-      last.end = Math.max(last.end, r.end)
-    } else {
-      merged.push({ ...r })
-    }
-  }
-  // If still too many ranges, lightly coalesce adjacent pairs until manageable to avoid OS arg limits
-  let coalesced = merged
-  while (coalesced.length > 180) {
-    const next: PiiMatch[] = []
-    for (let i = 0; i < coalesced.length; i += 2) {
-      const first = coalesced[i]
-      const second = coalesced[i + 1]
-      if (!second) {
-        next.push(first)
-      } else {
-        next.push({
-          start: Math.min(first.start, second.start),
-          end: Math.max(first.end, second.end),
-          label: 'pii',
-        })
-      }
-    }
-    coalesced = next
-  }
-  return coalesced
-}
-
-async function runFfmpegBleep(inputPath: string, outputPath: string, ranges: PiiMatch[]) {
-  if (!ranges.length) {
-    await fs.copyFile(inputPath, outputPath)
-    return
+// Call external FFmpeg microservice to redact audio
+async function redactAudioViaService(
+  audioSignedUrl: string,
+  redactedFilePath: string,
+  piiRanges: PiiMatch[],
+  supabase: any,
+  contentType: string
+) {
+  if (!piiRanges || piiRanges.length === 0) {
+    // No PII to redact - service will just copy the file
+    console.log('No PII ranges to redact, using service to copy file')
   }
 
-  const mergedRanges = mergeRanges(ranges)
+  // Create a signed upload URL for the microservice to upload the redacted audio
+  const { data: uploadUrlData, error: uploadUrlError } = await supabase.storage
+    .from('call-recordings')
+    .createSignedUploadUrl(redactedFilePath)
 
-  // Build filter to mute audio during PII ranges (silence instead of beep)
-  const volumeFilter = mergedRanges
-    .map(
-      (range) =>
-        `volume=enable='between(t,${range.start.toFixed(2)},${range.end.toFixed(2)})':volume=0`
-    )
-    .join(',')
+  if (uploadUrlError || !uploadUrlData) {
+    throw new Error(`Failed to create upload URL: ${uploadUrlError?.message}`)
+  }
 
-  const args = ['-y', '-i', inputPath, '-af', volumeFilter, '-c:a', 'mp3', outputPath]
-
-  await new Promise<void>((resolve, reject) => {
-    const ff = spawn(ffmpegPath, args, { stdio: 'pipe' })
-    let stderr = ''
-
-    ff.stderr?.on('data', (data) => {
-      stderr += data.toString()
-    })
-
-    ff.on('error', reject)
-    ff.on('close', (code) => {
-      if (code === 0) {
-        resolve()
-      } else {
-        console.error('FFmpeg stderr:', stderr)
-        console.error('FFmpeg args:', args)
-        reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(-500)}`))
-      }
-    })
+  // Call the FFmpeg microservice
+  console.log(`Calling FFmpeg service at ${FFMPEG_SERVICE_URL}`)
+  const serviceResponse = await fetch(`${FFMPEG_SERVICE_URL}/redact-audio`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      audioUrl: audioSignedUrl,
+      piiRanges: piiRanges,
+      uploadUrl: uploadUrlData.signedUrl,
+      uploadHeaders: {
+        'Content-Type': contentType,
+      },
+    }),
   })
+
+  if (!serviceResponse.ok) {
+    const errorData = await serviceResponse.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(`FFmpeg service failed: ${errorData.error || serviceResponse.statusText}`)
+  }
+
+  const result = await serviceResponse.json()
+  console.log(`FFmpeg service completed: ${result.piiRangesProcessed} ranges processed`)
 }
 
 async function fetchWithTimeout(
@@ -344,28 +303,17 @@ export async function POST(request: NextRequest) {
     // 5) PII detection using regex (email, phone, ssn, credit card, address-ish, name-ish)
     const piiMatches = detectPiiMatches(words, piiFields)
 
-    // 6) Redact audio locally with ffmpeg (mute PII ranges)
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'slab-redact-'))
-    const inputPath = path.join(tmpDir, 'input.mp3')
-    const outputPath = path.join(tmpDir, 'redacted.mp3')
+    // 6) Redact audio via external FFmpeg microservice
+    const redactedFilePath = `redacted/${filePath}`
 
     try {
-      await fs.writeFile(inputPath, audioBuffer)
-      await runFfmpegBleep(inputPath, outputPath, piiMatches)
-      const redactedBuffer = await fs.readFile(outputPath)
-
-      // 7) Upload redacted audio to Supabase storage
-      const redactedFilePath = `redacted/${filePath}`
-      const { error: redactedUploadError } = await supabase.storage
-        .from('call-recordings')
-        .upload(redactedFilePath, redactedBuffer, {
-          contentType,
-          upsert: true,
-        })
-
-      if (redactedUploadError) {
-        console.error('Redacted audio upload error:', redactedUploadError)
-      }
+      await redactAudioViaService(
+        signedUrl,
+        redactedFilePath,
+        piiMatches,
+        supabase,
+        contentType
+      )
 
       // 8) Get salesperson name for backwards compatibility
       const { data: salespersonData } = await supabase
@@ -481,11 +429,9 @@ export async function POST(request: NextRequest) {
         transcriptId: transcriptData.id,
         message: 'Audio processed and redacted successfully',
       })
-    } finally {
-      // Always clean up temporary files
-      await fs.rm(tmpDir, { recursive: true, force: true }).catch((err) => {
-        console.error('Failed to clean up temp directory:', err)
-      })
+    } catch (audioProcessingError: any) {
+      console.error('Audio processing error:', audioProcessingError)
+      throw audioProcessingError
     }
   } catch (error: any) {
     console.error('Unexpected error:', error)
