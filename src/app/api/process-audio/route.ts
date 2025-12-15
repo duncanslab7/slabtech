@@ -2,7 +2,7 @@ import { spawn } from 'child_process'
 import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
-import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
+import ffmpegStatic from 'ffmpeg-static'
 
 import { detectPiiMatches, PiiMatch } from '@/utils/pii'
 import { createClient } from '@/utils/supabase/server'
@@ -39,7 +39,7 @@ type AssemblyAITranscript = {
   error?: string
 }
 
-const ffmpegPath = process.env.FFMPEG_PATH || ffmpegInstaller.path || 'ffmpeg'
+const ffmpegPath = process.env.FFMPEG_PATH || ffmpegStatic || 'ffmpeg'
 
 const DEFAULT_FETCH_TIMEOUT_MS = 600_000 // 10 minutes
 const POLLING_INTERVAL_MS = 3000 // 3 seconds
