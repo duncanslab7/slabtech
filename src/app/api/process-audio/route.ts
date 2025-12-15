@@ -39,7 +39,11 @@ type AssemblyAITranscript = {
   error?: string
 }
 
-const ffmpegPath = process.env.FFMPEG_PATH || ffmpegStatic || 'ffmpeg'
+// Get FFmpeg path - ffmpeg-static returns a string path directly
+const ffmpegPath = process.env.FFMPEG_PATH || (ffmpegStatic as string) || 'ffmpeg'
+
+// Log FFmpeg path for debugging
+console.log('FFmpeg path:', ffmpegPath)
 
 const DEFAULT_FETCH_TIMEOUT_MS = 600_000 // 10 minutes
 const POLLING_INTERVAL_MS = 3000 // 3 seconds

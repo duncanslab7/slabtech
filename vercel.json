@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "src/app/api/process-audio/route.ts": {
+      "maxDuration": 300,
+      "memory": 3008
+    }
+  }
+}
