@@ -190,10 +190,14 @@ export async function GET(
         console.error('Failed to update transcript:', updateError)
       }
 
-      // Process conversations in background (don't block response)
-      processConversations(id, words, piiMatches).catch(error => {
-        console.error('Background conversation processing error:', error)
-      })
+      // Process conversations and wait for completion
+      try {
+        await processConversations(id, words, piiMatches)
+        console.log('Conversation processing completed successfully')
+      } catch (error) {
+        console.error('Conversation processing error:', error)
+        // Continue anyway - transcript is still valid
+      }
 
       return NextResponse.json({
         status: 'completed',
