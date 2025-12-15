@@ -78,18 +78,9 @@ export function useAudioUpload(options?: UseAudioUploadOptions) {
       setUploadProgress('Saving transcript and applying PII redaction...');
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Build success message with VAD savings info if available
-      let successText = 'Audio processed successfully! Your transcript has been saved with speaker labels and PII redaction applied.';
-
-      if (data.vadMetadata?.used) {
-        const savings = data.vadMetadata.costSavingsPercent.toFixed(1);
-        const nonSpeechMin = (data.vadMetadata.silenceRemoved / 60).toFixed(1);
-        successText += ` VAD removed ${nonSpeechMin} minutes of non-speech audio (driving, background noise, etc.), saving ${savings}% on transcription costs!`;
-      }
-
       const successMessage = {
         type: 'success' as const,
-        text: successText,
+        text: 'Audio processed successfully! Your transcript has been saved with speaker labels and PII redaction applied.',
       };
 
       setMessage(successMessage);

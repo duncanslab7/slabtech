@@ -44,16 +44,6 @@ const ffmpegPath = process.env.FFMPEG_PATH || ffmpegStatic || 'ffmpeg'
 const DEFAULT_FETCH_TIMEOUT_MS = 600_000 // 10 minutes
 const POLLING_INTERVAL_MS = 3000 // 3 seconds
 
-// Speech detection feature (currently disabled by default - see SPEECH_DETECTION_NOTES.md)
-// Set ENABLE_SPEECH_DETECTION=true in .env.local to enable
-const SPEECH_DETECTION_ENABLED = process.env.ENABLE_SPEECH_DETECTION === 'true'
-const VAD_FILE_SIZE_THRESHOLD = 100 * 1024 * 1024 // 100MB - use speech detection for files larger than this
-
-// Speech detection parameters - tune these based on your audio
-// Can be overridden via environment variables
-const SILENCE_THRESHOLD_DB = parseInt(process.env.SILENCE_THRESHOLD_DB || '-60') // dB threshold (-60 = more sensitive)
-const MIN_SILENCE_DURATION = parseInt(process.env.MIN_SILENCE_DURATION || '60') // seconds (1 minute minimum)
-
 function mergeRanges(ranges: PiiMatch[]): PiiMatch[] {
   if (!ranges.length) return []
   const sorted = [...ranges].sort((a, b) => a.start - b.start)
@@ -130,215 +120,6 @@ async function runFfmpegBleep(inputPath: string, outputPath: string, ranges: Pii
       }
     })
   })
-}
-
-interface SpeechSegment {
-  start: number // seconds
-  end: number // seconds
-  duration: number // seconds
-}
-
-/**
- * Detect speech segments using FFmpeg's silence detection with sensitive parameters
- * This detects long periods of no speech (like driving) vs actual conversations
- * @param inputPath Path to audio file
- * @param silenceThresholdDb Silence threshold in dB (e.g., -60 for sensitive detection)
- * @param minSilenceDuration Minimum non-speech duration in seconds
- * @returns Array of speech segments
- */
-async function detectSpeechWithFFmpeg(
-  inputPath: string,
-  silenceThresholdDb: number = SILENCE_THRESHOLD_DB,
-  minSilenceDuration: number = MIN_SILENCE_DURATION
-): Promise<SpeechSegment[]> {
-  return new Promise((resolve, reject) => {
-    console.log(`[Speech Detection] Using silence threshold: ${silenceThresholdDb}dB, min duration: ${minSilenceDuration}s`)
-
-    // Use sensitive silence detection to catch background noise vs speech
-    const args = [
-      '-i', inputPath,
-      '-af', `silencedetect=noise=${silenceThresholdDb}dB:d=${minSilenceDuration}`,
-      '-f', 'null',
-      '-'
-    ]
-
-    const ff = spawn(ffmpegPath, args, { stdio: 'pipe' })
-    let stderr = ''
-
-    ff.stderr?.on('data', (data) => {
-      stderr += data.toString()
-    })
-
-    ff.on('error', reject)
-    ff.on('close', (code) => {
-      if (code !== 0 && code !== 1) {
-        reject(new Error(`FFmpeg silencedetect failed with code ${code}`))
-        return
-      }
-
-      try {
-        // Parse silence periods from FFmpeg output
-        const silenceStarts: number[] = []
-        const silenceEnds: number[] = []
-        let totalDuration = 0
-
-        // Extract silence_start and silence_end timestamps
-        const silenceStartRegex = /silence_start: ([\d.]+)/g
-        const silenceEndRegex = /silence_end: ([\d.]+)/g
-        const durationRegex = /Duration: (\d{2}):(\d{2}):([\d.]+)/
-
-        let match
-        while ((match = silenceStartRegex.exec(stderr)) !== null) {
-          silenceStarts.push(parseFloat(match[1]))
-        }
-        while ((match = silenceEndRegex.exec(stderr)) !== null) {
-          silenceEnds.push(parseFloat(match[1]))
-        }
-
-        // Get total duration
-        const durationMatch = durationRegex.exec(stderr)
-        if (durationMatch) {
-          const hours = parseInt(durationMatch[1])
-          const minutes = parseInt(durationMatch[2])
-          const seconds = parseFloat(durationMatch[3])
-          totalDuration = hours * 3600 + minutes * 60 + seconds
-        }
-
-        console.log(`[Speech Detection] Found ${silenceStarts.length} silence periods in ${(totalDuration / 60).toFixed(1)} min audio`)
-
-        // Build speech segments from silence gaps
-        const segments: SpeechSegment[] = []
-        let lastEnd = 0
-
-        for (let i = 0; i < silenceStarts.length; i++) {
-          const silenceStart = silenceStarts[i]
-
-          // Add speech segment before this silence
-          if (silenceStart > lastEnd + 1) { // At least 1 second of speech
-            segments.push({
-              start: lastEnd,
-              end: silenceStart,
-              duration: silenceStart - lastEnd
-            })
-          }
-
-          // Update lastEnd to after this silence
-          if (i < silenceEnds.length) {
-            lastEnd = silenceEnds[i]
-          }
-        }
-
-        // Add final segment if there's speech after last silence
-        if (totalDuration > lastEnd + 1) {
-          segments.push({
-            start: lastEnd,
-            end: totalDuration,
-            duration: totalDuration - lastEnd
-          })
-        }
-
-        console.log(`[Speech Detection] Created ${segments.length} speech segments`)
-        resolve(segments)
-      } catch (parseError) {
-        reject(new Error(`Failed to parse FFmpeg output: ${parseError}`))
-      }
-    })
-  })
-}
-
-/**
- * Concatenate audio segments using FFmpeg
- * Creates a trimmed audio file containing only the specified segments
- */
-async function concatenateAudioSegments(
-  inputPath: string,
-  outputPath: string,
-  segments: SpeechSegment[]
-): Promise<void> {
-  if (segments.length === 0) {
-    throw new Error('No segments to concatenate')
-  }
-
-  // Create a temporary directory for segment files
-  const segmentDir = path.join(path.dirname(inputPath), 'segments')
-  await fs.mkdir(segmentDir, { recursive: true })
-
-  try {
-    // Extract each segment to a separate file
-    const segmentFiles: string[] = []
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i]
-      const segmentPath = path.join(segmentDir, `segment_${i}.mp3`)
-
-      // Use FFmpeg to extract segment
-      const args = [
-        '-y',
-        '-i', inputPath,
-        '-ss', segment.start.toFixed(3),
-        '-to', segment.end.toFixed(3),
-        '-c', 'copy',
-        segmentPath
-      ]
-
-      await new Promise<void>((resolve, reject) => {
-        const ff = spawn(ffmpegPath, args, { stdio: 'pipe' })
-        let stderr = ''
-
-        ff.stderr?.on('data', (data) => {
-          stderr += data.toString()
-        })
-
-        ff.on('error', reject)
-        ff.on('close', (code) => {
-          if (code === 0) {
-            resolve()
-          } else {
-            reject(new Error(`ffmpeg segment extraction failed: ${stderr.slice(-500)}`))
-          }
-        })
-      })
-
-      segmentFiles.push(segmentPath)
-    }
-
-    // Create concat file list
-    const concatListPath = path.join(segmentDir, 'concat.txt')
-    const concatContent = segmentFiles.map(f => `file '${f}'`).join('\n')
-    await fs.writeFile(concatListPath, concatContent)
-
-    // Concatenate all segments
-    const concatArgs = [
-      '-y',
-      '-f', 'concat',
-      '-safe', '0',
-      '-i', concatListPath,
-      '-c', 'copy',
-      outputPath
-    ]
-
-    await new Promise<void>((resolve, reject) => {
-      const ff = spawn(ffmpegPath, concatArgs, { stdio: 'pipe' })
-      let stderr = ''
-
-      ff.stderr?.on('data', (data) => {
-        stderr += data.toString()
-      })
-
-      ff.on('error', reject)
-      ff.on('close', (code) => {
-        if (code === 0) {
-          resolve()
-        } else {
-          reject(new Error(`ffmpeg concatenation failed: ${stderr.slice(-500)}`))
-        }
-      })
-    })
-  } finally {
-    // Clean up segment directory
-    await fs.rm(segmentDir, { recursive: true, force: true }).catch(err => {
-      console.error('Failed to clean up segment directory:', err)
-    })
-  }
 }
 
 async function fetchWithTimeout(
@@ -538,104 +319,9 @@ export async function POST(request: NextRequest) {
     const audioBuffer = Buffer.from(audioArrayBuffer)
     const contentType = audioResp.headers.get('content-type') || 'audio/mpeg'
 
-    // 3.5) VAD preprocessing for large files to save on transcription costs
-    let vadMetadata: {
-      used: boolean
-      originalDuration?: number
-      trimmedDuration?: number
-      silenceRemoved?: number
-      segmentCount?: number
-      costSavingsPercent?: number
-    } = { used: false }
-
-    let audioToTranscribe = signedUrl
-    const vadTmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'slab-vad-'))
-    let vadTrimmedPath: string | null = null
-
-    try {
-      // Only use speech detection for large files (>100MB) to save costs
-      // Feature is disabled by default - see SPEECH_DETECTION_NOTES.md
-      if (SPEECH_DETECTION_ENABLED && audioBuffer.length > VAD_FILE_SIZE_THRESHOLD) {
-        console.log(`[Speech Detection] Large file detected (${(audioBuffer.length / 1024 / 1024).toFixed(2)}MB), detecting speech segments...`)
-
-        const originalPath = path.join(vadTmpDir, 'original.mp3')
-        await fs.writeFile(originalPath, audioBuffer)
-
-        // Detect speech segments using FFmpeg (using 3-minute non-speech threshold)
-        const segments = await detectSpeechWithFFmpeg(originalPath, 180)
-
-        if (segments.length > 0) {
-          const totalSpeechDuration = segments.reduce((sum, seg) => sum + seg.duration, 0)
-
-          // Get original duration from audioBuffer
-          // Approximate: file size to duration (rough estimate for MP3)
-          // Get actual duration from speech detection
-          const estimatedOriginalDuration = segments.length > 0
-            ? segments[segments.length - 1].end
-            : audioBuffer.length / (128000 / 8) // Fallback to file size estimate
-          const silenceRemoved = estimatedOriginalDuration - totalSpeechDuration
-          const savingsPercent = (silenceRemoved / estimatedOriginalDuration) * 100
-
-          console.log(`[Speech Detection] Detected ${segments.length} speech segments`)
-          console.log(`[Speech Detection] Original: ${(estimatedOriginalDuration / 60).toFixed(1)} min | Speech: ${(totalSpeechDuration / 60).toFixed(1)} min | Non-speech removed: ${(silenceRemoved / 60).toFixed(1)} min (${savingsPercent.toFixed(1)}%)`)
-
-          // Only trim if we're saving > 10% (otherwise not worth the processing time)
-          if (savingsPercent > 10) {
-            vadTrimmedPath = path.join(vadTmpDir, 'trimmed.mp3')
-            await concatenateAudioSegments(originalPath, vadTrimmedPath, segments)
-
-            // Upload trimmed audio to temporary location for AssemblyAI
-            const trimmedBuffer = await fs.readFile(vadTrimmedPath)
-            const trimmedFilePath = `temp/speech-trimmed-${Date.now()}-${filePath}`
-
-            const { error: uploadError } = await supabase.storage
-              .from('call-recordings')
-              .upload(trimmedFilePath, trimmedBuffer, {
-                contentType,
-                upsert: true,
-              })
-
-            if (!uploadError) {
-              const { data: trimmedSignedUrlData } = await supabase.storage
-                .from('call-recordings')
-                .createSignedUrl(trimmedFilePath, 3600)
-
-              if (trimmedSignedUrlData) {
-                audioToTranscribe = trimmedSignedUrlData.signedUrl
-                vadMetadata = {
-                  used: true,
-                  originalDuration: estimatedOriginalDuration,
-                  trimmedDuration: totalSpeechDuration,
-                  silenceRemoved,
-                  segmentCount: segments.length,
-                  costSavingsPercent: savingsPercent,
-                }
-                console.log(`[Speech Detection] Using trimmed audio for transcription (${savingsPercent.toFixed(1)}% cost savings)`)
-
-                // Clean up temp file after processing (schedule for later deletion)
-                setTimeout(async () => {
-                  await supabase.storage.from('call-recordings').remove([trimmedFilePath])
-                }, 3600000) // Delete after 1 hour
-              }
-            }
-          } else {
-            console.log(`[Speech Detection] Savings too small (${savingsPercent.toFixed(1)}%), using original audio`)
-          }
-        }
-      }
-    } catch (speechDetectionError) {
-      console.error('[Speech Detection] Error during processing (non-fatal):', speechDetectionError)
-      // Continue with original audio if speech detection fails
-    } finally {
-      // Clean up temporary directory
-      await fs.rm(vadTmpDir, { recursive: true, force: true }).catch(err => {
-        console.error('Failed to clean up temp directory:', err)
-      })
-    }
-
-    // 4) Transcribe with AssemblyAI (using trimmed audio if speech detection was successful)
+    // 4) Transcribe with AssemblyAI
     console.log('Uploading to AssemblyAI...')
-    const uploadUrl = await uploadToAssemblyAI(audioToTranscribe, assemblyaiKey)
+    const uploadUrl = await uploadToAssemblyAI(signedUrl, assemblyaiKey)
 
     console.log('Creating transcript...')
     const transcriptId = await createTranscript(uploadUrl, assemblyaiKey)
@@ -686,7 +372,7 @@ export async function POST(request: NextRequest) {
 
       const salespersonName = salespersonData?.name || 'Unknown'
 
-      // 9) Save transcript + redaction metadata + VAD metadata
+      // 9) Save transcript + redaction metadata
       const { data: transcriptData, error: transcriptError } = await supabase
         .from('transcripts')
         .insert({
@@ -699,7 +385,6 @@ export async function POST(request: NextRequest) {
             words,
             pii_matches: piiMatches,
             redacted_file_storage_path: redactedFilePath,
-            vad_metadata: vadMetadata,
           },
           redaction_config_used: piiFields,
         })
@@ -791,7 +476,6 @@ export async function POST(request: NextRequest) {
         success: true,
         transcriptId: transcriptData.id,
         message: 'Audio processed and redacted successfully',
-        vadMetadata,
       })
     } finally {
       // Always clean up temporary files
