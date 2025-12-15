@@ -30,7 +30,10 @@ type AssemblyAITranscript = {
   status: 'queued' | 'processing' | 'completed' | 'error' | 'terminated'
   text: string
   words: AssemblyAIWord[]
-  redacted_audio_url?: string
+  redacted_audio?: {
+    status: string
+    redacted_audio_url: string
+  }
   error?: string
 }
 

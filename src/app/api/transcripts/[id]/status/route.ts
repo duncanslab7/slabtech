@@ -22,7 +22,10 @@ type AssemblyAITranscript = {
   status: 'queued' | 'processing' | 'completed' | 'error' | 'terminated'
   text: string
   words: AssemblyAIWord[]
-  redacted_audio_url?: string
+  redacted_audio?: {
+    status: string
+    redacted_audio_url: string
+  }
   error?: string
 }
 
@@ -151,12 +154,18 @@ export async function GET(
 
       // Download redacted audio
       let redactedFilePath = ''
-      console.log('Checking for redacted audio URL:', !!assemblyaiTranscript.redacted_audio_url)
+      console.log('Checking for redacted audio:', !!assemblyaiTranscript.redacted_audio)
       console.log('AssemblyAI response keys:', Object.keys(assemblyaiTranscript))
 
-      if (assemblyaiTranscript.redacted_audio_url) {
-        console.log('Downloading redacted audio from:', assemblyaiTranscript.redacted_audio_url)
-        const redactedAudioResp = await fetch(assemblyaiTranscript.redacted_audio_url)
+      if (assemblyaiTranscript.redacted_audio) {
+        console.log('Redacted audio object:', assemblyaiTranscript.redacted_audio)
+      }
+
+      const redactedAudioUrl = assemblyaiTranscript.redacted_audio?.redacted_audio_url
+
+      if (redactedAudioUrl) {
+        console.log('Downloading redacted audio from:', redactedAudioUrl)
+        const redactedAudioResp = await fetch(redactedAudioUrl)
         console.log('Redacted audio fetch status:', redactedAudioResp.status)
 
         if (redactedAudioResp.ok) {
