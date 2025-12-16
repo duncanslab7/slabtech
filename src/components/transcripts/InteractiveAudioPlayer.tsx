@@ -64,6 +64,7 @@ export function InteractiveAudioPlayer({
   const [duration, setDuration] = useState(0)
   const [playbackRate, setPlaybackRate] = useState(1)
   const [currentWordIndex, setCurrentWordIndex] = useState(-1)
+  const [swapSpeakerColors, setSwapSpeakerColors] = useState(false)
   const activeWordRef = useRef<HTMLSpanElement>(null)
 
   // Expose seek function to parent component
@@ -100,12 +101,16 @@ export function InteractiveAudioPlayer({
       return { speaker: 'none', color: 'text-charcoal' }
     }
 
+    // Determine colors based on swap toggle
+    const firstColor = swapSpeakerColors ? 'text-[#f39c12]' : 'text-charcoal'
+    const secondColor = swapSpeakerColors ? 'text-charcoal' : 'text-[#f39c12]'
+
     // If this word has a speaker label, use it
     if (word.speaker) {
       const isFirstSpeaker = word.speaker === firstSpeaker
       return {
         speaker: word.speaker,
-        color: isFirstSpeaker ? 'text-charcoal' : 'text-[#f39c12]'
+        color: isFirstSpeaker ? firstColor : secondColor
       }
     }
 
@@ -114,12 +119,12 @@ export function InteractiveAudioPlayer({
       const isFirstSpeaker = previousSpeaker === firstSpeaker
       return {
         speaker: previousSpeaker,
-        color: isFirstSpeaker ? 'text-charcoal' : 'text-[#f39c12]'
+        color: isFirstSpeaker ? firstColor : secondColor
       }
     }
 
     // Default fallback
-    return { speaker: firstSpeaker, color: 'text-charcoal' }
+    return { speaker: firstSpeaker, color: firstColor }
   }
 
   // Update current time and find active word
@@ -463,7 +468,7 @@ export function InteractiveAudioPlayer({
 
         {/* Legend */}
         <div className="mb-4">
-          <div className="flex gap-4 text-xs flex-wrap mb-2">
+          <div className="flex gap-4 text-xs flex-wrap mb-2 items-center">
             {hasSpeakerLabels && (
               <>
                 <div className="flex items-center gap-2">
@@ -474,6 +479,17 @@ export function InteractiveAudioPlayer({
                   <div className="w-3 h-3 rounded-full bg-[#f39c12]"></div>
                   <span className="text-steel-gray">Speaker 2</span>
                 </div>
+                <button
+                  onClick={() => setSwapSpeakerColors(!swapSpeakerColors)}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                    swapSpeakerColors
+                      ? 'bg-midnight-blue text-white'
+                      : 'bg-gray-200 text-steel-gray hover:bg-gray-300'
+                  }`}
+                  title="Swap speaker colors for easier reading"
+                >
+                  Swap Colors
+                </button>
               </>
             )}
             <div className="flex items-center gap-2">

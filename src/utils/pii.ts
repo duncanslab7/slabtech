@@ -12,15 +12,16 @@ type WordLike = {
 
 const regexes: Record<string, RegExp> = {
   email: /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i,
-  // Accept 7–10 digit phone patterns with separators, avoid 5-6 digit matches
+  // Accept 7-15 digit phone patterns with separators (handles malformed numbers)
   phone:
-    /\b(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}|\d{3}[\s.-]?\d{4})\b/,
+    /\b(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4,5}|\d{3}[\s.-]?\d{4,5}|\d{7,15})\b/,
   ssn: /\b\d{3}[- ]?\d{2}[- ]?\d{4}\b/,
   credit_card: /\b(?:\d[ -]*?){13,16}\b/,
   url: /\bhttps?:\/\/[^\s]+/i,
-  // Require number + street + suffix to reduce false positives
+  // Match number + street name (with or without suffix)
+  // Examples: "1908 Cottonwood", "123 Main Street"
   address:
-    /\b\d{1,6}\s+[A-Z0-9][\w'-]*(?:\s+[A-Z0-9][\w'-]*)*\s+(st|street|ave|avenue|blvd|boulevard|rd|road|dr|drive|ln|lane|ct|court|cir|circle|way|pkwy|parkway|terrace|ter|pl|place)\b/i,
+    /\b\d{1,6}\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*(?:\s+(?:st|street|ave|avenue|blvd|boulevard|rd|road|dr|drive|ln|lane|ct|court|cir|circle|way|pkwy|parkway|terrace|ter|pl|place))?\b/i,
   // City, ST [ZIP]
   city_state: /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2}(?:\s+\d{5}(?:-\d{4})?)?\b/,
 }
@@ -97,45 +98,105 @@ export function detectPiiMatches(words: WordLike[], piiConfig: string): PiiMatch
     }
   }
 
-  // Multi-word phone detection: scan 2-6 word windows and test combined strings
+  // Multi-word phone detection: scan 2-8 word windows and test combined strings
   if (shouldUseField('phone', piiConfig)) {
-    const maxWindow = 6
+    const maxWindow = 8
     for (let i = 0; i < words.length; i++) {
       let combined = ''
       let start = words[i].start
       let end = words[i].end
+      let digitsOnly = ''
+
       for (let w = 0; w < maxWindow && i + w < words.length; w++) {
         const segment = (words[i + w].word || '').trim()
         if (segment) {
           combined = combined ? `${combined} ${segment}` : segment
           end = words[i + w].end
         }
-        const digitsOnly = combined.replace(/\D/g, '')
-        if (digitsOnly.length >= 7 && digitsOnly.length <= 15 && regexes.phone.test(combined)) {
-          addMatch(start, end, 'phone')
+
+        digitsOnly = combined.replace(/\D/g, '')
+
+        // Check if we have 7-15 digits (flexible phone number detection)
+        if (digitsOnly.length >= 7 && digitsOnly.length <= 15) {
+          // Test if it matches phone pattern OR just has enough digits in sequence
+          if (regexes.phone.test(combined) || digitsOnly.length >= 10) {
+            addMatch(start, end, 'phone')
+            i += w // Skip past this match
+            break
+          }
+        }
+
+        // Stop if too many digits
+        if (digitsOnly.length > 15) {
           break
         }
       }
     }
   }
 
-  // Multi-word address/location detection: scan 3-8 word windows for street or city/state patterns
-  if (shouldUseField('address', piiConfig)) {
-    const maxWindow = 8
+  // Multi-word credit card detection: scan 10-20 word windows for digit sequences
+  if (shouldUseField('credit_card', piiConfig)) {
+    const maxWindow = 20 // Credit cards can be spoken slowly with filler words
     for (let i = 0; i < words.length; i++) {
+      let start = words[i].start
+      let end = words[i].end
+      let digitsOnly = ''
+
+      for (let w = 0; w < maxWindow && i + w < words.length; w++) {
+        const segment = (words[i + w].word || '').trim()
+        end = words[i + w].end
+
+        // Extract digits from this word
+        const wordDigits = segment.replace(/\D/g, '')
+        if (wordDigits) {
+          digitsOnly += wordDigits
+        }
+
+        // Check if we have a valid credit card length (13-16 digits)
+        if (digitsOnly.length >= 13 && digitsOnly.length <= 16) {
+          addMatch(start, end, 'credit_card')
+          // Skip past this match
+          i += w
+          break
+        }
+
+        // Stop if we've gone too far without enough digits
+        if (digitsOnly.length > 16) {
+          break
+        }
+      }
+    }
+  }
+
+  // Multi-word address/location detection: scan 2-6 word windows
+  // Catches patterns like "1908 Cottonwood" or "123 Main Street"
+  if (shouldUseField('address', piiConfig)) {
+    const maxWindow = 6
+    for (let i = 0; i < words.length; i++) {
+      // Skip if this word doesn't start with a number
+      const firstWord = (words[i].word || '').trim()
+      if (!/^\d{1,6}$/.test(firstWord)) {
+        continue
+      }
+
       let combined = ''
       let start = words[i].start
       let end = words[i].end
+
       for (let w = 0; w < maxWindow && i + w < words.length; w++) {
         const segment = (words[i + w].word || '').trim()
         if (segment) {
           combined = combined ? `${combined} ${segment}` : segment
           end = words[i + w].end
         }
+
+        // Check if matches address pattern
         const hasStreet = regexes.address.test(combined)
         const hasCityState = regexes.city_state.test(combined)
+
         if (hasStreet || hasCityState) {
           addMatch(start, end, 'address')
+          i += w // Skip past this match
           break
         }
       }
