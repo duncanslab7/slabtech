@@ -7,11 +7,12 @@ import { NextRequest, NextResponse } from 'next/server'
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
   const supabase = createServiceRoleClient()
   const body = await request.json()
   const { password, displayName } = body
+  const { token } = await params
 
   // Validate input
   if (!password || password.length < 6) {
@@ -26,7 +27,7 @@ export async function POST(
   const { data: invite, error: inviteError } = await supabase
     .from('company_invites')
     .select('*')
-    .eq('token', params.token)
+    .eq('token', token)
     .eq('accepted', false)
     .single()
 

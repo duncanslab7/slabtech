@@ -19,7 +19,7 @@ export async function GET() {
       .eq('id', user.id)
       .single();
 
-    if (!['super_admin', 'company_admin'].includes(profile?.role || '')) {
+    if (!profile || !['super_admin', 'company_admin'].includes(profile.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    if (!['super_admin', 'company_admin'].includes(profile?.role || '')) {
+    if (!profile || !['super_admin', 'company_admin'].includes(profile.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

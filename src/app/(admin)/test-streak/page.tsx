@@ -67,7 +67,7 @@ export default function TestStreakPage() {
 
         <div className="space-y-6">
           {/* Actions Card */}
-          <Card variant="light" padding="lg">
+          <Card variant="outlined" padding="lg">
             <Heading level={3} size="md" className="mb-4">
               Actions
             </Heading>
@@ -103,7 +103,7 @@ export default function TestStreakPage() {
 
           {/* Streak Data Card */}
           {streak && (
-            <Card variant="light" padding="lg">
+            <Card variant="outlined" padding="lg">
               <Heading level={3} size="md" className="mb-4">
                 Streak Data
               </Heading>
@@ -145,7 +145,7 @@ export default function TestStreakPage() {
           )}
 
           {/* Instructions Card */}
-          <Card variant="light" padding="lg">
+          <Card variant="outlined" padding="lg">
             <Heading level={3} size="md" className="mb-4">
               Testing Instructions
             </Heading>

@@ -45,7 +45,7 @@ export default async function AdminLayout({
     redirect('/login?error=account_disabled')
   } else if (profile.role !== 'super_admin') {
     // Non-super-admin users are redirected to their company dashboard
-    redirect(`/c/${profile.companies?.slug}/dashboard`)
+    redirect(`/c/${profile.companies?.[0]?.slug}/dashboard`)
   }
 
   return (

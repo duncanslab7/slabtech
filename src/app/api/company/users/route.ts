@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    if (!['company_admin', 'super_admin'].includes(profile?.role || '')) {
+    if (!profile || !['company_admin', 'super_admin'].includes(profile.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -33,16 +33,16 @@ export async function POST(request: NextRequest) {
     const targetCompanyId = company_id || profile.company_id
 
     // Check account limit
-    if (profile.companies?.account_limit) {
+    if (profile.companies?.[0]?.account_limit) {
       const { count } = await supabase
         .from('user_profiles')
         .select('*', { count: 'exact', head: true })
         .eq('company_id', targetCompanyId)
         .eq('is_active', true)
 
-      if (count && count >= profile.companies.account_limit) {
+      if (count && count >= profile.companies[0].account_limit) {
         return NextResponse.json({
-          error: `Account limit reached (${profile.companies.account_limit} users)`
+          error: `Account limit reached (${profile.companies[0].account_limit} users)`
         }, { status: 400 })
       }
     }

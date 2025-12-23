@@ -36,8 +36,8 @@ export default async function CompanyLayout({
   }
 
   // Verify user belongs to this company (unless super admin)
-  if (profile.role !== 'super_admin' && profile.companies?.slug !== slug) {
-    redirect(`/c/${profile.companies?.slug}/dashboard`)
+  if (profile.role !== 'super_admin' && profile.companies?.[0]?.slug !== slug) {
+    redirect(`/c/${profile.companies?.[0]?.slug}/dashboard`)
   }
 
   // Get the company info (for super admins viewing other companies)

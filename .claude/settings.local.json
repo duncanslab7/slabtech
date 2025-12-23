@@ -10,7 +10,11 @@
       "WebSearch",
       "Bash(npm install:*)",
       "Bash(npm audit fix:*)",
-      "Bash(npm run lint)"
+      "Bash(npm run lint)",
+      "Bash(git push:*)",
+      "Bash(find:*)",
+      "Bash(git reset:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

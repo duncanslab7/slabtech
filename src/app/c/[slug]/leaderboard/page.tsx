@@ -53,7 +53,7 @@ export default function CompanyLeaderboard() {
       const { data: streaks } = await supabase
         .from('user_streaks')
         .select('user_id, current_streak, longest_streak, total_activities, last_activity_date, user_profiles!inner(display_name, email, is_active)')
-        .eq('company_id', profile.companies?.id)
+        .eq('company_id', profile.companies?.[0]?.id)
         .eq('user_profiles.is_active', true)
         .order('current_streak', { ascending: false })
         .order('longest_streak', { ascending: false })
@@ -103,9 +103,11 @@ export default function CompanyLeaderboard() {
     <div className="space-y-6">
       {/* Header */}
       <div className="text-center">
-        <Heading level={1} size="2xl" style={{ color: 'var(--company-primary)' }}>
-          Streak Leaderboard 🔥
-        </Heading>
+        <div style={{ color: 'var(--company-primary)' }}>
+          <Heading level={1} size="xl">
+            Streak Leaderboard 🔥
+          </Heading>
+        </div>
         <Text variant="muted" className="mt-2">
           Top performers ranked by current streak
         </Text>
