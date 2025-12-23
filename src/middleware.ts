@@ -12,7 +12,7 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
@@ -51,9 +51,9 @@ export async function middleware(request: NextRequest) {
     }
 
     // Check if user's company matches the URL company slug
-    if (profile?.companies?.slug !== companySlug) {
+    if (profile?.companies?.[0]?.slug !== companySlug) {
       // Redirect to user's own company
-      return NextResponse.redirect(new URL(`/c/${profile?.companies?.slug}/dashboard`, request.url))
+      return NextResponse.redirect(new URL(`/c/${profile?.companies?.[0]?.slug}/dashboard`, request.url))
     }
   }
 
@@ -76,7 +76,7 @@ export async function middleware(request: NextRequest) {
     // Only super_admins can access admin routes
     if (profile?.role !== 'super_admin') {
       // Regular users and company admins go to their company dashboard
-      return NextResponse.redirect(new URL(`/c/${profile?.companies?.slug}/dashboard`, request.url))
+      return NextResponse.redirect(new URL(`/c/${profile?.companies?.[0]?.slug}/dashboard`, request.url))
     }
   }
 

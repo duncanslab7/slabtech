@@ -46,7 +46,7 @@ export default function LoginPage() {
         router.push('/admin')
       } else if (profile?.role === 'company_admin' || profile?.role === 'user') {
         // Company users go to their company dashboard
-        const companySlug = profile.companies?.slug
+        const companySlug = profile.companies?.[0]?.slug
         if (companySlug) {
           router.push(`/c/${companySlug}/dashboard`)
         } else {

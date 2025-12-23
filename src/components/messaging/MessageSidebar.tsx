@@ -46,7 +46,14 @@ export function MessageSidebar({ companyId }: { companyId: string }) {
       if (error) {
         console.error('Failed to load messages:', error)
       } else if (data) {
-        setMessages(data as Message[])
+        const mappedMessages = data.map((msg: any) => ({
+          id: msg.id,
+          message_text: msg.message_text,
+          created_at: msg.created_at,
+          transcript_id: msg.transcript_id,
+          user_profiles: Array.isArray(msg.user_profiles) ? msg.user_profiles[0] : msg.user_profiles,
+        }))
+        setMessages(mappedMessages)
       }
       setLoading(false)
     }
@@ -73,7 +80,14 @@ export function MessageSidebar({ companyId }: { companyId: string }) {
             .single()
 
           if (data) {
-            setMessages((prev) => [...prev, data as Message])
+            const mappedMessage = {
+              id: data.id,
+              message_text: data.message_text,
+              created_at: data.created_at,
+              transcript_id: data.transcript_id,
+              user_profiles: Array.isArray(data.user_profiles) ? data.user_profiles[0] : data.user_profiles,
+            }
+            setMessages((prev) => [...prev, mappedMessage])
           }
         }
       )

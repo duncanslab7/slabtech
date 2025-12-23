@@ -168,7 +168,9 @@ export default function CompanyUsersPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <Heading level={1} size="xl" style={{ color: 'var(--company-primary)' }}>User Management</Heading>
+          <div style={{ color: 'var(--company-primary)' }}>
+            <Heading level={1} size="xl">User Management</Heading>
+          </div>
           <Text variant="muted" className="mt-1">
             {company?.account_limit
               ? `${activeUsers} / ${company.account_limit} active users`

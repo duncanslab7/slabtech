@@ -124,9 +124,11 @@ export default function CompanyLeaderboard() {
             <Card variant="outlined" padding="md" className="w-full text-center">
               <Text className="font-bold truncate">{leaderboard[1].display_name}</Text>
               <div className="mt-2">
-                <Text className="text-2xl font-bold" style={{ color: 'var(--company-primary)' }}>
-                  {leaderboard[1].current_streak}
-                </Text>
+                <div style={{ color: 'var(--company-primary)' }}>
+                  <Text className="text-2xl font-bold">
+                    {leaderboard[1].current_streak}
+                  </Text>
+                </div>
                 <Text size="sm" variant="muted">days</Text>
               </div>
             </Card>
@@ -138,15 +140,19 @@ export default function CompanyLeaderboard() {
               <span className="absolute -top-6 text-4xl">👑</span>
               1
             </div>
-            <Card variant="outlined" padding="md" className="w-full text-center border-2" style={{ borderColor: 'var(--company-primary)' }}>
-              <Text className="font-bold truncate">{leaderboard[0].display_name}</Text>
-              <div className="mt-2">
-                <Text className="text-3xl font-bold" style={{ color: 'var(--company-primary)' }}>
-                  {leaderboard[0].current_streak}
-                </Text>
-                <Text size="sm" variant="muted">days</Text>
-              </div>
-            </Card>
+            <div style={{ borderColor: 'var(--company-primary)' }} className="border-2 rounded-lg">
+              <Card variant="outlined" padding="md" className="w-full text-center border-0">
+                <Text className="font-bold truncate">{leaderboard[0].display_name}</Text>
+                <div className="mt-2">
+                  <div style={{ color: 'var(--company-primary)' }}>
+                    <Text className="text-3xl font-bold">
+                      {leaderboard[0].current_streak}
+                    </Text>
+                  </div>
+                  <Text size="sm" variant="muted">days</Text>
+                </div>
+              </Card>
+            </div>
           </div>
 
           {/* 3rd Place */}
@@ -157,9 +163,11 @@ export default function CompanyLeaderboard() {
             <Card variant="outlined" padding="md" className="w-full text-center">
               <Text className="font-bold truncate">{leaderboard[2].display_name}</Text>
               <div className="mt-2">
-                <Text className="text-xl font-bold" style={{ color: 'var(--company-primary)' }}>
-                  {leaderboard[2].current_streak}
-                </Text>
+                <div style={{ color: 'var(--company-primary)' }}>
+                  <Text className="text-xl font-bold">
+                    {leaderboard[2].current_streak}
+                  </Text>
+                </div>
                 <Text size="sm" variant="muted">days</Text>
               </div>
             </Card>
@@ -207,7 +215,7 @@ export default function CompanyLeaderboard() {
                     <div className="flex-1 min-w-0">
                       <Text className="font-semibold truncate text-gray-900">{entry.display_name}</Text>
                       <Text size="sm" variant="muted" className="truncate text-gray-500">{entry.email}</Text>
-                      <Text size="xs" variant="muted" className="text-gray-500">
+                      <Text size="sm" variant="muted" className="text-gray-500 text-xs">
                         Last activity: {formatDate(entry.last_activity_date)}
                       </Text>
                     </div>
@@ -216,9 +224,11 @@ export default function CompanyLeaderboard() {
                   {/* Stats */}
                   <div className="flex items-center gap-6 flex-shrink-0">
                     <div className="text-center">
-                      <Text className="text-2xl font-bold" style={{ color: 'var(--company-primary)' }}>
-                        {entry.current_streak} 🔥
-                      </Text>
+                      <div style={{ color: 'var(--company-primary)' }}>
+                        <Text className="text-2xl font-bold">
+                          {entry.current_streak} 🔥
+                        </Text>
+                      </div>
                       <Text size="sm" variant="muted" className="text-gray-500">Current</Text>
                     </div>
                     <div className="text-center">
