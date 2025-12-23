@@ -15,20 +15,25 @@ export async function GET() {
 
     const { data: profile } = await supabase
       .from('user_profiles')
-      .select('role')
+      .select('role, company_id')
       .eq('id', user.id)
       .single();
 
-    if (profile?.role !== 'admin') {
+    if (!['super_admin', 'company_admin'].includes(profile?.role || '')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Use service role client to fetch all users (bypasses RLS)
+    // Use service role client to fetch users
     const serviceSupabase = createServiceRoleClient();
-    const { data: users, error } = await serviceSupabase
-      .from('user_profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
+
+    // Super admins can see all users, company admins see only their company's users
+    let query = serviceSupabase.from('user_profiles').select('*');
+
+    if (profile.role === 'company_admin') {
+      query = query.eq('company_id', profile.company_id);
+    }
+
+    const { data: users, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       throw error;
@@ -54,16 +59,16 @@ export async function POST(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from('user_profiles')
-      .select('role')
+      .select('role, company_id')
       .eq('id', user.id)
       .single();
 
-    if (profile?.role !== 'admin') {
+    if (!['super_admin', 'company_admin'].includes(profile?.role || '')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const body = await request.json();
-    const { email, password, displayName, role } = body;
+    const { email, password, displayName, role, companyId } = body;
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
@@ -71,6 +76,14 @@ export async function POST(request: NextRequest) {
 
     if (password.length < 6) {
       return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
+    }
+
+    // Determine which company to assign user to
+    let targetCompanyId = companyId || profile.company_id;
+
+    // Company admins can only create users in their own company
+    if (profile.role === 'company_admin' && companyId && companyId !== profile.company_id) {
+      return NextResponse.json({ error: 'Company admins can only create users in their own company' }, { status: 403 });
     }
 
     // Use service role client to create user (bypasses email confirmation)
@@ -83,6 +96,7 @@ export async function POST(request: NextRequest) {
       user_metadata: {
         display_name: displayName || email,
         role: role || 'user',
+        company_id: targetCompanyId,
       },
     });
 
@@ -100,7 +114,7 @@ export async function POST(request: NextRequest) {
     // Verify the profile was created by the trigger
     const { data: profileCheck, error: profileCheckError } = await serviceSupabase
       .from('user_profiles')
-      .select('id, email, role')
+      .select('id, email, role, company_id')
       .eq('id', signupData.user.id)
       .single();
 
@@ -112,6 +126,14 @@ export async function POST(request: NextRequest) {
         console.error('Failed to cleanup user after profile creation failure:', cleanupError);
       }
       throw new Error('Profile was not created automatically. Please check database triggers.');
+    }
+
+    // Update profile with company_id if not set by trigger
+    if (!profileCheck.company_id && targetCompanyId) {
+      await serviceSupabase
+        .from('user_profiles')
+        .update({ company_id: targetCompanyId })
+        .eq('id', signupData.user.id);
     }
 
     return NextResponse.json({

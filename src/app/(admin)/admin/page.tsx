@@ -3,24 +3,25 @@ import Link from 'next/link'
 
 export default function AdminDashboard() {
   return (
-    <Container maxWidth="xl" padding="lg">
-      <div className="mb-8">
-        <Heading level={1} size="xl">
-          Admin Panel
-        </Heading>
-        <Text variant="muted" className="mt-2">
-          Manage transcriptions, configure PII redaction, and review call recordings
-        </Text>
-      </div>
+    <div className="min-h-screen bg-gray-100">
+      <Container maxWidth="xl" padding="lg">
+        <div className="mb-8">
+          <Heading level={1} size="xl" className="text-gray-900">
+            Admin Panel
+          </Heading>
+          <Text variant="muted" className="mt-2 text-gray-600">
+            Manage transcriptions, configure PII redaction, and review call recordings
+          </Text>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Dashboard Card */}
         <Link href="/dashboard" className="group">
-          <Card variant="outlined" padding="lg" className="h-full transition-all hover:border-midnight-blue hover:shadow-lg">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-full transition-all hover:shadow-lg">
             <div className="flex items-start justify-between mb-4">
-              <div className="p-3 rounded-lg bg-midnight-blue bg-opacity-10">
+              <div className="p-3 rounded-lg bg-success-gold bg-opacity-10">
                 <svg
-                  className="h-6 w-6 text-midnight-blue"
+                  className="h-6 w-6 text-success-gold"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -33,20 +34,20 @@ export default function AdminDashboard() {
                   />
                 </svg>
               </div>
-              <span className="text-midnight-blue group-hover:translate-x-1 transition-transform">→</span>
+              <span className="text-success-gold group-hover:translate-x-1 transition-transform">→</span>
             </div>
-            <Heading level={3} size="md" className="mb-2">
+            <Heading level={3} size="md" className="mb-2 text-gray-900">
               View Transcripts
             </Heading>
-            <Text variant="muted">
+            <Text variant="muted" className="text-gray-600">
               Browse all call recordings, view transcripts, and download audio files
             </Text>
-          </Card>
+          </div>
         </Link>
 
         {/* Config Card */}
         <Link href="/config" className="group">
-          <Card variant="outlined" padding="lg" className="h-full transition-all hover:border-midnight-blue hover:shadow-lg">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-full transition-all hover:shadow-lg">
             <div className="flex items-start justify-between mb-4">
               <div className="p-3 rounded-lg bg-success-gold bg-opacity-10">
                 <svg
@@ -63,24 +64,24 @@ export default function AdminDashboard() {
                   />
                 </svg>
               </div>
-              <span className="text-midnight-blue group-hover:translate-x-1 transition-transform">→</span>
+              <span className="text-success-gold group-hover:translate-x-1 transition-transform">→</span>
             </div>
-            <Heading level={3} size="md" className="mb-2">
+            <Heading level={3} size="md" className="mb-2 text-gray-900">
               Configure Redaction
             </Heading>
-            <Text variant="muted">
+            <Text variant="muted" className="text-gray-600">
               Manage PII redaction settings for new transcript processing
             </Text>
-          </Card>
+          </div>
         </Link>
 
         {/* Upload Card */}
         <Link href="/upload" className="group">
-          <Card variant="outlined" padding="lg" className="h-full transition-all hover:border-steel-gray hover:shadow-lg">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-full transition-all hover:shadow-lg">
             <div className="flex items-start justify-between mb-4">
-              <div className="p-3 rounded-lg bg-steel-gray bg-opacity-10">
+              <div className="p-3 rounded-lg bg-success-gold bg-opacity-10">
                 <svg
-                  className="h-6 w-6 text-steel-gray"
+                  className="h-6 w-6 text-success-gold"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -93,24 +94,24 @@ export default function AdminDashboard() {
                   />
                 </svg>
               </div>
-              <span className="text-steel-gray group-hover:translate-x-1 transition-transform">→</span>
+              <span className="text-success-gold group-hover:translate-x-1 transition-transform">→</span>
             </div>
-            <Heading level={3} size="md" className="mb-2">
+            <Heading level={3} size="md" className="mb-2 text-gray-900">
               Upload New Recording
             </Heading>
-            <Text variant="muted">
+            <Text variant="muted" className="text-gray-600">
               Go to the upload form to process a new call recording
             </Text>
-          </Card>
+          </div>
         </Link>
 
         {/* User Management Card */}
         <Link href="/users" className="group">
-          <Card variant="outlined" padding="lg" className="h-full transition-all hover:border-midnight-blue hover:shadow-lg">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-full transition-all hover:shadow-lg">
             <div className="flex items-start justify-between mb-4">
-              <div className="p-3 rounded-lg bg-midnight-blue bg-opacity-10">
+              <div className="p-3 rounded-lg bg-success-gold bg-opacity-10">
                 <svg
-                  className="h-6 w-6 text-midnight-blue"
+                  className="h-6 w-6 text-success-gold"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -123,19 +124,49 @@ export default function AdminDashboard() {
                   />
                 </svg>
               </div>
-              <span className="text-midnight-blue group-hover:translate-x-1 transition-transform">→</span>
+              <span className="text-success-gold group-hover:translate-x-1 transition-transform">→</span>
             </div>
-            <Heading level={3} size="md" className="mb-2">
+            <Heading level={3} size="md" className="mb-2 text-gray-900">
               User Management
             </Heading>
-            <Text variant="muted">
+            <Text variant="muted" className="text-gray-600">
               Create and manage user accounts, assign roles, and monitor login activity
             </Text>
-          </Card>
+          </div>
+        </Link>
+
+        {/* Companies Card */}
+        <Link href="/companies" className="group">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-full transition-all hover:shadow-lg">
+            <div className="flex items-start justify-between mb-4">
+              <div className="p-3 rounded-lg bg-success-gold bg-opacity-10">
+                <svg
+                  className="h-6 w-6 text-success-gold"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                  />
+                </svg>
+              </div>
+              <span className="text-success-gold group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+            <Heading level={3} size="md" className="mb-2 text-gray-900">
+              Companies
+            </Heading>
+            <Text variant="muted" className="text-gray-600">
+              Manage companies, branding, and account limits
+            </Text>
+          </div>
         </Link>
 
         {/* Stats Card */}
-        <Card variant="elevated" padding="lg">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-start justify-between mb-4">
             <div className="p-3 rounded-lg bg-success-gold bg-opacity-10">
               <svg
@@ -153,28 +184,29 @@ export default function AdminDashboard() {
               </svg>
             </div>
           </div>
-          <Heading level={3} size="md" className="mb-2">
+          <Heading level={3} size="md" className="mb-2 text-gray-900">
             System Status
           </Heading>
-          <Text variant="muted" className="mb-3">
+          <Text variant="muted" className="mb-3 text-gray-600">
             All services operational
           </Text>
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-success-gold"></div>
-              <Text size="sm">AssemblyAI API Connected</Text>
+              <Text size="sm" className="text-gray-700">AssemblyAI API Connected</Text>
             </div>
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-success-gold"></div>
-              <Text size="sm">Supabase Database Active</Text>
+              <Text size="sm" className="text-gray-700">Supabase Database Active</Text>
             </div>
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-success-gold"></div>
-              <Text size="sm">Storage Available</Text>
+              <Text size="sm" className="text-gray-700">Storage Available</Text>
             </div>
           </div>
-        </Card>
+        </div>
       </div>
     </Container>
+    </div>
   )
 }

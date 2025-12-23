@@ -103,7 +103,7 @@ export default async function TranscriptDetailsPage({ params }: TranscriptDetail
         >
           ← Back to Dashboard
         </Link>
-        <Heading level={1} size="xl">
+        <Heading level={1} size="xl" className="text-gray-900">
           Transcript Details
         </Heading>
       </div>
@@ -111,35 +111,35 @@ export default async function TranscriptDetailsPage({ params }: TranscriptDetail
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Metadata Column */}
         <div className="lg:col-span-1">
-          <Card variant="outlined" padding="lg">
-            <Heading level={3} size="md" className="mb-4">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <Heading level={3} size="md" className="mb-4 text-gray-900">
               Recording Information
             </Heading>
 
             <div className="space-y-4">
               <div>
-                <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1">
+                <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1 text-gray-600">
                   Date & Time
                 </Text>
-                <Text variant="emphasis">{formatDate(transcript.created_at)}</Text>
+                <Text variant="emphasis" className="text-gray-900">{formatDate(transcript.created_at)}</Text>
               </div>
 
               <div>
-                <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1">
+                <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1 text-gray-600">
                   Salesperson
                 </Text>
-                <Text variant="emphasis">{transcript.salesperson_name}</Text>
+                <Text variant="emphasis" className="text-gray-900">{transcript.salesperson_name}</Text>
               </div>
 
               <div>
-                <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1">
+                <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1 text-gray-600">
                   Original Filename
                 </Text>
-                <Text className="break-all">{transcript.original_filename}</Text>
+                <Text className="break-all text-gray-900">{transcript.original_filename}</Text>
               </div>
 
               <div>
-                <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1">
+                <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1 text-gray-600">
                   PII Redaction Config
                 </Text>
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-success-gold bg-opacity-10 text-success-gold">
@@ -147,7 +147,7 @@ export default async function TranscriptDetailsPage({ params }: TranscriptDetail
                 </span>
               </div>
             </div>
-          </Card>
+          </div>
         </div>
 
         {/* Interactive Audio Player & Transcript Column */}

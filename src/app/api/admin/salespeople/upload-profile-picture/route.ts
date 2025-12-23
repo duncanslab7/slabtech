@@ -15,7 +15,7 @@ async function verifyAdmin(supabase: any) {
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'admin') {
+  if (profile?.role !== 'super_admin') {
     return { error: 'Forbidden', status: 403 }
   }
 

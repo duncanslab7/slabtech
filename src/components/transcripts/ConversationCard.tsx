@@ -12,6 +12,7 @@ interface ObjectionTimestamp {
 
 interface ConversationCardProps {
   conversationNumber: number
+  conversationId: string
   startTime: number
   endTime: number
   durationSeconds: number
@@ -21,7 +22,9 @@ interface ConversationCardProps {
   objectionTimestamps?: ObjectionTimestamp[]
   onClick?: () => void
   onObjectionClick?: (timestamp: number) => void
+  onToggleFavorite?: (conversationId: string, isFavorited: boolean) => void
   isActive?: boolean
+  isFavorited?: boolean
 }
 
 function formatTime(seconds: number): string {
@@ -41,6 +44,7 @@ function formatDuration(seconds: number): string {
 
 export function ConversationCard({
   conversationNumber,
+  conversationId,
   startTime,
   endTime,
   durationSeconds,
@@ -50,35 +54,56 @@ export function ConversationCard({
   objectionTimestamps = [],
   onClick,
   onObjectionClick,
-  isActive = false
+  onToggleFavorite,
+  isActive = false,
+  isFavorited = false
 }: ConversationCardProps) {
+  const handleStarClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Don't trigger conversation click
+    onToggleFavorite?.(conversationId, isFavorited);
+  };
   return (
     <div onClick={onClick} className="cursor-pointer">
-      <Card
-        variant={isActive ? 'elevated' : 'outlined'}
-        padding="md"
-        className={`transition-all hover:shadow-lg ${
-          isActive ? 'ring-2 ring-midnight-blue' : ''
+      <div
+        className={`bg-white rounded-lg shadow-sm border p-4 transition-all hover:shadow-lg ${
+          isActive ? 'ring-2 ring-success-gold border-success-gold' : 'border-gray-200'
         }`}
       >
         <div className="space-y-3">
         {/* Header */}
         <div className="flex items-start justify-between">
-          <div>
-            <Text variant="emphasis" className="text-lg font-semibold">
+          <div className="flex-1">
+            <Text variant="emphasis" className="text-lg font-semibold text-gray-900">
               Conversation #{conversationNumber}
             </Text>
-            <Text variant="muted" size="sm" className="font-mono">
+            <Text variant="muted" size="sm" className="font-mono text-gray-600">
               {formatTime(startTime)} - {formatTime(endTime)}
             </Text>
           </div>
-          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(category)}`}>
-            {formatCategory(category)}
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleStarClick}
+              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              {isFavorited ? (
+                <svg className="w-6 h-6 text-success-gold fill-current" viewBox="0 0 24 24">
+                  <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+              ) : (
+                <svg className="w-6 h-6 text-gray-400 hover:text-success-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+              )}
+            </button>
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(category)}`}>
+              {formatCategory(category)}
+            </span>
+          </div>
         </div>
 
         {/* Metrics */}
-        <div className="flex gap-4 text-xs text-steel-gray">
+        <div className="flex gap-4 text-xs text-gray-600">
           <div className="flex items-center gap-1">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -96,7 +121,7 @@ export function ConversationCard({
         {/* Objections */}
         {objections.length > 0 && (
           <div>
-            <Text variant="muted" size="sm" className="uppercase tracking-wide mb-2">
+            <Text variant="muted" size="sm" className="uppercase tracking-wide mb-2 text-gray-600">
               Objections
             </Text>
             <div className="flex flex-wrap gap-2">
@@ -127,12 +152,12 @@ export function ConversationCard({
         )}
 
         {objections.length === 0 && (
-          <Text variant="muted" size="sm" className="italic">
+          <Text variant="muted" size="sm" className="italic text-gray-500">
             No objections detected
           </Text>
         )}
         </div>
-      </Card>
+      </div>
     </div>
   )
 }

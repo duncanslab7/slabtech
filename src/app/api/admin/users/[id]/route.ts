@@ -15,7 +15,7 @@ async function verifyAdmin(supabase: any) {
     .eq('id', user.id)
     .single();
 
-  if (profile?.role !== 'admin') {
+  if (!['super_admin', 'company_admin'].includes(profile?.role || '')) {
     return { error: 'Forbidden', status: 403 };
   }
 
@@ -39,10 +39,10 @@ export async function GET(
     // Use service role client to fetch user data (bypasses RLS)
     const serviceSupabase = createServiceRoleClient();
 
-    // Get user profile
+    // Get user profile with company info
     const { data: profile, error: profileError } = await serviceSupabase
       .from('user_profiles')
-      .select('*')
+      .select('*, companies(id, name, slug)')
       .eq('id', id)
       .single();
 
@@ -104,11 +104,14 @@ export async function PATCH(
     if (typeof body.is_active === 'boolean') {
       updates.is_active = body.is_active;
     }
-    if (body.role && ['admin', 'user'].includes(body.role)) {
+    if (body.role && ['super_admin', 'company_admin', 'user'].includes(body.role)) {
       updates.role = body.role;
     }
     if (body.display_name) {
       updates.display_name = body.display_name;
+    }
+    if (body.company_id) {
+      updates.company_id = body.company_id;
     }
 
     if (Object.keys(updates).length === 0) {

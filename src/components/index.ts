@@ -8,3 +8,6 @@ export * from './layout';
 
 // Feature Components
 export { VideoIntro } from './VideoIntro';
+export { StreakCounter } from './StreakCounter';
+export { CompanyBrandingProvider } from './CompanyBrandingProvider';
+export { CompanyNav } from './CompanyNav';

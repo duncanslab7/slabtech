@@ -54,7 +54,7 @@ export default function HomePage() {
       <div className="flex-1 flex flex-col lg:flex-row items-center justify-center px-6 py-12 gap-8 lg:gap-16 relative z-10">
 
         {/* Desktop Layout: Letters horizontal, logo below */}
-        <div className="hidden lg:flex flex-col items-center gap-4">
+        <div className="hidden lg:flex flex-col items-center gap-8">
           {/* SLAB Letters - Horizontal */}
           <div className="flex items-center gap-6">
             {letters.map((letter, index) => (
@@ -81,8 +81,44 @@ export default function HomePage() {
             ))}
           </div>
 
-          {/* Logo Video */}
-          <LogoVideo isDimmed={expandedLetter !== null} />
+          {/* Logo Row with Motto and Trademark */}
+          <div className="flex items-center justify-between w-full max-w-[1400px] px-8">
+            {/* Motto */}
+            <div className="flex-1 flex justify-end pr-12">
+              <p
+                className={`text-lg font-medium italic max-w-[220px] text-center transition-opacity ${
+                  expandedLetter !== null ? 'opacity-30' : 'opacity-100'
+                }`}
+                style={{
+                  color: '#f39c12',
+                  textShadow: '0 0 10px rgba(255, 140, 0, 0.6), 0 0 20px rgba(255, 140, 0, 0.4)',
+                }}
+              >
+                "Golden Reps aren't born, They're Made"
+              </p>
+            </div>
+
+            {/* Logo Video */}
+            <div className="flex-shrink-0">
+              <LogoVideo isDimmed={expandedLetter !== null} />
+            </div>
+
+            {/* Trademark */}
+            <div className="flex-1 flex justify-start pl-12">
+              <p
+                className={`text-base font-medium max-w-[220px] text-center transition-opacity ${
+                  expandedLetter !== null ? 'opacity-30' : 'opacity-100'
+                }`}
+                style={{
+                  color: '#f39c12',
+                  textShadow: '0 0 10px rgba(255, 140, 0, 0.6), 0 0 20px rgba(255, 140, 0, 0.4)',
+                }}
+              >
+                SalesLab Immersion™<br />
+                Voice Intelligence Platform
+              </p>
+            </div>
+          </div>
 
           {/* Copyright Text */}
           <p className="text-[#1a1a4d] text-sm font-medium tracking-wide mt-4">
@@ -107,7 +143,7 @@ export default function HomePage() {
                 {index < letters.length - 1 && (
                   <div
                     className={`w-4 h-4 rounded-full bg-[#f39c12] transition-opacity ${
-                      expandedLetter !== null && expandedLetter !== letter.key ? 'opacity-30' : 'opacity-100'
+                      expandedLetter !== null ? 'opacity-0' : 'opacity-100'
                     }`}
                     style={{
                       boxShadow: '0 0 10px rgba(243, 156, 18, 0.6), 0 0 20px rgba(243, 156, 18, 0.4)'
@@ -151,7 +187,7 @@ function LetterButton({ letter, isExpanded, isDimmed, onClick, onClose }: Letter
   }`;
 
   const collapsedStyle = {
-    textShadow: '0 0 15px rgba(243, 156, 18, 0.8), 0 0 30px rgba(243, 156, 18, 0.6), 0 0 45px rgba(243, 156, 18, 0.4)',
+    textShadow: '0 0 20px rgba(255, 140, 0, 1), 0 0 40px rgba(255, 140, 0, 0.8), 0 0 60px rgba(255, 120, 0, 0.6), 0 0 80px rgba(255, 100, 0, 0.4)',
   };
 
   const expandedStyle = {
@@ -222,7 +258,26 @@ function LogoVideo({ isDimmed }: { isDimmed: boolean }) {
   }, []);
 
   return (
-    <div className={`transition-opacity duration-300 ${isDimmed ? 'opacity-30' : 'opacity-100'}`}>
+    <div className={`relative w-80 h-60 md:w-[400px] md:h-[240px] transition-opacity duration-300 ${isDimmed ? 'opacity-30' : 'opacity-100'}`}>
+      {/* Orange glow effect */}
+      <div
+        className="absolute inset-0 rounded-lg pointer-events-none"
+        style={{
+          background: 'radial-gradient(circle, rgba(255, 140, 0, 0.4) 0%, rgba(255, 120, 0, 0.2) 40%, transparent 70%)',
+          filter: 'blur(30px)',
+          transform: 'scale(1.1)',
+        }}
+      />
+      {/* Grainy texture overlay */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+          opacity: 0.3,
+          mixBlendMode: 'overlay',
+          userSelect: 'none',
+        }}
+      />
       <video
         ref={videoRef}
         loop
@@ -230,12 +285,12 @@ function LogoVideo({ isDimmed }: { isDimmed: boolean }) {
         playsInline
         autoPlay
         preload="auto"
-        className="w-80 h-80 md:w-[500px] md:h-[500px] object-contain"
-        style={{ background: 'transparent' }}
+        className="w-full h-full object-contain relative z-10"
+        style={{ background: 'transparent', mixBlendMode: 'screen' }}
         onError={(e) => console.error('Video failed to load:', e)}
         onLoadedData={() => console.log('Video loaded successfully')}
       >
-        <source src="/slab-logo-video.mp4" type="video/mp4" />
+        <source src="/slab-logo-pan.mp4" type="video/mp4" />
         Your browser does not support the video tag.
       </video>
     </div>

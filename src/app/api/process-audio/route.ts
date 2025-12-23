@@ -444,6 +444,13 @@ export async function POST(request: NextRequest) {
 
       const salespersonName = salespersonData?.name || 'Unknown'
 
+      // Get user's company_id for multi-tenancy
+      const { data: uploaderProfile } = await supabase
+        .from('user_profiles')
+        .select('company_id')
+        .eq('id', user.id)
+        .single()
+
       // 9) Save transcript + redaction metadata
       const { data: transcriptData, error: transcriptError } = await supabase
         .from('transcripts')
@@ -460,6 +467,7 @@ export async function POST(request: NextRequest) {
           },
           redaction_config_used: piiFields,
           uploaded_by: user.id,
+          company_id: uploaderProfile?.company_id,
         })
         .select()
         .single()

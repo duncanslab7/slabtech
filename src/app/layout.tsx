@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Header } from "@/components";
 import { VT323 } from 'next/font/google';
 
 const vt323 = VT323({
@@ -25,7 +24,6 @@ export default function RootLayout({
   return (
     <html lang="en" className={vt323.variable}>
       <body className="antialiased">
-        <Header />
         {children}
       </body>
     </html>

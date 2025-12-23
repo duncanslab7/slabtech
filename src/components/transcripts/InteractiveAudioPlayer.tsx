@@ -320,7 +320,7 @@ export function InteractiveAudioPlayer({
       </div>
 
       {/* Audio Controls */}
-      <Card variant="elevated" padding="lg">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="space-y-4">
           {/* Progress Bar */}
           <div
@@ -328,17 +328,17 @@ export function InteractiveAudioPlayer({
             onClick={handleProgressClick}
           >
             <div
-              className="absolute h-2 bg-midnight-blue rounded-full transition-all group-hover:bg-steel-gray"
+              className="absolute h-2 bg-success-gold rounded-full transition-all group-hover:bg-amber-500"
               style={{ width: `${(currentTime / duration) * 100}%` }}
             />
             <div
-              className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-midnight-blue rounded-full shadow-md"
+              className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-success-gold rounded-full shadow-md"
               style={{ left: `${(currentTime / duration) * 100}%`, marginLeft: '-8px' }}
             />
           </div>
 
           {/* Time Display */}
-          <div className="flex justify-between text-sm text-steel-gray font-mono">
+          <div className="flex justify-between text-sm text-gray-600 font-mono">
             <span>{formatTime(currentTime)}</span>
             <span>{formatTime(duration)}</span>
           </div>
@@ -407,7 +407,7 @@ export function InteractiveAudioPlayer({
           {/* Conversation Navigation */}
           {conversations && conversations.length > 1 && (
             <div className="flex items-center justify-center gap-2 pt-4 border-t border-gray-200">
-              <Text variant="muted" size="sm" className="mr-2">
+              <Text variant="muted" size="sm" className="mr-2 text-gray-600">
                 Conversation:
               </Text>
               <button
@@ -416,13 +416,13 @@ export function InteractiveAudioPlayer({
                 className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
                   currentConversationIndex === 0
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'bg-gray-100 text-steel-gray hover:bg-gray-200'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
                 title="Previous conversation"
               >
                 ← Previous
               </button>
-              <span className="text-sm font-medium text-steel-gray">
+              <span className="text-sm font-medium text-gray-700">
                 {currentConversationIndex + 1} / {conversations.length}
               </span>
               <button
@@ -431,7 +431,7 @@ export function InteractiveAudioPlayer({
                 className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
                   currentConversationIndex === conversations.length - 1
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'bg-gray-100 text-steel-gray hover:bg-gray-200'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
                 title="Next conversation"
               >
@@ -446,22 +446,22 @@ export function InteractiveAudioPlayer({
               <a
                 href={audioUrl}
                 download={originalFilename}
-                className="block w-full text-center rounded-md bg-gray-100 px-4 py-2 text-midnight-blue hover:bg-gray-200 transition-colors text-sm font-medium"
+                className="block w-full text-center rounded-md bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200 transition-colors text-sm font-medium"
               >
                 Download Audio
               </a>
             </div>
           )}
         </div>
-      </Card>
+      </div>
 
       {/* Interactive Transcript */}
-      <Card variant="elevated" padding="lg">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="mb-4">
-          <Text variant="emphasis" className="text-lg font-semibold">
+          <Text variant="emphasis" className="text-lg font-semibold text-gray-900">
             Interactive Transcript
           </Text>
-          <Text variant="muted" size="sm" className="mt-1">
+          <Text variant="muted" size="sm" className="mt-1 text-gray-600">
             Click on any word to jump to that moment in the audio
           </Text>
         </div>
@@ -473,18 +473,18 @@ export function InteractiveAudioPlayer({
               <>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-charcoal"></div>
-                  <span className="text-steel-gray">Speaker 1</span>
+                  <span className="text-gray-700">Speaker 1</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-[#f39c12]"></div>
-                  <span className="text-steel-gray">Speaker 2</span>
+                  <span className="text-gray-700">Speaker 2</span>
                 </div>
                 <button
                   onClick={() => setSwapSpeakerColors(!swapSpeakerColors)}
                   className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                     swapSpeakerColors
-                      ? 'bg-midnight-blue text-white'
-                      : 'bg-gray-200 text-steel-gray hover:bg-gray-300'
+                      ? 'bg-success-gold text-black'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                   }`}
                   title="Swap speaker colors for easier reading"
                 >
@@ -494,7 +494,7 @@ export function InteractiveAudioPlayer({
             )}
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded bg-success-gold bg-opacity-30"></div>
-              <span className="text-steel-gray">Currently playing</span>
+              <span className="text-gray-700">Currently playing</span>
             </div>
           </div>
           {hasSpeakerLabels && (
@@ -539,11 +539,11 @@ export function InteractiveAudioPlayer({
         </div>
 
         <div className="mt-4 p-4 bg-success-gold bg-opacity-5 rounded-md border border-success-gold border-opacity-20">
-          <Text variant="muted" size="sm">
+          <Text variant="muted" size="sm" className="text-gray-700">
             <strong>Tip:</strong> Use the speed controls to slow down or speed up playback. Click any word to jump to that moment.
           </Text>
         </div>
-      </Card>
+      </div>
     </div>
   )
 }

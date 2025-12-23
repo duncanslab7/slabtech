@@ -9,9 +9,15 @@ interface UserProfile {
   id: string;
   email: string;
   display_name: string | null;
-  role: 'admin' | 'user';
+  role: 'super_admin' | 'company_admin' | 'user';
   is_active: boolean;
   created_at: string;
+  company_id: string | null;
+  companies?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
 }
 
 interface LoginLog {
@@ -57,7 +63,9 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
   // Edit form
   const [editing, setEditing] = useState(false);
   const [editDisplayName, setEditDisplayName] = useState('');
-  const [editRole, setEditRole] = useState<'admin' | 'user'>('user');
+  const [editRole, setEditRole] = useState<'super_admin' | 'company_admin' | 'user'>('user');
+  const [editCompanyId, setEditCompanyId] = useState('');
+  const [companies, setCompanies] = useState<Array<{ id: string; name: string }>>([]);
   const [saveLoading, setSaveLoading] = useState(false);
 
   // Assign transcript
@@ -76,11 +84,25 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
         setAssignments(data.assignments);
         setEditDisplayName(data.profile.display_name || '');
         setEditRole(data.profile.role);
+        setEditCompanyId(data.profile.company_id || '');
       }
     } catch (error) {
       console.error('Error fetching user:', error);
     }
     setLoading(false);
+  };
+
+  const fetchCompanies = async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('companies')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('name');
+
+    if (data) {
+      setCompanies(data);
+    }
   };
 
   const fetchSubscriptions = async () => {
@@ -140,6 +162,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
   useEffect(() => {
     fetchUserData();
     fetchSubscriptions();
+    fetchCompanies();
   }, [id]);
 
   useEffect(() => {
@@ -169,6 +192,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
         body: JSON.stringify({
           display_name: editDisplayName,
           role: editRole,
+          company_id: editCompanyId,
         }),
       });
 
@@ -282,12 +306,12 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
   if (!profile) {
     return (
       <Container maxWidth="xl" padding="lg">
-        <Card variant="outlined" padding="lg" className="text-center">
-          <Text variant="muted">User not found</Text>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
+          <Text variant="muted" className="text-gray-600">User not found</Text>
           <Link href="/users" className="text-success-gold hover:underline mt-4 inline-block">
             Back to Users
           </Link>
-        </Card>
+        </div>
       </Container>
     );
   }
@@ -303,19 +327,21 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
             </svg>
           </Link>
           <div className="flex-1 min-w-0">
-            <Heading level={1} size="xl" className="truncate">
+            <Heading level={1} size="xl" className="truncate text-gray-900">
               {profile.display_name || profile.email}
             </Heading>
-            <Text variant="muted" className="truncate">{profile.email}</Text>
+            <Text variant="muted" className="truncate text-gray-600">{profile.email}</Text>
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
           <span className={`px-3 py-1 text-xs sm:text-sm font-medium rounded-full ${
-            profile.role === 'admin'
+            profile.role === 'super_admin'
               ? 'bg-purple-100 text-purple-700'
+              : profile.role === 'company_admin'
+              ? 'bg-amber-100 text-amber-700'
               : 'bg-blue-100 text-blue-700'
           }`}>
-            {profile.role}
+            {profile.role === 'super_admin' ? 'Super Admin' : profile.role === 'company_admin' ? 'Company Admin' : 'User'}
           </span>
           <span className={`px-3 py-1 text-xs sm:text-sm font-medium rounded-full ${
             profile.is_active
@@ -348,7 +374,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
       {/* Tab Content */}
       {activeTab === 'details' && (
-        <Card variant="outlined" padding="lg">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           {editing ? (
             <div className="space-y-4">
               <div>
@@ -368,11 +394,29 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                 </label>
                 <select
                   value={editRole}
-                  onChange={(e) => setEditRole(e.target.value as 'admin' | 'user')}
+                  onChange={(e) => setEditRole(e.target.value as 'super_admin' | 'company_admin' | 'user')}
                   className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-gold"
                 >
                   <option value="user">User</option>
-                  <option value="admin">Admin</option>
+                  <option value="company_admin">Company Admin</option>
+                  <option value="super_admin">Super Admin</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Company
+                </label>
+                <select
+                  value={editCompanyId}
+                  onChange={(e) => setEditCompanyId(e.target.value)}
+                  className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-gold"
+                >
+                  <option value="">Select company...</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="flex gap-3 pt-4">
@@ -395,47 +439,51 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4 max-w-lg">
                 <div>
-                  <Text variant="muted" size="sm">Email</Text>
-                  <Text>{profile.email}</Text>
+                  <Text variant="muted" size="sm" className="text-gray-600">Email</Text>
+                  <Text className="text-gray-900">{profile.email}</Text>
                 </div>
                 <div>
-                  <Text variant="muted" size="sm">Display Name</Text>
-                  <Text>{profile.display_name || '-'}</Text>
+                  <Text variant="muted" size="sm" className="text-gray-600">Display Name</Text>
+                  <Text className="text-gray-900">{profile.display_name || '-'}</Text>
                 </div>
                 <div>
-                  <Text variant="muted" size="sm">Role</Text>
-                  <Text className="capitalize">{profile.role}</Text>
+                  <Text variant="muted" size="sm" className="text-gray-600">Role</Text>
+                  <Text className="capitalize text-gray-900">{profile.role}</Text>
                 </div>
                 <div>
-                  <Text variant="muted" size="sm">Created</Text>
-                  <Text>{new Date(profile.created_at).toLocaleDateString()}</Text>
+                  <Text variant="muted" size="sm" className="text-gray-600">Company</Text>
+                  <Text className="text-gray-900">{profile.companies?.name || '-'}</Text>
+                </div>
+                <div>
+                  <Text variant="muted" size="sm" className="text-gray-600">Created</Text>
+                  <Text className="text-gray-900">{new Date(profile.created_at).toLocaleDateString()}</Text>
                 </div>
               </div>
               <button
                 onClick={() => setEditing(true)}
-                className="px-4 py-2 bg-midnight-blue text-white rounded-lg hover:bg-opacity-90"
+                className="px-4 py-2 bg-success-gold text-black font-medium rounded-lg hover:bg-amber-500"
               >
                 Edit Details
               </button>
             </div>
           )}
-        </Card>
+        </div>
       )}
 
       {activeTab === 'details' && (
-        <Card variant="outlined" padding="lg" className="mt-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <Heading level={3} size="lg">
+              <Heading level={3} size="lg" className="text-gray-900">
                 Salesperson Subscriptions
               </Heading>
-              <Text variant="muted" size="sm" className="mt-1">
+              <Text variant="muted" size="sm" className="mt-1 text-gray-600">
                 Automatically access all audio files from subscribed salespeople
               </Text>
             </div>
             <button
               onClick={() => setShowSubscribeModal(true)}
-              className="px-4 py-2 bg-success-gold text-white font-semibold rounded-lg hover:bg-amber-500"
+              className="px-4 py-2 bg-success-gold text-black font-semibold rounded-lg hover:bg-amber-500"
             >
               + Subscribe
             </button>
@@ -443,8 +491,8 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
           {subscriptions.length === 0 ? (
             <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-              <Text variant="muted">No subscriptions yet</Text>
-              <Text variant="muted" size="sm" className="mt-1">
+              <Text variant="muted" className="text-gray-600">No subscriptions yet</Text>
+              <Text variant="muted" size="sm" className="mt-1 text-gray-500">
                 Subscribe to salespeople to automatically access their audio files
               </Text>
             </div>
@@ -456,10 +504,10 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                   className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
                 >
                   <div>
-                    <Text variant="emphasis" className="font-medium">
+                    <Text variant="emphasis" className="font-medium text-gray-900">
                       {sub.salesperson_name}
                     </Text>
-                    <Text variant="muted" size="sm">
+                    <Text variant="muted" size="sm" className="text-gray-600">
                       Subscribed on {new Date(sub.created_at).toLocaleDateString()}
                     </Text>
                   </div>
@@ -473,27 +521,27 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
               ))}
             </div>
           )}
-        </Card>
+        </div>
       )}
 
       {activeTab === 'transcripts' && (
         <div>
           <div className="flex justify-between items-center mb-4">
-            <Text variant="muted">
+            <Text variant="muted" className="text-gray-600">
               {assignments.length} transcript{assignments.length !== 1 ? 's' : ''} assigned
             </Text>
             <button
               onClick={() => setShowAssignModal(true)}
-              className="px-4 py-2 bg-success-gold text-white font-semibold rounded-lg hover:bg-amber-500"
+              className="px-4 py-2 bg-success-gold text-black font-semibold rounded-lg hover:bg-amber-500"
             >
               + Assign Transcripts
             </button>
           </div>
 
           {assignments.length === 0 ? (
-            <Card variant="outlined" padding="lg" className="text-center">
-              <Text variant="muted">No transcripts assigned to this user</Text>
-            </Card>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
+              <Text variant="muted" className="text-gray-600">No transcripts assigned to this user</Text>
+            </div>
           ) : (
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <table className="min-w-full divide-y divide-gray-200">
@@ -544,17 +592,17 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
       {activeTab === 'playlists' && (
         <div>
-          <Text variant="muted" className="mb-4">
+          <Text variant="muted" className="mb-4 text-gray-600">
             Training playlists organized by objection type
           </Text>
 
           {playlists.length === 0 ? (
-            <Card variant="outlined" padding="lg" className="text-center">
-              <Text variant="muted">No conversations with objections found</Text>
-              <Text variant="muted" size="sm" className="mt-2">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
+              <Text variant="muted" className="text-gray-600">No conversations with objections found</Text>
+              <Text variant="muted" size="sm" className="mt-2 text-gray-500">
                 Assign transcripts to this user to generate training playlists
               </Text>
-            </Card>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {playlists.map((playlist) => (
@@ -563,32 +611,28 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                   href={`/users/${id}/playlists/${playlist.objectionType}`}
                   className="block"
                 >
-                  <Card
-                    variant="outlined"
-                    padding="md"
-                    className="hover:shadow-lg transition-all hover:border-success-gold cursor-pointer h-full"
-                  >
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-lg transition-all hover:border-success-gold cursor-pointer h-full">
                     <div className="space-y-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <Text variant="emphasis" className="text-lg font-semibold capitalize">
+                          <Text variant="emphasis" className="text-lg font-semibold capitalize text-gray-900">
                             {playlist.objectionType.replace('_', ' ')}
                           </Text>
-                          <Text variant="muted" size="sm" className="mt-1">
+                          <Text variant="muted" size="sm" className="mt-1 text-gray-600">
                             {playlist.conversationCount} conversation{playlist.conversationCount !== 1 ? 's' : ''}
                           </Text>
                         </div>
-                        <svg className="w-5 h-5 text-steel-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       </div>
                       <div className="pt-2 border-t border-gray-200">
-                        <Text variant="muted" size="sm">
+                        <Text variant="muted" size="sm" className="text-gray-600">
                           Click to view playlist →
                         </Text>
                       </div>
                     </div>
-                  </Card>
+                  </div>
                 </Link>
               ))}
             </div>
@@ -598,14 +642,14 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
       {activeTab === 'activity' && (
         <div>
-          <Text variant="muted" className="mb-4">
+          <Text variant="muted" className="mb-4 text-gray-600">
             Last 50 login attempts
           </Text>
 
           {loginHistory.length === 0 ? (
-            <Card variant="outlined" padding="lg" className="text-center">
-              <Text variant="muted">No login activity recorded</Text>
-            </Card>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
+              <Text variant="muted" className="text-gray-600">No login activity recorded</Text>
+            </div>
           ) : (
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <table className="min-w-full divide-y divide-gray-200">

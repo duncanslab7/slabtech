@@ -104,7 +104,7 @@ export function TranscriptWithConversations({
       {/* Conversations Section */}
       {conversations && conversations.length > 0 && (
         <div className="mb-8">
-          <Heading level={2} size="lg" className="mb-4">
+          <Heading level={2} size="lg" className="mb-4 text-gray-900">
             Conversations
           </Heading>
           <ConversationList

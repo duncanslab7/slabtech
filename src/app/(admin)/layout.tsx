@@ -18,34 +18,34 @@ export default async function AdminLayout({
     redirect('/login')
   }
 
-  // Check if user is an admin
+  // Check if user is a super admin
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('role, is_active')
+    .select('role, is_active, companies!inner(slug)')
     .eq('id', user.id)
     .single()
 
-  // If no profile exists (legacy user), try to create one as admin
+  // If no profile exists (legacy user), try to create one as super admin
   if (!profile) {
     const { error: insertError } = await supabase.from('user_profiles').insert({
       id: user.id,
       email: user.email,
       display_name: user.email,
-      role: 'admin', // Legacy users become admins
+      role: 'super_admin', // Legacy users become super admins
     })
 
-    // If insert fails (table doesn't exist yet), treat as admin anyway
+    // If insert fails (table doesn't exist yet), treat as super admin anyway
     if (insertError) {
       console.warn('Could not create user profile:', insertError.message)
-      // Continue as admin - database migration may not be run yet
+      // Continue as super admin - database migration may not be run yet
     }
   } else if (!profile.is_active) {
     // User is disabled
     await supabase.auth.signOut()
     redirect('/login?error=account_disabled')
-  } else if (profile.role !== 'admin') {
-    // Non-admin users are redirected to user dashboard
-    redirect('/user/dashboard')
+  } else if (profile.role !== 'super_admin') {
+    // Non-super-admin users are redirected to their company dashboard
+    redirect(`/c/${profile.companies?.slug}/dashboard`)
   }
 
   return (
@@ -72,6 +72,12 @@ export default async function AdminLayout({
                   Dashboard
                 </Link>
                 <Link
+                  href="/companies"
+                  className="text-midnight-blue hover:text-success-gold font-medium transition-colors"
+                >
+                  Companies
+                </Link>
+                <Link
                   href="/dashboard"
                   className="text-midnight-blue hover:text-success-gold font-medium transition-colors"
                 >
@@ -94,7 +100,7 @@ export default async function AdminLayout({
             <div className="flex items-center gap-4">
               <span className="text-sm text-steel-gray">{user.email}</span>
               <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
-                Admin
+                Super Admin
               </span>
               <form action="/auth/signout" method="post">
                 <button

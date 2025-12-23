@@ -40,15 +40,18 @@ export default function UserLoginPage() {
         // Check user role and redirect accordingly
         const { data: profile } = await supabase
           .from('user_profiles')
-          .select('role')
+          .select('role, companies!inner(slug)')
           .eq('id', data.user.id)
           .single();
 
-        if (profile?.role === 'admin') {
-          // Redirect admin users to admin dashboard
+        if (profile?.role === 'super_admin') {
+          // Redirect super admin users to admin dashboard
           router.push('/admin');
+        } else if (profile?.role === 'company_admin' || profile?.role === 'user') {
+          // Redirect company users to their company dashboard
+          router.push(`/c/${profile.companies?.slug}/dashboard`);
         } else {
-          // Redirect regular users to user dashboard
+          // Fallback for legacy users
           router.push('/user/dashboard');
         }
       }
@@ -60,26 +63,45 @@ export default function UserLoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-pure-white flex flex-col">
+    <main className="min-h-screen bg-gradient-to-br from-[#000033] via-[#001199] to-[#0a1a5f] flex flex-col relative overflow-hidden">
+      {/* Grain overlay for texture */}
+      <div
+        className="fixed inset-0 pointer-events-none opacity-50 z-0"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+          backgroundRepeat: 'repeat',
+          backgroundSize: '200px 200px',
+        }}
+      />
+
       {/* Header with Logo */}
-      <header className="w-full py-6 flex justify-center border-b-2 border-midnight-blue">
+      <header className="w-full py-6 flex justify-center border-b-2 relative z-10" style={{ borderColor: 'rgba(243, 156, 18, 0.3)' }}>
         <Link href="/">
           <Image
-            src="/slab-logo.png"
+            src="/slab-logo-thermal.png"
             alt="SLAB"
             width={100}
             height={100}
-            className="h-[100px] w-auto cursor-pointer hover:opacity-80 transition-opacity"
+            className="h-[100px] w-auto cursor-pointer hover:scale-110 transition-transform"
+            style={{
+              filter: 'drop-shadow(0 0 20px rgba(255, 140, 0, 0.8)) drop-shadow(0 0 40px rgba(255, 120, 0, 0.6))',
+            }}
             priority
           />
         </Link>
       </header>
 
       {/* Login Form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12">
+      <div className="flex-1 flex items-center justify-center px-6 py-12 relative z-10">
         <div className="w-full max-w-md">
-          <div className="bg-white shadow-lg rounded-2xl p-8 border border-gray-200">
-            <h1 className="text-2xl font-bold text-midnight-blue text-center mb-8">
+          <div className="bg-[#001155]/80 rounded-lg p-8 border-2 backdrop-blur-sm" style={{
+            borderColor: 'rgba(243, 156, 18, 0.3)',
+            boxShadow: '0 0 30px rgba(255, 140, 0, 0.2), 0 0 60px rgba(255, 120, 0, 0.1)',
+          }}>
+            <h1 className="text-3xl font-bold text-center mb-8" style={{
+              color: '#f39c12',
+              textShadow: '0 0 20px rgba(255, 140, 0, 1), 0 0 40px rgba(255, 140, 0, 0.8)',
+            }}>
               User Login
             </h1>
 
@@ -88,7 +110,8 @@ export default function UserLoginPage() {
               <div>
                 <label
                   htmlFor="email"
-                  className="block text-sm font-medium text-midnight-blue mb-2"
+                  className="block text-sm font-medium mb-2"
+                  style={{ color: '#f39c12' }}
                 >
                   Email Address
                 </label>
@@ -99,7 +122,12 @@ export default function UserLoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   disabled={loading}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-gold focus:border-transparent transition-all text-charcoal"
+                  className="w-full px-4 py-3 rounded-md focus:outline-none focus:ring-2 transition-all"
+                  style={{
+                    backgroundColor: 'rgba(0, 17, 85, 0.6)',
+                    border: '1px solid rgba(243, 156, 18, 0.3)',
+                    color: '#fff',
+                  }}
                   placeholder="you@example.com"
                 />
               </div>
@@ -108,7 +136,8 @@ export default function UserLoginPage() {
               <div>
                 <label
                   htmlFor="password"
-                  className="block text-sm font-medium text-midnight-blue mb-2"
+                  className="block text-sm font-medium mb-2"
+                  style={{ color: '#f39c12' }}
                 >
                   Password
                 </label>
@@ -119,14 +148,23 @@ export default function UserLoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   disabled={loading}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-gold focus:border-transparent transition-all text-charcoal"
-                  placeholder="Enter your password"
+                  className="w-full px-4 py-3 rounded-md focus:outline-none focus:ring-2 transition-all"
+                  style={{
+                    backgroundColor: 'rgba(0, 17, 85, 0.6)',
+                    border: '1px solid rgba(243, 156, 18, 0.3)',
+                    color: '#fff',
+                  }}
+                  placeholder="••••••••"
                 />
               </div>
 
               {/* Error Message */}
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                <div className="px-4 py-3 rounded-lg text-sm" style={{
+                  backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                  border: '1px solid rgba(220, 38, 38, 0.3)',
+                  color: '#fca5a5',
+                }}>
                   {error}
                 </div>
               )}
@@ -135,7 +173,12 @@ export default function UserLoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 px-4 bg-success-gold text-white font-semibold rounded-lg hover:bg-amber-500 focus:ring-2 focus:ring-offset-2 focus:ring-success-gold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="w-full py-3 px-4 font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                style={{
+                  backgroundColor: '#f39c12',
+                  color: '#000',
+                  boxShadow: '0 0 20px rgba(255, 140, 0, 0.4), 0 0 40px rgba(255, 120, 0, 0.2)',
+                }}
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -167,7 +210,8 @@ export default function UserLoginPage() {
             <div className="mt-6 text-center">
               <Link
                 href="/"
-                className="text-sm text-steel-gray hover:text-success-gold transition-colors"
+                className="text-sm transition-colors"
+                style={{ color: '#f39c12' }}
               >
                 &larr; Back to Home
               </Link>

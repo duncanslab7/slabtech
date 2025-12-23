@@ -3,24 +3,55 @@
 @tailwind utilities;
 
 :root {
-  /* SLAB Brand Colors */
+  /* SLAB Thermal Theme Colors */
+  --thermal-deep: #0a0a2e;
+  --thermal-dark: #16213e;
+  --thermal-blue: #1a1a4d;
+  --thermal-purple: #2d1b69;
+
+  --thermal-red: #ff0844;
+  --thermal-orange: #ff5733;
+  --thermal-yellow: #ffdd00;
+  --thermal-gold: #ffd700;
+
+  --thermal-magenta: #9d4edd;
+  --thermal-cyan: #00d9ff;
+
+  /* Legacy SLAB Brand Colors (keeping for compatibility) */
   --midnight-blue: #2c3e50;
   --steel-gray: #34495e;
   --success-gold: #f39c12;
   --pure-white: #FFFFFF;
   --charcoal: #1a1a1a;
 
-  /* Legacy variables - mapped to brand colors */
-  --background: #ffffff;
-  --foreground: #1a1a1a;
+  /* Legacy variables - mapped to thermal theme */
+  --background: #0a0a2e;
+  --foreground: #ffdd00;
 }
 
 body {
-  color: var(--charcoal);
-  background: var(--pure-white);
+  color: var(--thermal-yellow);
+  background: var(--thermal-deep);
   font-family: Arial, Helvetica, sans-serif;
   font-size: 12px;
   line-height: 1.5;
+}
+
+/* Thermal Glow Effects */
+.thermal-text-glow {
+  text-shadow:
+    0 0 10px currentColor,
+    0 0 20px currentColor,
+    0 0 30px currentColor;
+}
+
+.thermal-text-glow-strong {
+  text-shadow:
+    0 0 5px currentColor,
+    0 0 10px currentColor,
+    0 0 20px currentColor,
+    0 0 40px currentColor,
+    0 0 80px currentColor;
 }
 
 /* Brand Typography Utilities */

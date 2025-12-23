@@ -100,7 +100,7 @@ export function TranscriptDisplay({
   const colorCodedTranscript = buildColorCodedTranscript(words, piiMatches, firstSpeaker)
 
   return (
-    <Card variant="elevated" padding="lg">
+    <Card variant="light" padding="lg">
       <div className="mb-4 flex items-center justify-between">
         <Heading level={3} size="md">
           Redacted Transcript

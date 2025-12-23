@@ -11,9 +11,9 @@ export interface CardProps {
  * Card component for content grouping
  *
  * Variants:
- * - default: White background with subtle border
- * - outlined: Midnight Blue border
- * - elevated: White background with shadow
+ * - default: Thermal dark background with subtle border
+ * - outlined: Thermal orange border with glow
+ * - elevated: Thermal background with thermal glow shadow
  */
 export const Card: React.FC<CardProps> = ({
   children,
@@ -21,12 +21,12 @@ export const Card: React.FC<CardProps> = ({
   variant = 'default',
   padding = 'md',
 }) => {
-  const baseStyles = 'bg-pure-white rounded-lg';
+  const baseStyles = 'bg-gradient-to-br from-thermal-dark/80 to-thermal-purple/80 rounded-lg backdrop-blur-sm';
 
   const variantStyles = {
-    default: 'border border-gray-200',
-    outlined: 'border-2 border-midnight-blue',
-    elevated: 'shadow-lg',
+    default: 'border border-thermal-orange/20',
+    outlined: 'border-2 border-thermal-orange/50',
+    elevated: 'shadow-thermal-glow-orange border border-thermal-orange/30',
   };
 
   const paddingStyles = {

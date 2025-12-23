@@ -26,6 +26,10 @@ const config: Config = {
         "thermal-magenta": "#9d4edd",   // Purple-magenta
         "thermal-cyan": "#00d9ff",      // Bright cyan accent
 
+        // Multi-tenancy: Company-specific branding colors
+        "company-primary": "var(--company-primary, #f39c12)",    // Company primary color
+        "company-secondary": "var(--company-secondary, #001199)", // Company secondary color
+
         // Legacy SLAB colors (keeping for compatibility)
         "midnight-blue": "#2c3e50",
         "steel-gray": "#34495e",

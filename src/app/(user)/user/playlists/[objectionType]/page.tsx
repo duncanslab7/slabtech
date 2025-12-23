@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { PlaylistAudioPlayer } from '@/components/playlists/PlaylistAudioPlayer';
+import { createClient } from '@/utils/supabase/client';
 
 interface Conversation {
   id: string;
@@ -31,6 +32,7 @@ export default function UserPlaylistPage({ params }: { params: Promise<{ objecti
   const [loading, setLoading] = useState(true);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [favoritedConversations, setFavoritedConversations] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchPlaylist = async () => {
@@ -63,6 +65,89 @@ export default function UserPlaylistPage({ params }: { params: Promise<{ objecti
 
     fetchPlaylist();
   }, [objectionType]);
+
+  // Fetch favorited conversations
+  useEffect(() => {
+    const fetchFavorites = async () => {
+      if (conversations.length === 0) return;
+
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const conversationIds = conversations.map(c => c.id);
+      const { data: favorites } = await supabase
+        .from('user_favorites')
+        .select('conversation_id')
+        .eq('user_id', user.id)
+        .in('conversation_id', conversationIds);
+
+      if (favorites) {
+        setFavoritedConversations(new Set(favorites.map(f => f.conversation_id)));
+      }
+    };
+
+    fetchFavorites();
+  }, [conversations]);
+
+  const handleToggleFavorite = async (conversationId: string, isFavorited: boolean) => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.error('No user found');
+      return;
+    }
+
+    try {
+      if (isFavorited) {
+        // Remove from favorites
+        const { error } = await supabase
+          .from('user_favorites')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('conversation_id', conversationId);
+
+        if (error) {
+          console.error('Error removing favorite:', error);
+          alert(`Failed to remove favorite: ${error.message}`);
+          return;
+        }
+
+        setFavoritedConversations(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(conversationId);
+          return newSet;
+        });
+      } else {
+        // Add to favorites
+        const { data: userProfile } = await supabase
+          .from('user_profiles')
+          .select('company_id')
+          .eq('id', user.id)
+          .single();
+
+        const { error } = await supabase
+          .from('user_favorites')
+          .insert({
+            user_id: user.id,
+            company_id: userProfile?.company_id,
+            conversation_id: conversationId,
+            note: null
+          });
+
+        if (error) {
+          console.error('Error adding favorite:', error);
+          alert(`Failed to add favorite: ${error.message}`);
+          return;
+        }
+
+        setFavoritedConversations(prev => new Set(prev).add(conversationId));
+      }
+    } catch (error) {
+      console.error('Unexpected error toggling favorite:', error);
+      alert(`Unexpected error: ${error}`);
+    }
+  };
 
   const currentConversation = conversations[currentIndex];
 
@@ -159,48 +244,75 @@ export default function UserPlaylistPage({ params }: { params: Promise<{ objecti
         <div className="bg-white rounded-lg shadow-lg p-6 mt-6">
           <h2 className="text-xl font-bold text-midnight-blue mb-4">Playlist</h2>
           <div className="space-y-2">
-            {conversations.map((conv, index) => (
-              <button
-                key={conv.id}
-                onClick={() => setCurrentIndex(index)}
-                className={`w-full text-left p-4 rounded-lg transition-colors ${
-                  index === currentIndex
-                    ? 'bg-success-gold/10 border-2 border-success-gold'
-                    : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-midnight-blue">
-                        Conversation {conv.conversation_number}
-                      </span>
-                      {index === currentIndex && (
-                        <span className="px-2 py-0.5 bg-success-gold text-white text-xs font-medium rounded">
-                          Playing
+            {conversations.map((conv, index) => {
+              const isFavorited = favoritedConversations.has(conv.id);
+              return (
+                <div
+                  key={conv.id}
+                  onClick={() => setCurrentIndex(index)}
+                  className={`w-full text-left p-4 rounded-lg transition-colors cursor-pointer ${
+                    index === currentIndex
+                      ? 'bg-success-gold/10 border-2 border-success-gold'
+                      : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-midnight-blue">
+                          Conversation {conv.conversation_number}
                         </span>
-                      )}
+                        {index === currentIndex && (
+                          <span className="px-2 py-0.5 bg-success-gold text-white text-xs font-medium rounded">
+                            Playing
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-steel-gray">
+                        {conv.salespersonName} • {conv.originalFilename}
+                      </div>
+                      <div className="text-xs text-steel-gray mt-1">
+                        {Math.floor(conv.duration_seconds / 60)}:{(conv.duration_seconds % 60).toString().padStart(2, '0')} •{' '}
+                        {conv.word_count} words
+                      </div>
                     </div>
-                    <div className="text-sm text-steel-gray">
-                      {conv.salespersonName} • {conv.originalFilename}
-                    </div>
-                    <div className="text-xs text-steel-gray mt-1">
-                      {Math.floor(conv.duration_seconds / 60)}:{(conv.duration_seconds % 60).toString().padStart(2, '0')} •{' '}
-                      {conv.word_count} words
+
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {/* Star Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleFavorite(conv.id, isFavorited);
+                        }}
+                        className="p-3 md:p-2 hover:bg-white rounded-full transition-colors active:scale-95"
+                        title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+                      >
+                        {isFavorited ? (
+                          <svg className="w-6 h-6 md:w-5 md:h-5 text-success-gold fill-current" viewBox="0 0 24 24">
+                            <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-6 h-6 md:w-5 md:h-5 text-gray-400 hover:text-success-gold" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                          </svg>
+                        )}
+                      </button>
+
+                      {/* Play Icon */}
+                      <svg
+                        className={`w-6 h-6 ${
+                          index === currentIndex ? 'text-success-gold' : 'text-gray-400'
+                        }`}
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                      </svg>
                     </div>
                   </div>
-                  <svg
-                    className={`w-6 h-6 flex-shrink-0 ${
-                      index === currentIndex ? 'text-success-gold' : 'text-gray-400'
-                    }`}
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-                  </svg>
                 </div>
-              </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

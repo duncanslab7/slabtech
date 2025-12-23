@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
+import { createServiceRoleClient } from '@/utils/supabase/service-role'
 import { NextResponse } from 'next/server'
 
 // Helper to verify admin access
@@ -10,11 +11,11 @@ async function verifyAdmin(supabase: any) {
 
   const { data: profile } = await supabase
     .from('user_profiles')
-    .select('role')
+    .select('role, company_id')
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'admin') {
+  if (!['super_admin', 'company_admin'].includes(profile?.role || '')) {
     return { error: 'Forbidden', status: 403 }
   }
 
@@ -32,10 +33,28 @@ export async function GET() {
       return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status })
     }
 
-    const { data, error } = await supabase
-      .from('transcripts')
-      .select('id, created_at, salesperson_name, salesperson_id, original_filename, redaction_config_used')
-      .order('created_at', { ascending: false })
+    const { profile } = adminCheck
+
+    // Super admins see all transcripts (bypass RLS with service role)
+    // Company admins see only their company's transcripts (via RLS)
+    let data, error
+    if (profile.role === 'super_admin') {
+      const serviceSupabase = createServiceRoleClient()
+      const result = await serviceSupabase
+        .from('transcripts')
+        .select('id, created_at, salesperson_name, salesperson_id, original_filename, redaction_config_used, company_id')
+        .order('created_at', { ascending: false })
+      data = result.data
+      error = result.error
+    } else {
+      // Company admin - RLS will filter to their company
+      const result = await supabase
+        .from('transcripts')
+        .select('id, created_at, salesperson_name, salesperson_id, original_filename, redaction_config_used, company_id')
+        .order('created_at', { ascending: false })
+      data = result.data
+      error = result.error
+    }
 
     if (error) {
       console.error('Error fetching transcripts:', error)

@@ -191,11 +191,11 @@ export default function UserManagementPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
-          <Heading level={1} size="xl">
+          <Heading level={1} size="xl" className="text-gray-900">
             User Management
           </Heading>
         </div>
-        <Text variant="muted" className="mb-4">
+        <Text variant="muted" className="mb-4 text-gray-600">
           Create, manage, and monitor user accounts
         </Text>
 
@@ -222,9 +222,9 @@ export default function UserManagementPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-success-gold"></div>
         </div>
       ) : users.length === 0 ? (
-        <Card variant="outlined" padding="lg" className="text-center">
-          <Text variant="muted">No users found. Create your first user to get started.</Text>
-        </Card>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
+          <Text variant="muted" className="text-gray-600">No users found. Create your first user to get started.</Text>
+        </div>
       ) : (
         <>
           {/* Horizontal Scroll Indicator */}
@@ -241,11 +241,11 @@ export default function UserManagementPage() {
           {/* Mobile Card Layout */}
           <div className="lg:hidden space-y-4">
             {users.map((user) => (
-              <Card key={user.user_id} variant="outlined" padding="md" className={user.is_suspicious ? 'border-red-300 bg-red-50' : ''}>
+              <div key={user.user_id} className={`bg-white rounded-lg shadow-sm border p-4 ${user.is_suspicious ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
                 <div className="space-y-3">
                   {/* User Info */}
                   <div>
-                    <div className="font-semibold text-midnight-blue flex items-center gap-2 flex-wrap">
+                    <div className="font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
                       {user.display_name || user.email}
                       {user.is_suspicious && (
                         <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded-full">
@@ -253,7 +253,7 @@ export default function UserManagementPage() {
                         </span>
                       )}
                     </div>
-                    <div className="text-sm text-steel-gray">{user.email}</div>
+                    <div className="text-sm text-gray-600">{user.email}</div>
                   </div>
 
                   {/* Badges */}
@@ -273,22 +273,22 @@ export default function UserManagementPage() {
                   {/* Stats */}
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <div className="text-steel-gray text-xs">Logins (7 days)</div>
-                      <div className="font-medium">{user.logins_last_7_days}</div>
+                      <div className="text-gray-600 text-xs">Logins (7 days)</div>
+                      <div className="font-medium text-gray-900">{user.logins_last_7_days}</div>
                     </div>
                     <div>
-                      <div className="text-steel-gray text-xs">Last Login</div>
-                      <div className="font-medium">
+                      <div className="text-gray-600 text-xs">Last Login</div>
+                      <div className="font-medium text-gray-900">
                         {user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'}
                       </div>
                     </div>
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2 pt-2 border-t">
+                  <div className="flex gap-2 pt-2 border-t border-gray-200">
                     <Link
                       href={`/users/${user.user_id}`}
-                      className="flex-1 text-center px-3 py-2 bg-success-gold text-white text-sm font-medium rounded-lg hover:bg-amber-500"
+                      className="flex-1 text-center px-3 py-2 bg-success-gold text-black text-sm font-medium rounded-lg hover:bg-amber-500"
                     >
                       Manage
                     </Link>
@@ -310,7 +310,7 @@ export default function UserManagementPage() {
                     </button>
                   </div>
                 </div>
-              </Card>
+              </div>
             ))}
           </div>
 

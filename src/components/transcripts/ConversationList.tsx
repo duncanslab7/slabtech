@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, Text } from '@/components'
 import { ConversationCard } from './ConversationCard'
+import { createClient } from '@/utils/supabase/client'
 import type { ObjectionType, ConversationCategory } from '@/utils/conversationAnalysis'
 
 interface ObjectionTimestamp {
@@ -33,6 +34,103 @@ export function ConversationList({ conversations, onConversationSelect, onObject
   const [selectedCategory, setSelectedCategory] = useState<ConversationCategory | 'all'>('all')
   const [selectedObjection, setSelectedObjection] = useState<ObjectionType | 'all'>('all')
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+  const [favoritedConversations, setFavoritedConversations] = useState<Set<string>>(new Set())
+
+  // Fetch favorited conversations on mount
+  useEffect(() => {
+    const fetchFavorites = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const conversationIds = conversations.map(c => c.id)
+      if (conversationIds.length === 0) return
+
+      const { data: favorites } = await supabase
+        .from('user_favorites')
+        .select('conversation_id')
+        .eq('user_id', user.id)
+        .in('conversation_id', conversationIds)
+
+      if (favorites) {
+        setFavoritedConversations(new Set(favorites.map(f => f.conversation_id)))
+      }
+    }
+
+    fetchFavorites()
+  }, [conversations])
+
+  const handleToggleFavorite = async (conversationId: string, isFavorited: boolean) => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      console.error('No user found')
+      return
+    }
+
+    console.log('Toggling favorite:', { conversationId, isFavorited, userId: user.id })
+
+    try {
+      if (isFavorited) {
+        // Remove from favorites
+        console.log('Removing from favorites...')
+        const { error } = await supabase
+          .from('user_favorites')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('conversation_id', conversationId)
+
+        if (error) {
+          console.error('Error removing favorite:', error)
+          alert(`Failed to remove favorite: ${error.message}`)
+          return
+        }
+
+        console.log('Successfully removed from favorites')
+        setFavoritedConversations(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(conversationId)
+          return newSet
+        })
+      } else {
+        // Add to favorites
+        console.log('Adding to favorites...')
+        const { data: userProfile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('company_id')
+          .eq('id', user.id)
+          .single()
+
+        if (profileError) {
+          console.error('Error fetching user profile:', profileError)
+        }
+
+        console.log('User profile:', userProfile)
+
+        const { data, error } = await supabase
+          .from('user_favorites')
+          .insert({
+            user_id: user.id,
+            company_id: userProfile?.company_id,
+            conversation_id: conversationId,
+            note: null
+          })
+          .select()
+
+        if (error) {
+          console.error('Error adding favorite:', error)
+          alert(`Failed to add favorite: ${error.message}`)
+          return
+        }
+
+        console.log('Successfully added to favorites:', data)
+        setFavoritedConversations(prev => new Set(prev).add(conversationId))
+      }
+    } catch (error) {
+      console.error('Unexpected error toggling favorite:', error)
+      alert(`Unexpected error: ${error}`)
+    }
+  }
 
   // Calculate statistics
   const stats = {
@@ -71,18 +169,18 @@ export function ConversationList({ conversations, onConversationSelect, onObject
   return (
     <div className="space-y-4">
       {/* Statistics */}
-      <Card variant="outlined" padding="md">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center">
-            <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1">
+            <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1 text-gray-600">
               Total
             </Text>
-            <Text variant="emphasis" className="text-2xl font-bold">
+            <Text variant="emphasis" className="text-2xl font-bold text-gray-900">
               {stats.total}
             </Text>
           </div>
           <div className="text-center">
-            <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1">
+            <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1 text-gray-600">
               Interactions
             </Text>
             <Text variant="emphasis" className="text-2xl font-bold text-blue-600">
@@ -90,7 +188,7 @@ export function ConversationList({ conversations, onConversationSelect, onObject
             </Text>
           </div>
           <div className="text-center">
-            <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1">
+            <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1 text-gray-600">
               Pitches
             </Text>
             <Text variant="emphasis" className="text-2xl font-bold text-yellow-600">
@@ -98,7 +196,7 @@ export function ConversationList({ conversations, onConversationSelect, onObject
             </Text>
           </div>
           <div className="text-center">
-            <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1">
+            <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1 text-gray-600">
               Sales
             </Text>
             <Text variant="emphasis" className="text-2xl font-bold text-green-600">
@@ -106,18 +204,18 @@ export function ConversationList({ conversations, onConversationSelect, onObject
             </Text>
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* Filters */}
-      <Card variant="outlined" padding="md">
-        <Text variant="emphasis" className="mb-3">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <Text variant="emphasis" className="mb-3 text-gray-900">
           Filters
         </Text>
 
         <div className="space-y-3">
           {/* Category Filter */}
           <div>
-            <Text variant="muted" size="sm" className="mb-2">
+            <Text variant="muted" size="sm" className="mb-2 text-gray-600">
               Category
             </Text>
             <div className="flex flex-wrap gap-2">
@@ -167,7 +265,7 @@ export function ConversationList({ conversations, onConversationSelect, onObject
           {/* Objection Filter */}
           {allObjections.size > 0 && (
             <div>
-              <Text variant="muted" size="sm" className="mb-2">
+              <Text variant="muted" size="sm" className="mb-2 text-gray-600">
                 Objections
               </Text>
               <div className="flex flex-wrap gap-2">
@@ -201,25 +299,26 @@ export function ConversationList({ conversations, onConversationSelect, onObject
             </div>
           )}
         </div>
-      </Card>
+      </div>
 
       {/* Conversation List */}
       <div>
-        <Text variant="emphasis" className="mb-3">
+        <Text variant="emphasis" className="mb-3 text-gray-900">
           {filteredConversations.length} Conversation{filteredConversations.length !== 1 ? 's' : ''}
         </Text>
 
         {filteredConversations.length === 0 ? (
-          <Card variant="outlined" padding="lg">
-            <Text variant="muted" className="text-center">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <Text variant="muted" className="text-center text-gray-600">
               No conversations match the selected filters.
             </Text>
-          </Card>
+          </div>
         ) : (
           <div className="space-y-3">
             {filteredConversations.map(conversation => (
               <ConversationCard
                 key={conversation.id}
+                conversationId={conversation.id}
                 conversationNumber={conversation.conversation_number}
                 startTime={conversation.start_time}
                 endTime={conversation.end_time}
@@ -230,7 +329,9 @@ export function ConversationList({ conversations, onConversationSelect, onObject
                 objectionTimestamps={conversation.objection_timestamps}
                 onClick={() => handleConversationClick(conversation)}
                 onObjectionClick={onObjectionClick}
+                onToggleFavorite={handleToggleFavorite}
                 isActive={conversation.id === activeConversationId}
+                isFavorited={favoritedConversations.has(conversation.id)}
               />
             ))}
           </div>
