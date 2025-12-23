@@ -1055,16 +1055,16 @@ export default function CompanyDashboard() {
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-gold focus:border-transparent resize-none"
                                     rows={3}
                                   />
-                                  <div className="flex gap-2">
+                                  <div className="flex flex-col sm:flex-row gap-2">
                                     <button
                                       onClick={() => handleSaveNote(favorite.id)}
-                                      className="px-4 py-2 bg-success-gold text-white text-sm font-medium rounded-lg hover:bg-amber-500 transition-colors"
+                                      className="px-4 py-3 sm:py-2 bg-success-gold text-white text-sm font-medium rounded-lg hover:bg-amber-500 transition-colors active:scale-95"
                                     >
                                       Save Note
                                     </button>
                                     <button
                                       onClick={handleCancelEdit}
-                                      className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors"
+                                      className="px-4 py-3 sm:py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors active:scale-95"
                                     >
                                       Cancel
                                     </button>
@@ -1077,7 +1077,7 @@ export default function CompanyDashboard() {
                                     <p className="text-sm text-steel-gray italic flex-1">&quot;{favorite.note}&quot;</p>
                                     <button
                                       onClick={() => handleEditNote(favorite.id, favorite.note)}
-                                      className="text-success-gold hover:text-amber-600 text-sm font-medium flex-shrink-0"
+                                      className="text-success-gold hover:text-amber-600 text-sm font-medium flex-shrink-0 px-2 py-1 -mr-2 active:scale-95 transition-transform"
                                     >
                                       Edit
                                     </button>
@@ -1087,9 +1087,9 @@ export default function CompanyDashboard() {
                                 /* No note - show add button */
                                 <button
                                   onClick={() => handleEditNote(favorite.id, null)}
-                                  className="text-success-gold hover:text-amber-600 text-sm font-medium flex items-center gap-1"
+                                  className="text-success-gold hover:text-amber-600 text-sm font-medium flex items-center gap-1 py-2 active:scale-95 transition-transform"
                                 >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <svg className="w-5 h-5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                   </svg>
                                   Add a note
