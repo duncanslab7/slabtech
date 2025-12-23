@@ -53,7 +53,7 @@ export default function CompanyLeaderboard() {
       const { data: streaks } = await supabase
         .from('user_streaks')
         .select('user_id, current_streak, longest_streak, total_activities, last_activity_date, user_profiles!inner(display_name, email, is_active)')
-        .eq('company_id', profile.companies?.[0]?.id)
+        .eq('company_id', (profile.companies as any)?.id)
         .eq('user_profiles.is_active', true)
         .order('current_streak', { ascending: false })
         .order('longest_streak', { ascending: false })
