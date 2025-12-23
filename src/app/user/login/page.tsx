@@ -49,7 +49,7 @@ export default function UserLoginPage() {
           router.push('/admin');
         } else if (profile?.role === 'company_admin' || profile?.role === 'user') {
           // Redirect company users to their company dashboard
-          router.push(`/c/${profile.companies?.[0]?.slug}/dashboard`);
+          router.push(`/c/${(profile.companies as any)?.slug}/dashboard`);
         } else {
           // Fallback for legacy users
           router.push('/user/dashboard');
