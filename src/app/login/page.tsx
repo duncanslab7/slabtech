@@ -2,7 +2,7 @@
 
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -15,7 +15,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const router = useRouter()
-  const supabase = useMemo(() => createClient(), [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -23,6 +22,8 @@ export default function LoginPage() {
     setMessage(null)
 
     try {
+      const supabase = createClient()
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
