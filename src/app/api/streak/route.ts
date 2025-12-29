@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { transcript_id, activity_type = 'audio_listen' } = body;
+    const { transcript_id, activity_type = 'audio_listen', user_timezone } = body;
 
     // Get user's company_id for multi-tenancy
     const { data: userProfile } = await supabase
@@ -98,6 +98,20 @@ export async function POST(request: NextRequest) {
       .select('company_id')
       .eq('id', user.id)
       .single();
+
+    // Get today's date in user's timezone (or fallback to UTC)
+    let todayDate: string;
+    if (user_timezone) {
+      const now = new Date();
+      todayDate = now.toLocaleDateString('en-CA', { timeZone: user_timezone }); // YYYY-MM-DD format
+    } else {
+      // Fallback: use server time but get local date
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      todayDate = `${year}-${month}-${day}`;
+    }
 
     // Insert activity (will trigger the update_user_streak function automatically)
     const { data: activityData, error: activityError } = await supabase
@@ -107,7 +121,7 @@ export async function POST(request: NextRequest) {
         company_id: userProfile?.company_id,
         activity_type,
         transcript_id: transcript_id || null,
-        activity_date: new Date().toISOString().split('T')[0], // Today's date
+        activity_date: todayDate,
       })
       .select()
       .single();

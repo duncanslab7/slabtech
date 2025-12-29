@@ -33,6 +33,11 @@ export async function middleware(request: NextRequest) {
     const pathParts = request.nextUrl.pathname.split('/')
     const companySlug = pathParts[2]
 
+    // Allow access to login pages without auth
+    if (request.nextUrl.pathname.includes('/login')) {
+      return supabaseResponse
+    }
+
     // If not logged in, redirect to company login
     if (!user) {
       return NextResponse.redirect(new URL(`/c/${companySlug}/login`, request.url))
@@ -45,15 +50,33 @@ export async function middleware(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
+    // If no profile or no company, prevent redirect loop
+    if (!profile || !profile.companies) {
+      console.error('User has no profile or company:', user.id)
+      return supabaseResponse
+    }
+
     // Super admins can access any company
     if (profile?.role === 'super_admin') {
       return supabaseResponse
     }
 
+    const userCompanySlug = (profile.companies as any)?.slug
+
+    // Prevent redirect loop: don't redirect if already on correct company
+    if (!userCompanySlug) {
+      console.error('User company has no slug:', user.id)
+      return supabaseResponse
+    }
+
     // Check if user's company matches the URL company slug
-    if ((profile?.companies as any)?.slug !== companySlug) {
-      // Redirect to user's own company
-      return NextResponse.redirect(new URL(`/c/${(profile?.companies as any)?.slug}/dashboard`, request.url))
+    if (userCompanySlug !== companySlug) {
+      // Redirect to user's own company dashboard (prevent loop)
+      const redirectUrl = new URL(`/c/${userCompanySlug}/dashboard`, request.url)
+      // Only redirect if we're not already redirecting to the same place
+      if (request.nextUrl.pathname !== redirectUrl.pathname) {
+        return NextResponse.redirect(redirectUrl)
+      }
     }
   }
 

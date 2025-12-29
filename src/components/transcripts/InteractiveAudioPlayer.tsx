@@ -41,6 +41,10 @@ interface InteractiveAudioPlayerProps {
 const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2]
 
 function formatTime(seconds: number) {
+  // Handle invalid values
+  if (!isFinite(seconds) || isNaN(seconds) || seconds < 0) {
+    return '0:00'
+  }
   const mins = Math.floor(seconds / 60)
   const secs = Math.floor(seconds % 60)
   return `${mins}:${secs.toString().padStart(2, '0')}`
@@ -81,10 +85,14 @@ export function InteractiveAudioPlayer({
   useEffect(() => {
     if (seekToTime !== undefined && seekToTime >= 0) {
       handleSeek(seekToTime)
-      // Auto-play when seeking from conversation click
-      if (audioRef.current && !isPlaying) {
-        audioRef.current.play()
-        setIsPlaying(true)
+      // Auto-play when seeking from conversation click (always try to play)
+      if (audioRef.current) {
+        audioRef.current.play().then(() => {
+          setIsPlaying(true)
+        }).catch((err) => {
+          // Autoplay blocked by browser - user needs to manually start
+          console.log('Autoplay prevented, user must click play:', err)
+        })
       }
     }
   }, [seekToTime])
@@ -190,6 +198,7 @@ export function InteractiveAudioPlayer({
         body: JSON.stringify({
           transcript_id: transcriptId,
           activity_type: 'audio_listen',
+          user_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       }).catch(err => {
         // Silently fail - don't interrupt user experience
