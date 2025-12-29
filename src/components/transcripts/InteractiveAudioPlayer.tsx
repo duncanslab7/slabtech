@@ -74,6 +74,9 @@ export function InteractiveAudioPlayer({
   const activeWordRef = useRef<HTMLSpanElement>(null)
   const hasLoggedStreak = useRef(false) // Track if we've logged a streak for this session
 
+  // Calculate estimated duration from words if audio duration unavailable (mobile Safari large files)
+  const estimatedDuration = words.length > 0 ? words[words.length - 1].end : 0
+
   // Expose seek function to parent component
   useEffect(() => {
     if (onPlayerReady) {
@@ -165,12 +168,20 @@ export function InteractiveAudioPlayer({
     const handleLoadedMetadata = () => {
       if (audio.duration && isFinite(audio.duration)) {
         setDuration(audio.duration)
+      } else if (estimatedDuration > 0) {
+        // Fallback: use estimated duration from transcript words
+        console.log('Using estimated duration from transcript:', estimatedDuration)
+        setDuration(estimatedDuration)
       }
     }
 
     const handleDurationChange = () => {
       if (audio.duration && isFinite(audio.duration)) {
         setDuration(audio.duration)
+      } else if (estimatedDuration > 0 && duration === 0) {
+        // Fallback for mobile Safari with large files
+        console.log('Using estimated duration (durationchange):', estimatedDuration)
+        setDuration(estimatedDuration)
       }
     }
 
@@ -178,6 +189,10 @@ export function InteractiveAudioPlayer({
       // Ensure duration is set when audio can play
       if (audio.duration && isFinite(audio.duration)) {
         setDuration(audio.duration)
+      } else if (estimatedDuration > 0 && duration === 0) {
+        // Fallback for mobile Safari with large files
+        console.log('Using estimated duration (canplay):', estimatedDuration)
+        setDuration(estimatedDuration)
       }
     }
 
@@ -199,6 +214,10 @@ export function InteractiveAudioPlayer({
     // Try to get duration immediately if already loaded
     if (audio.duration && isFinite(audio.duration)) {
       setDuration(audio.duration)
+    } else if (estimatedDuration > 0 && duration === 0) {
+      // Set estimated duration immediately for large files (mobile Safari)
+      console.log('Setting estimated duration on mount:', estimatedDuration)
+      setDuration(estimatedDuration)
     }
 
     return () => {
@@ -209,15 +228,19 @@ export function InteractiveAudioPlayer({
       audio.removeEventListener('ended', handleEnded)
       audio.removeEventListener('error', handleError)
     }
-  }, [words, duration])
+  }, [words, duration, estimatedDuration])
 
   // Auto-scroll to active word
   useEffect(() => {
-    if (activeWordRef.current && isPlaying) {
-      activeWordRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      })
+    if (activeWordRef.current) {
+      // Scroll when playing, or when word changes significantly (conversation click)
+      const shouldScroll = isPlaying || currentWordIndex >= 0
+      if (shouldScroll) {
+        activeWordRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        })
+      }
     }
   }, [currentWordIndex, isPlaying])
 
@@ -367,9 +390,10 @@ export function InteractiveAudioPlayer({
       <audio
         ref={audioRef}
         src={audioUrl}
-        preload="metadata"
+        preload="auto"
         crossOrigin="anonymous"
         playsInline
+        controlsList="nodownload"
       />
 
       {/* Sticky Floating Audio Controls (Bottom) */}
