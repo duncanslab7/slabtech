@@ -6,6 +6,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/utils/supabase/client';
 
+// Force dynamic rendering to prevent static export issues
+export const dynamic = 'force-dynamic'
+
 export default function UserLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
