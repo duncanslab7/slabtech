@@ -25,6 +25,7 @@ interface PlaylistAudioPlayerProps {
   totalCount: number;
   onPrevious: () => void;
   onNext: () => void;
+  transcriptId?: string; // For logging streak activities
 }
 
 export function PlaylistAudioPlayer({
@@ -32,13 +33,15 @@ export function PlaylistAudioPlayer({
   currentIndex,
   totalCount,
   onPrevious,
-  onNext
+  onNext,
+  transcriptId
 }: PlaylistAudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const hasLoggedStreak = useRef(false); // Track if we've logged a streak for this session
 
   // Reset audio when conversation changes
   useEffect(() => {
@@ -102,6 +105,26 @@ export function PlaylistAudioPlayer({
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   });
+
+  // Log streak activity when user starts playing audio
+  useEffect(() => {
+    if (isPlaying && !hasLoggedStreak.current && transcriptId) {
+      hasLoggedStreak.current = true;
+
+      // Log the activity asynchronously (don't block playback)
+      fetch('/api/streak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript_id: transcriptId,
+          activity_type: 'audio_listen',
+        }),
+      }).catch(err => {
+        // Silently fail - don't interrupt user experience
+        console.error('Failed to log streak:', err);
+      });
+    }
+  }, [isPlaying, transcriptId]);
 
   const togglePlayPause = () => {
     const audio = audioRef.current;

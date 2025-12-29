@@ -53,27 +53,17 @@ export async function POST(request: NextRequest) {
       email,
       password,
       email_confirm: true,
+      user_metadata: {
+        company_id: targetCompanyId,
+        display_name: display_name || null,
+      },
     })
 
     if (createError) {
       return NextResponse.json({ error: createError.message }, { status: 500 })
     }
 
-    // Wait a moment for the trigger to create the profile
-    await new Promise(resolve => setTimeout(resolve, 500))
-
-    // Update the profile with company_id and display_name
-    const { error: updateError } = await serviceSupabase
-      .from('user_profiles')
-      .update({
-        company_id: targetCompanyId,
-        display_name: display_name || null,
-      })
-      .eq('id', newUser.user.id)
-
-    if (updateError) {
-      console.error('Error updating user profile:', updateError)
-    }
+    // The trigger will automatically create the user profile with company_id and display_name
 
     return NextResponse.json({
       success: true,

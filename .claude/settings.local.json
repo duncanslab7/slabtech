@@ -14,7 +14,8 @@
       "Bash(git push:*)",
       "Bash(find:*)",
       "Bash(git reset:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

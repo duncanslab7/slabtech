@@ -161,6 +161,7 @@ export default async function TranscriptDetailsPage({ params }: TranscriptDetail
             transcriptText={transcriptText}
             redactionConfigUsed={transcript.redaction_config_used}
             transcriptData={transcript.transcript_redacted}
+            transcriptId={id}
           />
         </div>
       </div>

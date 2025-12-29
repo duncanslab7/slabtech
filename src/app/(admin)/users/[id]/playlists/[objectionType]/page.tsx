@@ -184,6 +184,7 @@ export default function PlaylistViewerPage({
             originalFilename={currentConversation.originalFilename}
             hideDownload={true}
             seekToTime={seekToTime}
+            transcriptId={currentConversation.transcript_id}
           />
         </div>
       </Card>

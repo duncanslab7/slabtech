@@ -35,6 +35,7 @@ interface InteractiveAudioPlayerProps {
   currentConversationIndex?: number
   onNextConversation?: () => void
   onPreviousConversation?: () => void
+  transcriptId?: string // For logging streak activities
 }
 
 const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2]
@@ -57,6 +58,7 @@ export function InteractiveAudioPlayer({
   currentConversationIndex = 0,
   onNextConversation,
   onPreviousConversation,
+  transcriptId,
 }: InteractiveAudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -66,6 +68,7 @@ export function InteractiveAudioPlayer({
   const [currentWordIndex, setCurrentWordIndex] = useState(-1)
   const [swapSpeakerColors, setSwapSpeakerColors] = useState(false)
   const activeWordRef = useRef<HTMLSpanElement>(null)
+  const hasLoggedStreak = useRef(false) // Track if we've logged a streak for this session
 
   // Expose seek function to parent component
   useEffect(() => {
@@ -174,6 +177,26 @@ export function InteractiveAudioPlayer({
       })
     }
   }, [currentWordIndex, isPlaying])
+
+  // Log streak activity when user starts playing audio
+  useEffect(() => {
+    if (isPlaying && !hasLoggedStreak.current && transcriptId) {
+      hasLoggedStreak.current = true
+
+      // Log the activity asynchronously (don't block playback)
+      fetch('/api/streak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript_id: transcriptId,
+          activity_type: 'audio_listen',
+        }),
+      }).catch(err => {
+        // Silently fail - don't interrupt user experience
+        console.error('Failed to log streak:', err)
+      })
+    }
+  }, [isPlaying, transcriptId])
 
   // Keyboard shortcut: Spacebar to play/pause (desktop only)
   useEffect(() => {

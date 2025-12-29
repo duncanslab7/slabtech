@@ -238,6 +238,7 @@ export default function UserPlaylistPage({ params }: { params: Promise<{ objecti
           totalCount={conversations.length}
           onPrevious={handlePrevious}
           onNext={handleNext}
+          transcriptId={currentConversation.transcript_id}
         />
 
         {/* Playlist */}

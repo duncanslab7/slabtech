@@ -271,6 +271,7 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
                 transcriptText={getTranscriptText()}
                 redactionConfigUsed={transcript.redaction_config_used}
                 transcriptData={transcript.transcript_redacted}
+                transcriptId={id}
               />
             ) : (
               <div className="text-center text-gray-500 py-8">

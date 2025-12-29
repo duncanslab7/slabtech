@@ -126,37 +126,65 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Mobile Layout: Letters vertical, logo on right */}
-        <div className="flex lg:hidden items-center gap-6">
-          {/* SLAB Letters - Vertical */}
-          <div className="flex flex-col items-center gap-6">
-            {letters.map((letter, index) => (
-              <div key={letter.key} className="flex flex-col items-center gap-6">
-                <LetterButton
-                  letter={letter}
-                  isExpanded={expandedLetter === letter.key}
-                  isDimmed={expandedLetter !== null && expandedLetter !== letter.key}
-                  onClick={() => handleLetterClick(letter.key)}
-                  onClose={handleClose}
-                />
-                {/* Dot separator (except after last letter) */}
-                {index < letters.length - 1 && (
-                  <div
-                    className={`w-4 h-4 rounded-full bg-[#f39c12] transition-opacity ${
-                      expandedLetter !== null ? 'opacity-0' : 'opacity-100'
-                    }`}
-                    style={{
-                      boxShadow: '0 0 10px rgba(243, 156, 18, 0.6), 0 0 20px rgba(243, 156, 18, 0.4)'
-                    }}
+        {/* Mobile Layout: Letters vertical, logo and text on right */}
+        <div className="flex lg:hidden flex-col items-center gap-8 w-full px-4">
+          <div className="flex items-start gap-6 w-full justify-center">
+            {/* SLAB Letters - Vertical */}
+            <div className="flex flex-col items-center gap-6 flex-shrink-0">
+              {letters.map((letter, index) => (
+                <div key={letter.key} className="flex flex-col items-center gap-6">
+                  <LetterButton
+                    letter={letter}
+                    isExpanded={expandedLetter === letter.key}
+                    isDimmed={expandedLetter !== null && expandedLetter !== letter.key}
+                    onClick={() => handleLetterClick(letter.key)}
+                    onClose={handleClose}
                   />
-                )}
-              </div>
-            ))}
+                  {/* Dot separator (except after last letter) */}
+                  {index < letters.length - 1 && (
+                    <div
+                      className={`w-4 h-4 rounded-full bg-[#f39c12] transition-opacity ${
+                        expandedLetter !== null ? 'opacity-0' : 'opacity-100'
+                      }`}
+                      style={{
+                        boxShadow: '0 0 10px rgba(243, 156, 18, 0.6), 0 0 20px rgba(243, 156, 18, 0.4)'
+                      }}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Logo Video */}
+            <div className="flex flex-col items-center gap-4 flex-shrink-0">
+              <LogoVideo isDimmed={expandedLetter !== null} />
+            </div>
           </div>
 
-          {/* Logo Video */}
-          <div className="flex flex-col items-center gap-4">
-            <LogoVideo isDimmed={expandedLetter !== null} />
+          {/* Motto and Trademark - Mobile */}
+          <div className={`flex flex-col items-center gap-6 transition-opacity ${expandedLetter !== null ? 'opacity-30' : 'opacity-100'}`}>
+            {/* Motto */}
+            <p
+              className="text-base font-medium italic text-center px-4"
+              style={{
+                color: '#f39c12',
+                textShadow: '0 0 10px rgba(255, 140, 0, 0.6), 0 0 20px rgba(255, 140, 0, 0.4)',
+              }}
+            >
+              "Golden Reps aren't born, They're Made"
+            </p>
+
+            {/* Trademark */}
+            <p
+              className="text-sm font-medium text-center px-4"
+              style={{
+                color: '#f39c12',
+                textShadow: '0 0 10px rgba(255, 140, 0, 0.6), 0 0 20px rgba(255, 140, 0, 0.4)',
+              }}
+            >
+              SalesLab Immersion™<br />
+              Voice Intelligence Platform
+            </p>
 
             {/* Copyright Text */}
             <p className="text-[#1a1a4d] text-xs font-medium tracking-wide">
@@ -181,10 +209,14 @@ interface LetterButtonProps {
 }
 
 function LetterButton({ letter, isExpanded, isDimmed, onClick, onClose }: LetterButtonProps) {
-  // Shared text styles
-  const textClassName = `text-6xl md:text-8xl font-bold tracking-wider transition-all duration-300 relative ${
-    isDimmed ? 'opacity-30' : 'opacity-100'
-  }`;
+  // Shared text styles - smaller on mobile when expanded to prevent cutoff
+  const textClassName = isExpanded
+    ? `text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-bold tracking-wider transition-all duration-300 relative max-w-[90vw] break-words text-center ${
+        isDimmed ? 'opacity-30' : 'opacity-100'
+      }`
+    : `text-6xl md:text-8xl font-bold tracking-wider transition-all duration-300 relative ${
+        isDimmed ? 'opacity-30' : 'opacity-100'
+      }`;
 
   const collapsedStyle = {
     textShadow: '0 0 20px rgba(255, 140, 0, 1), 0 0 40px rgba(255, 140, 0, 0.8), 0 0 60px rgba(255, 120, 0, 0.6), 0 0 80px rgba(255, 100, 0, 0.4)',
@@ -195,12 +227,12 @@ function LetterButton({ letter, isExpanded, isDimmed, onClick, onClose }: Letter
   };
 
   const content = (
-    <div className="relative z-30">
+    <div className="relative z-30 flex flex-col items-center">
       {/* If expanded and has href, render as clickable Link */}
       {isExpanded && letter.href ? (
         <Link
           href={letter.href}
-          className={`${textClassName} text-[#ffff00] hover:text-white cursor-pointer block`}
+          className={`${textClassName} text-[#ffff00] hover:text-white cursor-pointer block px-2`}
           style={expandedStyle}
         >
           {letter.fullText}
@@ -208,7 +240,7 @@ function LetterButton({ letter, isExpanded, isDimmed, onClick, onClose }: Letter
       ) : isExpanded ? (
         // Expanded but no href (Story, Buy)
         <div
-          className={`${textClassName} text-[#ffff00]`}
+          className={`${textClassName} text-[#ffff00] px-2`}
           style={expandedStyle}
         >
           {letter.fullText}
@@ -231,7 +263,7 @@ function LetterButton({ letter, isExpanded, isDimmed, onClick, onClose }: Letter
             e.stopPropagation();
             onClose();
           }}
-          className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 text-2xl text-[#f39c12] hover:text-[#ff8800] transition-colors z-20"
+          className="mt-4 text-2xl text-[#f39c12] hover:text-[#ff8800] transition-colors z-20"
           style={{
             textShadow: '0 0 10px rgba(243, 156, 18, 0.6), 0 0 20px rgba(243, 156, 18, 0.4)'
           }}
@@ -258,7 +290,7 @@ function LogoVideo({ isDimmed }: { isDimmed: boolean }) {
   }, []);
 
   return (
-    <div className={`relative w-80 h-60 md:w-[400px] md:h-[240px] transition-opacity duration-300 ${isDimmed ? 'opacity-30' : 'opacity-100'}`}>
+    <div className={`relative w-48 h-36 sm:w-64 sm:h-48 md:w-80 md:h-60 lg:w-[400px] lg:h-[240px] transition-opacity duration-300 ${isDimmed ? 'opacity-30' : 'opacity-100'}`}>
       {/* Orange glow effect */}
       <div
         className="absolute inset-0 rounded-lg pointer-events-none"

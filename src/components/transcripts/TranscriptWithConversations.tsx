@@ -47,6 +47,7 @@ interface TranscriptWithConversationsProps {
   transcriptText: string
   redactionConfigUsed: string
   transcriptData: any
+  transcriptId?: string
 }
 
 export function TranscriptWithConversations({
@@ -57,7 +58,8 @@ export function TranscriptWithConversations({
   originalFilename,
   transcriptText,
   redactionConfigUsed,
-  transcriptData
+  transcriptData,
+  transcriptId
 }: TranscriptWithConversationsProps) {
   const [seekToTime, setSeekToTime] = useState<number | undefined>(undefined)
   const [currentConversationIndex, setCurrentConversationIndex] = useState(0)
@@ -127,6 +129,7 @@ export function TranscriptWithConversations({
           currentConversationIndex={currentConversationIndex}
           onNextConversation={handleNextConversation}
           onPreviousConversation={handlePreviousConversation}
+          transcriptId={transcriptId}
         />
       ) : (
         <TranscriptDisplay
