@@ -99,7 +99,18 @@ export async function middleware(request: NextRequest) {
     // Only super_admins can access admin routes
     if (profile?.role !== 'super_admin') {
       // Regular users and company admins go to their company dashboard
-      return NextResponse.redirect(new URL(`/c/${(profile?.companies as any)?.slug}/dashboard`, request.url))
+      const companySlug = (profile?.companies as any)?.slug
+      if (companySlug) {
+        const redirectUrl = new URL(`/c/${companySlug}/dashboard`, request.url)
+        // Prevent redirect loop
+        if (request.nextUrl.pathname !== redirectUrl.pathname) {
+          return NextResponse.redirect(redirectUrl)
+        }
+      } else {
+        console.error('Non-super-admin user has no company:', user.id)
+        // Let them through but log the error
+        return supabaseResponse
+      }
     }
   }
 

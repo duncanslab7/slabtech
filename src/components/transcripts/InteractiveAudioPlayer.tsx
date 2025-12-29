@@ -147,6 +147,11 @@ export function InteractiveAudioPlayer({
       const time = audio.currentTime
       setCurrentTime(time)
 
+      // Update duration if not set yet (mobile browsers sometimes need this)
+      if (audio.duration && audio.duration !== duration) {
+        setDuration(audio.duration)
+      }
+
       // Find the word that corresponds to current time
       const wordIdx = words.findIndex(
         (w, idx) => {
@@ -158,23 +163,53 @@ export function InteractiveAudioPlayer({
     }
 
     const handleLoadedMetadata = () => {
-      setDuration(audio.duration)
+      if (audio.duration && isFinite(audio.duration)) {
+        setDuration(audio.duration)
+      }
+    }
+
+    const handleDurationChange = () => {
+      if (audio.duration && isFinite(audio.duration)) {
+        setDuration(audio.duration)
+      }
+    }
+
+    const handleCanPlay = () => {
+      // Ensure duration is set when audio can play
+      if (audio.duration && isFinite(audio.duration)) {
+        setDuration(audio.duration)
+      }
     }
 
     const handleEnded = () => {
       setIsPlaying(false)
     }
 
+    const handleError = (e: Event) => {
+      console.error('Audio error:', e)
+    }
+
     audio.addEventListener('timeupdate', handleTimeUpdate)
     audio.addEventListener('loadedmetadata', handleLoadedMetadata)
+    audio.addEventListener('durationchange', handleDurationChange)
+    audio.addEventListener('canplay', handleCanPlay)
     audio.addEventListener('ended', handleEnded)
+    audio.addEventListener('error', handleError)
+
+    // Try to get duration immediately if already loaded
+    if (audio.duration && isFinite(audio.duration)) {
+      setDuration(audio.duration)
+    }
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate)
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+      audio.removeEventListener('durationchange', handleDurationChange)
+      audio.removeEventListener('canplay', handleCanPlay)
       audio.removeEventListener('ended', handleEnded)
+      audio.removeEventListener('error', handleError)
     }
-  }, [words])
+  }, [words, duration])
 
   // Auto-scroll to active word
   useEffect(() => {
@@ -262,8 +297,34 @@ export function InteractiveAudioPlayer({
 
   const handleSeek = (time: number) => {
     const audio = audioRef.current
-    if (!audio) return
-    audio.currentTime = time
+    if (!audio) {
+      console.error('Audio ref not available for seeking')
+      return
+    }
+
+    // Ensure time is valid
+    if (!isFinite(time) || time < 0) {
+      console.error('Invalid seek time:', time)
+      return
+    }
+
+    try {
+      // Check if audio is ready
+      if (audio.readyState >= 1) {
+        audio.currentTime = time
+        console.log('Seeking to:', time)
+      } else {
+        // Wait for audio to be ready, then seek
+        const seekWhenReady = () => {
+          audio.currentTime = time
+          console.log('Seeking to (after load):', time)
+          audio.removeEventListener('loadedmetadata', seekWhenReady)
+        }
+        audio.addEventListener('loadedmetadata', seekWhenReady)
+      }
+    } catch (error) {
+      console.error('Error seeking:', error)
+    }
   }
 
   const skipBackward = () => {
@@ -289,16 +350,27 @@ export function InteractiveAudioPlayer({
     }
   }
 
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
-    const percent = (e.clientX - rect.left) / rect.width
-    handleSeek(percent * duration)
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+
+    // Only seek if duration is valid
+    if (duration && isFinite(duration) && duration > 0) {
+      handleSeek(percent * duration)
+    }
   }
 
   return (
     <div className="space-y-4">
       {/* Hidden audio element */}
-      <audio ref={audioRef} src={audioUrl} preload="metadata" />
+      <audio
+        ref={audioRef}
+        src={audioUrl}
+        preload="metadata"
+        crossOrigin="anonymous"
+        playsInline
+      />
 
       {/* Sticky Floating Audio Controls (Bottom) */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-midnight-blue shadow-2xl border-t-2 border-success-gold md:hidden">
@@ -358,6 +430,7 @@ export function InteractiveAudioPlayer({
           <div
             className="relative h-2 bg-gray-200 rounded-full cursor-pointer group"
             onClick={handleProgressClick}
+            onTouchEnd={handleProgressClick}
           >
             <div
               className="absolute h-2 bg-success-gold rounded-full transition-all group-hover:bg-amber-500"
