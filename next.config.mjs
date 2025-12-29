@@ -11,6 +11,18 @@ const nextConfig = {
       bodySizeLimit: '400mb',
     },
   },
+  // Optimize for Vercel Hobby plan memory limits
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Reduce memory usage
+      config.optimization = {
+        ...config.optimization,
+        moduleIds: 'deterministic',
+        minimize: true,
+      }
+    }
+    return config
+  },
   images: {
     remotePatterns: [
       {
