@@ -2,9 +2,7 @@
 const nextConfig = {
   serverExternalPackages: [
     '@ffmpeg-installer/ffmpeg',
-    '@ffmpeg-installer/linux-x64',
-    '@ricky0123/vad-node',
-    'onnxruntime-node'
+    '@ffmpeg-installer/linux-x64'
   ],
   experimental: {
     serverActions: {

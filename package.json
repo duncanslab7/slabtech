@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
-    "@ricky0123/vad-node": "^0.0.3",
     "@ricky0123/vad-web": "^0.0.30",
     "@supabase/ssr": "^0.5.0",
     "@supabase/supabase-js": "^2.39.0",
