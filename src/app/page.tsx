@@ -291,11 +291,28 @@ function LogoVideo({ isDimmed }: { isDimmed: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (videoRef.current) {
-      // Try to play, but silently handle autoplay restrictions
-      videoRef.current.play().catch(() => {
-        // Autoplay was prevented by browser, this is normal
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Try to play immediately
+    const playVideo = () => {
+      video.play().catch(() => {
+        // If autoplay fails, try again on any user interaction
+        const playOnInteraction = () => {
+          video.play().catch(() => {});
+          document.removeEventListener('click', playOnInteraction);
+          document.removeEventListener('touchstart', playOnInteraction);
+        };
+        document.addEventListener('click', playOnInteraction, { once: true });
+        document.addEventListener('touchstart', playOnInteraction, { once: true });
       });
+    };
+
+    // Try to play when loaded
+    if (video.readyState >= 2) {
+      playVideo();
+    } else {
+      video.addEventListener('loadeddata', playVideo, { once: true });
     }
   }, []);
 
@@ -327,9 +344,10 @@ function LogoVideo({ isDimmed }: { isDimmed: boolean }) {
         playsInline
         autoPlay
         preload="auto"
+        controls={false}
         disablePictureInPicture
         disableRemotePlayback
-        className="w-full h-full object-contain relative z-10 pointer-events-none"
+        className="w-full h-full object-contain relative z-10"
         style={{ background: 'transparent', mixBlendMode: 'screen' }}
         onError={(e) => console.error('Video failed to load:', e)}
         onLoadedData={() => console.log('Video loaded successfully')}
