@@ -50,6 +50,11 @@ export default function HomePage() {
         />
       )}
 
+      {/* Mobile: Scrolling Ticker at Top */}
+      <div className="lg:hidden relative z-10">
+        <ScrollingTicker />
+      </div>
+
       {/* Main Content */}
       <div className="flex-1 flex flex-col lg:flex-row items-center justify-center px-6 py-12 gap-8 lg:gap-16 relative z-10">
 
@@ -126,13 +131,27 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Mobile Layout: Letters vertical, logo and text on right */}
-        <div className="flex lg:hidden flex-col items-center gap-8 w-full px-4">
-          <div className="flex items-start gap-6 w-full justify-center">
+        {/* Mobile Layout: New pristine layout */}
+        <div className="flex lg:hidden flex-col items-center gap-6 w-full px-4">
+          {/* Quote at top */}
+          <p
+            className={`text-lg font-medium italic text-center px-4 transition-opacity ${
+              expandedLetter !== null ? 'opacity-30' : 'opacity-100'
+            }`}
+            style={{
+              color: '#f39c12',
+              textShadow: '0 0 10px rgba(255, 140, 0, 0.6), 0 0 20px rgba(255, 140, 0, 0.4)',
+            }}
+          >
+            "Golden Door reps aren't born, They're Made"
+          </p>
+
+          {/* Letters and Video centered together */}
+          <div className="flex items-center gap-4 justify-center">
             {/* SLAB Letters - Vertical */}
-            <div className="flex flex-col items-center gap-6 flex-shrink-0">
+            <div className="flex flex-col items-center gap-5">
               {letters.map((letter, index) => (
-                <div key={letter.key} className="flex flex-col items-center gap-6">
+                <div key={letter.key} className="flex flex-col items-center gap-5">
                   <LetterButton
                     letter={letter}
                     isExpanded={expandedLetter === letter.key}
@@ -143,7 +162,7 @@ export default function HomePage() {
                   {/* Dot separator (except after last letter) */}
                   {index < letters.length - 1 && (
                     <div
-                      className={`w-4 h-4 rounded-full bg-[#f39c12] transition-opacity ${
+                      className={`w-3 h-3 rounded-full bg-[#f39c12] transition-opacity ${
                         expandedLetter !== null ? 'opacity-0' : 'opacity-100'
                       }`}
                       style={{
@@ -155,25 +174,16 @@ export default function HomePage() {
               ))}
             </div>
 
-            {/* Logo Video */}
-            <div className="flex flex-col items-center gap-4 flex-shrink-0">
+            {/* Logo Video centered with letters */}
+            <div className="flex-shrink-0">
               <LogoVideo isDimmed={expandedLetter !== null} />
             </div>
           </div>
 
-          {/* Motto and Trademark - Mobile */}
-          <div className={`flex flex-col items-center gap-6 transition-opacity ${expandedLetter !== null ? 'opacity-30' : 'opacity-100'}`}>
-            {/* Motto */}
-            <p
-              className="text-base font-medium italic text-center px-4"
-              style={{
-                color: '#f39c12',
-                textShadow: '0 0 10px rgba(255, 140, 0, 0.6), 0 0 20px rgba(255, 140, 0, 0.4)',
-              }}
-            >
-              "Golden Reps aren't born, They're Made"
-            </p>
-
+          {/* Trademark and Copyright below */}
+          <div className={`flex flex-col items-center gap-4 transition-opacity ${
+            expandedLetter !== null ? 'opacity-30' : 'opacity-100'
+          }`}>
             {/* Trademark */}
             <p
               className="text-sm font-medium text-center px-4"
@@ -209,12 +219,12 @@ interface LetterButtonProps {
 }
 
 function LetterButton({ letter, isExpanded, isDimmed, onClick, onClose }: LetterButtonProps) {
-  // Shared text styles - smaller on mobile when expanded to prevent cutoff
+  // Shared text styles - bigger on mobile, even bigger when expanded
   const textClassName = isExpanded
-    ? `text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-bold tracking-wider transition-all duration-300 relative max-w-[90vw] break-words text-center ${
+    ? `text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold tracking-wider transition-all duration-300 relative max-w-[90vw] break-words text-center ${
         isDimmed ? 'opacity-30' : 'opacity-100'
       }`
-    : `text-6xl md:text-8xl font-bold tracking-wider transition-all duration-300 relative ${
+    : `text-7xl md:text-8xl font-bold tracking-wider transition-all duration-300 relative ${
         isDimmed ? 'opacity-30' : 'opacity-100'
       }`;
 
@@ -317,7 +327,9 @@ function LogoVideo({ isDimmed }: { isDimmed: boolean }) {
         playsInline
         autoPlay
         preload="auto"
-        className="w-full h-full object-contain relative z-10"
+        disablePictureInPicture
+        disableRemotePlayback
+        className="w-full h-full object-contain relative z-10 pointer-events-none"
         style={{ background: 'transparent', mixBlendMode: 'screen' }}
         onError={(e) => console.error('Video failed to load:', e)}
         onLoadedData={() => console.log('Video loaded successfully')}
