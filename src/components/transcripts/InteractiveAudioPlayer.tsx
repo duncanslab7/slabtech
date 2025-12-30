@@ -71,6 +71,7 @@ export function InteractiveAudioPlayer({
   const [playbackRate, setPlaybackRate] = useState(1)
   const [currentWordIndex, setCurrentWordIndex] = useState(-1)
   const [swapSpeakerColors, setSwapSpeakerColors] = useState(false)
+  const [forceScroll, setForceScroll] = useState(0) // Increment to force scroll after seek
   const activeWordRef = useRef<HTMLSpanElement>(null)
   const hasLoggedStreak = useRef(false) // Track if we've logged a streak for this session
 
@@ -233,8 +234,8 @@ export function InteractiveAudioPlayer({
   // Auto-scroll to active word
   useEffect(() => {
     if (activeWordRef.current) {
-      // Scroll when playing, or when word changes significantly (conversation click)
-      const shouldScroll = isPlaying || currentWordIndex >= 0
+      // Scroll when playing, when word changes, or when force scroll is triggered
+      const shouldScroll = isPlaying || currentWordIndex >= 0 || forceScroll > 0
       if (shouldScroll) {
         activeWordRef.current.scrollIntoView({
           behavior: 'smooth',
@@ -242,7 +243,7 @@ export function InteractiveAudioPlayer({
         })
       }
     }
-  }, [currentWordIndex, isPlaying])
+  }, [currentWordIndex, isPlaying, forceScroll])
 
   // Log streak activity when user starts playing audio
   useEffect(() => {
@@ -331,22 +332,55 @@ export function InteractiveAudioPlayer({
       return
     }
 
-    try {
-      // Check if audio is ready
-      if (audio.readyState >= 1) {
+    console.log('Attempting to seek to:', time, 'readyState:', audio.readyState)
+
+    // For mobile Safari with large files, we need to be more aggressive
+    const performSeek = () => {
+      try {
         audio.currentTime = time
-        console.log('Seeking to:', time)
-      } else {
-        // Wait for audio to be ready, then seek
-        const seekWhenReady = () => {
-          audio.currentTime = time
-          console.log('Seeking to (after load):', time)
-          audio.removeEventListener('loadedmetadata', seekWhenReady)
-        }
-        audio.addEventListener('loadedmetadata', seekWhenReady)
+        setCurrentTime(time)
+        console.log('Seek successful to:', time)
+
+        // Force scroll to the new position after a short delay
+        setTimeout(() => {
+          setForceScroll(prev => prev + 1)
+        }, 100)
+      } catch (error) {
+        console.error('Error during seek:', error)
       }
-    } catch (error) {
-      console.error('Error seeking:', error)
+    }
+
+    // Mobile Safari strategy: Force load if not ready, then seek
+    if (audio.readyState < 2) {
+      // HAVE_CURRENT_DATA or less - need to load more
+      console.log('Audio not ready, forcing load...')
+
+      // Set up one-time listeners for when audio is ready
+      const onCanPlay = () => {
+        console.log('Audio can play, seeking now')
+        performSeek()
+        audio.removeEventListener('canplay', onCanPlay)
+        audio.removeEventListener('loadeddata', onCanPlay)
+      }
+
+      audio.addEventListener('canplay', onCanPlay, { once: true })
+      audio.addEventListener('loadeddata', onCanPlay, { once: true })
+
+      // Force the browser to load the audio
+      audio.load()
+
+      // Fallback timeout - if events don't fire, try anyway
+      setTimeout(() => {
+        if (audio.currentTime !== time) {
+          console.log('Timeout reached, attempting seek anyway')
+          audio.removeEventListener('canplay', onCanPlay)
+          audio.removeEventListener('loadeddata', onCanPlay)
+          performSeek()
+        }
+      }, 2000)
+    } else {
+      // Audio is ready enough, seek immediately
+      performSeek()
     }
   }
 
