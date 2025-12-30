@@ -333,70 +333,71 @@ export function InteractiveAudioPlayer({
     }
 
     console.log('Attempting to seek to:', time, 'readyState:', audio.readyState)
+    console.log('Audio seekable ranges:', audio.seekable.length,
+                audio.seekable.length > 0 ? `[${audio.seekable.start(0)} - ${audio.seekable.end(0)}]` : 'none')
+    console.log('Audio buffered ranges:', audio.buffered.length,
+                audio.buffered.length > 0 ? `[${audio.buffered.start(0)} - ${audio.buffered.end(0)}]` : 'none')
 
-    // For mobile Safari with large files, we need to be more aggressive
+    // For mobile Safari with large files, use a simpler synchronous approach
     const performSeek = () => {
+      const wasPlaying = !audio.paused
+      const oldTime = audio.currentTime
+
+      console.log('=== SEEK START ===')
+      console.log('Target time:', time, 'Current time:', oldTime, 'Playing:', wasPlaying)
+      console.log('Duration:', audio.duration, 'ReadyState:', audio.readyState)
+
+      // Check if target time is seekable
+      let isSeekable = false
+      for (let i = 0; i < audio.seekable.length; i++) {
+        if (time >= audio.seekable.start(i) && time <= audio.seekable.end(i)) {
+          isSeekable = true
+          break
+        }
+      }
+      console.log('Target time is seekable:', isSeekable)
+
       try {
-        const wasPlaying = !audio.paused
-        console.log('Performing seek to:', time, 'Current time:', audio.currentTime, 'Was playing:', wasPlaying)
-
-        // Listen for when seek completes
-        const onSeeked = () => {
-          console.log('Seek completed, actual time:', audio.currentTime)
-          setCurrentTime(audio.currentTime)
-          setForceScroll(prev => prev + 1)
-          audio.removeEventListener('seeked', onSeeked)
-        }
-
-        audio.addEventListener('seeked', onSeeked, { once: true })
-
-        // Pause first if playing - Safari seeks better when paused
-        const shouldResume = wasPlaying
-        if (wasPlaying) {
-          audio.pause()
-        }
-
-        // Perform the seek
+        // Simple approach: just set currentTime directly
+        // Safari will handle buffering on its own
         audio.currentTime = time
 
-        // Force Safari to actually perform the seek by playing briefly
-        // This is critical for large files where Safari doesn't buffer unbuffered regions
-        const forceSafariSeek = async () => {
-          try {
-            // Play to force Safari to seek and buffer
-            await audio.play()
+        console.log('Set currentTime to:', time, 'Actual currentTime now:', audio.currentTime)
 
-            // Wait for seek to complete
-            await new Promise(resolve => setTimeout(resolve, 150))
-
-            // Resume or pause based on previous state
-            if (!shouldResume) {
-              audio.pause()
-            }
-          } catch (err) {
-            console.log('Play-to-force-seek blocked:', err)
-            // If play is blocked, just update state
-            setCurrentTime(time)
-            setForceScroll(prev => prev + 1)
-          }
+        // If we're playing, make sure playback continues from new position
+        if (wasPlaying && audio.paused) {
+          console.log('Resuming playback after seek')
+          audio.play().catch(err => console.error('Failed to resume:', err))
         }
 
-        forceSafariSeek()
+        // Update UI state immediately for responsiveness
+        setCurrentTime(time)
 
-        // Fallback: verify seek worked after timeout
+        // Verify seek after a delay
         setTimeout(() => {
           const actualTime = audio.currentTime
-          const timeDiff = Math.abs(actualTime - time)
-          if (timeDiff > 1) {
-            console.warn(`Seek verification failed. Target: ${time}, Actual: ${actualTime}`)
-            // Last resort: try one more time
+          console.log('=== SEEK VERIFY ===')
+          console.log('Target:', time, 'Actual:', actualTime, 'Diff:', Math.abs(actualTime - time))
+
+          if (Math.abs(actualTime - time) > 2) {
+            console.error('SEEK FAILED - Safari did not seek to target position')
+            console.error('This usually means Safari cannot buffer this region of the file')
+            // Try one more time with play/pause cycle
+            audio.pause()
             audio.currentTime = time
-            setCurrentTime(time)
+            if (wasPlaying) {
+              audio.play().catch(err => console.error('Retry play failed:', err))
+            }
+          } else {
+            console.log('Seek successful!')
           }
-        }, 500)
+
+          setCurrentTime(audio.currentTime)
+          setForceScroll(prev => prev + 1)
+        }, 300)
+
       } catch (error) {
-        console.error('Error during seek:', error)
-        // Ensure state is updated even if seek fails
+        console.error('=== SEEK ERROR ===', error)
         setCurrentTime(time)
         setForceScroll(prev => prev + 1)
       }
