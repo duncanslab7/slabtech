@@ -337,16 +337,68 @@ export function InteractiveAudioPlayer({
     // For mobile Safari with large files, we need to be more aggressive
     const performSeek = () => {
       try {
-        audio.currentTime = time
-        setCurrentTime(time)
-        console.log('Seek successful to:', time)
+        const wasPlaying = !audio.paused
+        console.log('Performing seek to:', time, 'Current time:', audio.currentTime, 'Was playing:', wasPlaying)
 
-        // Force scroll to the new position after a short delay
-        setTimeout(() => {
+        // Listen for when seek completes
+        const onSeeked = () => {
+          console.log('Seek completed, actual time:', audio.currentTime)
+          setCurrentTime(audio.currentTime)
           setForceScroll(prev => prev + 1)
-        }, 100)
+          audio.removeEventListener('seeked', onSeeked)
+        }
+
+        audio.addEventListener('seeked', onSeeked, { once: true })
+
+        // Pause first if playing - Safari seeks better when paused
+        const shouldResume = wasPlaying
+        if (wasPlaying) {
+          audio.pause()
+        }
+
+        // Perform the seek
+        audio.currentTime = time
+
+        // Force Safari to actually perform the seek by playing briefly
+        // This is critical for large files where Safari doesn't buffer unbuffered regions
+        const forceSafariSeek = async () => {
+          try {
+            // Play to force Safari to seek and buffer
+            await audio.play()
+
+            // Wait for seek to complete
+            await new Promise(resolve => setTimeout(resolve, 150))
+
+            // Resume or pause based on previous state
+            if (!shouldResume) {
+              audio.pause()
+            }
+          } catch (err) {
+            console.log('Play-to-force-seek blocked:', err)
+            // If play is blocked, just update state
+            setCurrentTime(time)
+            setForceScroll(prev => prev + 1)
+          }
+        }
+
+        forceSafariSeek()
+
+        // Fallback: verify seek worked after timeout
+        setTimeout(() => {
+          const actualTime = audio.currentTime
+          const timeDiff = Math.abs(actualTime - time)
+          if (timeDiff > 1) {
+            console.warn(`Seek verification failed. Target: ${time}, Actual: ${actualTime}`)
+            // Last resort: try one more time
+            audio.currentTime = time
+            setCurrentTime(time)
+          }
+        }, 500)
       } catch (error) {
         console.error('Error during seek:', error)
+        // Ensure state is updated even if seek fails
+        setCurrentTime(time)
+        setForceScroll(prev => prev + 1)
       }
     }
 
