@@ -350,36 +350,45 @@ export function InteractiveAudioPlayer({
       }
     }
 
-    // Mobile Safari strategy: Force load if not ready, then seek
-    if (audio.readyState < 2) {
-      // HAVE_CURRENT_DATA or less - need to load more
-      console.log('Audio not ready, forcing load...')
+    // Mobile Safari strategy: Only reload if truly uninitialized
+    if (audio.readyState === 0) {
+      // HAVE_NOTHING - audio hasn't loaded at all, need to load first
+      console.log('Audio completely unloaded, loading before seek...')
 
-      // Set up one-time listeners for when audio is ready
       const onCanPlay = () => {
-        console.log('Audio can play, seeking now')
+        console.log('Audio loaded, seeking now')
         performSeek()
-        audio.removeEventListener('canplay', onCanPlay)
-        audio.removeEventListener('loadeddata', onCanPlay)
+        audio.removeEventListener('loadedmetadata', onCanPlay)
       }
 
-      audio.addEventListener('canplay', onCanPlay, { once: true })
-      audio.addEventListener('loadeddata', onCanPlay, { once: true })
-
-      // Force the browser to load the audio
+      audio.addEventListener('loadedmetadata', onCanPlay, { once: true })
       audio.load()
 
-      // Fallback timeout - if events don't fire, try anyway
+      // Fallback timeout
       setTimeout(() => {
-        if (audio.currentTime !== time) {
-          console.log('Timeout reached, attempting seek anyway')
-          audio.removeEventListener('canplay', onCanPlay)
-          audio.removeEventListener('loadeddata', onCanPlay)
+        audio.removeEventListener('loadedmetadata', onCanPlay)
+        if (audio.readyState > 0) {
           performSeek()
         }
-      }, 2000)
+      }, 3000)
+    } else if (audio.readyState === 1) {
+      // HAVE_METADATA - wait for some data before seeking
+      console.log('Waiting for audio data before seek...')
+
+      const onCanSeek = () => {
+        console.log('Audio ready, seeking now')
+        performSeek()
+      }
+
+      audio.addEventListener('loadeddata', onCanSeek, { once: true })
+
+      // Also try immediately in case data comes quickly
+      setTimeout(() => {
+        audio.removeEventListener('loadeddata', onCanSeek)
+        performSeek()
+      }, 1000)
     } else {
-      // Audio is ready enough, seek immediately
+      // readyState >= 2 - Audio has enough data, seek immediately
       performSeek()
     }
   }
