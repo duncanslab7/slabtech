@@ -29,9 +29,11 @@ export default function DashboardPage() {
   const [showMoveModal, setShowMoveModal] = useState(false)
   const [moving, setMoving] = useState(false)
   const [moveMessage, setMoveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 })
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true)
       try {
         // Fetch salespeople
         const spResponse = await fetch('/api/admin/salespeople')
@@ -40,11 +42,14 @@ export default function DashboardPage() {
           setSalespeople(spData.salespeople)
         }
 
-        // Fetch transcripts
-        const response = await fetch('/api/admin/transcripts')
+        // Fetch transcripts with pagination
+        const response = await fetch(`/api/admin/transcripts?page=${pagination.page}&limit=${pagination.limit}`)
         const data = await response.json()
         if (data.transcripts) {
           setTranscripts(data.transcripts)
+        }
+        if (data.pagination) {
+          setPagination(data.pagination)
         }
       } catch (error) {
         console.error('Error fetching data:', error)
@@ -53,7 +58,7 @@ export default function DashboardPage() {
       }
     }
     fetchData()
-  }, [])
+  }, [pagination.page])
 
   // Clear selection when switching tabs
   useEffect(() => {
@@ -523,11 +528,36 @@ export default function DashboardPage() {
           </>
         )}
 
-        {/* Footer */}
-        <div className="mt-6 flex justify-between items-center">
+        {/* Footer with Pagination */}
+        <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
           <p className="text-purple-300 text-sm">
-            Showing {filteredTranscripts.length} of {transcripts.length} transcripts
+            Showing {filteredTranscripts.length} transcripts
+            {pagination.total > 0 && ` (Page ${pagination.page} of ${pagination.totalPages}, ${pagination.total} total)`}
           </p>
+
+          {/* Pagination Controls */}
+          {pagination.totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
+                disabled={pagination.page === 1}
+                className="px-3 py-1.5 rounded-lg bg-white/10 text-purple-200 hover:bg-white/20 transition-all border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                Previous
+              </button>
+              <span className="text-purple-300 text-sm px-2">
+                {pagination.page} / {pagination.totalPages}
+              </span>
+              <button
+                onClick={() => setPagination(prev => ({ ...prev, page: Math.min(prev.totalPages, prev.page + 1) }))}
+                disabled={pagination.page === pagination.totalPages}
+                className="px-3 py-1.5 rounded-lg bg-white/10 text-purple-200 hover:bg-white/20 transition-all border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                Next
+              </button>
+            </div>
+          )}
+
           <Link
             href="/admin"
             className="text-purple-400 hover:text-purple-300 transition-colors text-sm font-medium inline-flex items-center gap-1"

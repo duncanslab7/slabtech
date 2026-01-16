@@ -3,7 +3,7 @@ import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
 
-import { detectPiiMatches, PiiMatch } from '@/utils/pii'
+import { detectPiiMatches, validatePiiRanges, PiiMatch } from '@/utils/pii'
 import { createClient } from '@/utils/supabase/server'
 import { checkRateLimit } from '@/utils/rateLimit'
 import { NextRequest, NextResponse } from 'next/server'
@@ -412,6 +412,12 @@ export async function POST(request: NextRequest) {
     // 5) PII detection using regex
     const piiMatches = detectPiiMatches(words, piiFields)
 
+    // 5.5) Validate PII ranges are within audio bounds
+    const audioDuration = words.length > 0 ? words[words.length - 1].end : 0
+    const validatedPiiMatches = validatePiiRanges(piiMatches, audioDuration)
+
+    console.log(`PII detection: Found ${piiMatches.length} matches, ${validatedPiiMatches.length} valid after validation`)
+
     // 6) Redact audio locally with FFmpeg (silence)
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'slab-redact-'))
     const inputPath = path.join(tmpDir, 'input.mp3')
@@ -419,7 +425,7 @@ export async function POST(request: NextRequest) {
 
     try {
       await fs.writeFile(inputPath, audioBuffer)
-      await runFfmpegBleep(inputPath, outputPath, piiMatches)
+      await runFfmpegBleep(inputPath, outputPath, validatedPiiMatches)
       const redactedBuffer = await fs.readFile(outputPath)
 
       // 7) Upload redacted audio to Supabase
@@ -433,7 +439,18 @@ export async function POST(request: NextRequest) {
 
       if (redactedUploadError) {
         console.error('Redacted audio upload error:', redactedUploadError)
+        // Redacted audio is critical - if upload fails, we should not proceed
+        // Otherwise users could get unredacted audio with PII exposed
+        return NextResponse.json(
+          {
+            error: 'Failed to upload redacted audio. Please try again.',
+            details: redactedUploadError.message
+          },
+          { status: 500 }
+        )
       }
+
+      console.log(`Successfully uploaded redacted audio to: ${redactedFilePath}`)
 
       // 8) Get salesperson name
       const { data: salespersonData } = await supabase
@@ -462,7 +479,7 @@ export async function POST(request: NextRequest) {
           transcript_redacted: {
             text: transcript.text,
             words,
-            pii_matches: piiMatches,
+            pii_matches: validatedPiiMatches,
             redacted_file_storage_path: redactedFilePath,
           },
           redaction_config_used: piiFields,
@@ -474,8 +491,24 @@ export async function POST(request: NextRequest) {
 
       if (transcriptError) {
         console.error('Database insert error:', transcriptError)
-        return NextResponse.json({ error: 'Failed to save transcript to database' }, { status: 500 })
+
+        // Cleanup: Delete redacted audio since we failed to save transcript
+        // This prevents orphaned files in storage
+        await supabase.storage
+          .from('call-recordings')
+          .remove([redactedFilePath])
+          .catch(err => console.error('Failed to cleanup redacted audio:', err))
+
+        return NextResponse.json(
+          {
+            error: 'Failed to save transcript to database',
+            details: transcriptError.message
+          },
+          { status: 500 }
+        )
       }
+
+      console.log(`Successfully created transcript record: ${transcriptData.id}`)
 
       // 10) Segment conversations and analyze them
       try {
@@ -487,7 +520,7 @@ export async function POST(request: NextRequest) {
 
         for (const conversation of conversations) {
           const conversationText = getConversationText(conversation)
-          const piiCount = countPiiInConversation(piiMatches, conversation)
+          const piiCount = countPiiInConversation(validatedPiiMatches, conversation)
 
           const analysis = await analyzeConversation(
             conversationText,

@@ -380,13 +380,12 @@ export function InteractiveAudioPlayer({
           console.log('Target:', time, 'Actual:', actualTime, 'Diff:', Math.abs(actualTime - time))
 
           if (Math.abs(actualTime - time) > 2) {
-            console.error('SEEK FAILED - Safari did not seek to target position')
-            console.error('This usually means Safari cannot buffer this region of the file')
+            console.warn('Seek position off by', Math.abs(actualTime - time).toFixed(2), 'seconds, retrying...')
             // Try one more time with play/pause cycle
             audio.pause()
             audio.currentTime = time
             if (wasPlaying) {
-              audio.play().catch(err => console.error('Retry play failed:', err))
+              audio.play().catch(err => console.warn('Retry play failed:', err))
             }
           } else {
             console.log('Seek successful!')

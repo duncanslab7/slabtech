@@ -12,16 +12,22 @@ type WordLike = {
 
 const regexes: Record<string, RegExp> = {
   email: /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i,
-  // Accept 7-15 digit phone patterns with separators (handles malformed numbers)
+  // Stricter phone pattern: must have clear structure with separators or parentheses
+  // Matches: (555) 123-4567, 555-123-4567, +1 555-123-4567
+  // Does NOT match: random 10 digit sequences like timestamps
   phone:
-    /\b(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4,5}|\d{3}[\s.-]?\d{4,5}|\d{7,15})\b/,
-  ssn: /\b\d{3}[- ]?\d{2}[- ]?\d{4}\b/,
-  credit_card: /\b(?:\d[ -]*?){13,16}\b/,
+    /\b(?:\+?1[\s.-]?)?(?:\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4})\b/,
+  ssn: /\b\d{3}[- ]\d{2}[- ]\d{4}\b/,
+  // More precise credit card: must start with known BIN prefix (4, 5, 37, 6) and have separators
+  // Matches: 4532 1234 5678 9010, 5425-2334-3010-9903
+  // Does NOT match: random 16 digit sequences
+  credit_card: /\b(?:4\d{3}|5[1-5]\d{2}|37\d{2}|6\d{3})[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/,
   url: /\bhttps?:\/\/[^\s]+/i,
-  // Match number + street name (with or without suffix)
-  // Examples: "1908 Cottonwood", "123 Main Street"
+  // Stricter address: exclude year-like numbers (19xx, 20xx) to avoid false positives
+  // Matches: "123 Main Street", "456 Oak Avenue"
+  // Does NOT match: "2008 Main Street" (year reference)
   address:
-    /\b\d{1,6}\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*(?:\s+(?:st|street|ave|avenue|blvd|boulevard|rd|road|dr|drive|ln|lane|ct|court|cir|circle|way|pkwy|parkway|terrace|ter|pl|place))?\b/i,
+    /\b(?!(?:19|20)\d{2}\b)\d{1,6}\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*(?:\s+(?:st|street|ave|avenue|blvd|boulevard|rd|road|dr|drive|ln|lane|ct|court|cir|circle|way|pkwy|parkway|terrace|ter|pl|place))?\b/i,
   // City, ST [ZIP]
   city_state: /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2}(?:\s+\d{5}(?:-\d{4})?)?\b/,
 }
@@ -98,14 +104,14 @@ export function detectPiiMatches(words: WordLike[], piiConfig: string): PiiMatch
     }
   }
 
-  // Multi-word phone detection: scan 2-8 word windows and test combined strings
+  // Multi-word phone detection: scan 2-6 word windows for structured phone patterns
+  // Only matches if the combined text has clear phone structure (not just 10 random digits)
   if (shouldUseField('phone', piiConfig)) {
-    const maxWindow = 8
+    const maxWindow = 6 // Reduced from 8 - phones shouldn't span that many words
     for (let i = 0; i < words.length; i++) {
       let combined = ''
       let start = words[i].start
       let end = words[i].end
-      let digitsOnly = ''
 
       for (let w = 0; w < maxWindow && i + w < words.length; w++) {
         const segment = (words[i + w].word || '').trim()
@@ -114,54 +120,64 @@ export function detectPiiMatches(words: WordLike[], piiConfig: string): PiiMatch
           end = words[i + w].end
         }
 
-        digitsOnly = combined.replace(/\D/g, '')
-
-        // Check if we have 7-15 digits (flexible phone number detection)
-        if (digitsOnly.length >= 7 && digitsOnly.length <= 15) {
-          // Test if it matches phone pattern OR just has enough digits in sequence
-          if (regexes.phone.test(combined) || digitsOnly.length >= 10) {
-            addMatch(start, end, 'phone')
-            i += w // Skip past this match
-            break
-          }
+        // Only match if it has clear phone structure with separators
+        if (regexes.phone.test(combined)) {
+          addMatch(start, end, 'phone')
+          i += w // Skip past this match
+          break
         }
 
-        // Stop if too many digits
-        if (digitsOnly.length > 15) {
+        // Stop early if we're accumulating too many characters without a match
+        if (combined.length > 30) {
           break
         }
       }
     }
   }
 
-  // Multi-word credit card detection: scan 10-20 word windows for digit sequences
+  // Multi-word credit card detection: scan 8-12 word windows for structured card patterns
+  // Requires first digit to be valid BIN prefix (4, 5, 37, 6) and consistent 4-digit grouping
   if (shouldUseField('credit_card', piiConfig)) {
-    const maxWindow = 20 // Credit cards can be spoken slowly with filler words
+    const maxWindow = 12 // Reduced from 20 - cards should be spoken in ~4 groups
     for (let i = 0; i < words.length; i++) {
+      let combined = ''
       let start = words[i].start
       let end = words[i].end
-      let digitsOnly = ''
+      let digitGroups: string[] = []
 
       for (let w = 0; w < maxWindow && i + w < words.length; w++) {
         const segment = (words[i + w].word || '').trim()
-        end = words[i + w].end
-
-        // Extract digits from this word
-        const wordDigits = segment.replace(/\D/g, '')
-        if (wordDigits) {
-          digitsOnly += wordDigits
+        if (segment) {
+          combined = combined ? `${combined} ${segment}` : segment
+          end = words[i + w].end
         }
 
-        // Check if we have a valid credit card length (13-16 digits)
-        if (digitsOnly.length >= 13 && digitsOnly.length <= 16) {
+        // Extract digit groups (sequences of 3-4 digits)
+        const wordDigits = segment.replace(/\D/g, '')
+        if (wordDigits.length >= 3 && wordDigits.length <= 4) {
+          digitGroups.push(wordDigits)
+        }
+
+        // Check if combined text matches credit card pattern
+        if (regexes.credit_card.test(combined)) {
           addMatch(start, end, 'credit_card')
-          // Skip past this match
           i += w
           break
         }
 
-        // Stop if we've gone too far without enough digits
-        if (digitsOnly.length > 16) {
+        // Check if we have 4 groups of 4 digits (typical card format)
+        if (digitGroups.length === 4 && digitGroups.every(g => g.length === 4)) {
+          const firstDigit = digitGroups[0][0]
+          // Validate BIN prefix (Visa=4, MC=5, Amex=3, Discover=6)
+          if (['4', '5', '3', '6'].includes(firstDigit)) {
+            addMatch(start, end, 'credit_card')
+            i += w
+            break
+          }
+        }
+
+        // Stop if we've accumulated too many characters without a match
+        if (combined.length > 50 || digitGroups.length > 5) {
           break
         }
       }
@@ -169,14 +185,20 @@ export function detectPiiMatches(words: WordLike[], piiConfig: string): PiiMatch
   }
 
   // Multi-word address/location detection: scan 2-6 word windows
-  // Catches patterns like "1908 Cottonwood" or "123 Main Street"
+  // Catches patterns like "123 Main Street" but excludes year references like "2008 Main"
   if (shouldUseField('address', piiConfig)) {
     const maxWindow = 6
     for (let i = 0; i < words.length; i++) {
-      // Skip if this word doesn't start with a number
       const firstWord = (words[i].word || '').trim()
+
+      // Skip if not a number, or if it's a year (19xx or 20xx)
       if (!/^\d{1,6}$/.test(firstWord)) {
         continue
+      }
+
+      const num = parseInt(firstWord, 10)
+      if ((num >= 1900 && num <= 2099) || num > 99999) {
+        continue // Skip years and unrealistic street numbers
       }
 
       let combined = ''
@@ -190,7 +212,7 @@ export function detectPiiMatches(words: WordLike[], piiConfig: string): PiiMatch
           end = words[i + w].end
         }
 
-        // Check if matches address pattern
+        // Check if matches address pattern (already has year exclusion in regex)
         const hasStreet = regexes.address.test(combined)
         const hasCityState = regexes.city_state.test(combined)
 
@@ -204,4 +226,46 @@ export function detectPiiMatches(words: WordLike[], piiConfig: string): PiiMatch
   }
 
   return matches
+}
+
+/**
+ * Validates and clamps PII ranges to ensure they're within audio bounds.
+ * This prevents FFmpeg errors from attempting to process timestamps beyond audio duration.
+ *
+ * @param matches - Array of PII matches to validate
+ * @param audioDuration - Total audio duration in seconds (typically from last word's end time)
+ * @returns Validated array of PII matches with clamped timestamps
+ */
+export function validatePiiRanges(matches: PiiMatch[], audioDuration: number): PiiMatch[] {
+  if (!matches.length || audioDuration <= 0) return matches
+
+  const validated: PiiMatch[] = []
+
+  for (const match of matches) {
+    // Skip invalid ranges
+    if (match.start < 0 || match.end < 0 || match.start >= match.end) {
+      console.warn(`Skipping invalid PII range: ${match.start}-${match.end}`)
+      continue
+    }
+
+    // Skip ranges that start beyond audio duration
+    if (match.start >= audioDuration) {
+      console.warn(`Skipping PII range beyond audio duration: ${match.start}-${match.end} (duration: ${audioDuration})`)
+      continue
+    }
+
+    // Clamp end time to audio duration if it exceeds
+    const clampedEnd = Math.min(match.end, audioDuration)
+
+    if (clampedEnd !== match.end) {
+      console.warn(`Clamping PII range end from ${match.end} to ${clampedEnd} (duration: ${audioDuration})`)
+    }
+
+    validated.push({
+      ...match,
+      end: clampedEnd
+    })
+  }
+
+  return validated
 }

@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { createServiceRoleClient } from '@/utils/supabase/service-role'
+import { checkRateLimit } from '@/utils/rateLimit'
 import { NextResponse } from 'next/server'
 
 export async function GET(
@@ -17,10 +18,39 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Apply rate limiting only for initial loads (not range requests)
+    // Range requests are normal during seeking/playback and shouldn't count against limit
+    const isRangeRequest = request.headers.has('range')
+
+    if (!isRangeRequest) {
+      // Rate limit initial audio loads (100 per hour per user)
+      const rateLimitKey = `audio-load:${user.id}`
+      const rateLimitResult = checkRateLimit(rateLimitKey, 100, 60 * 60 * 1000)
+
+      if (!rateLimitResult.allowed) {
+        const minutes = Math.ceil(rateLimitResult.retryAfter! / 60)
+        return NextResponse.json(
+          {
+            error: `Too many audio streams started. Please try again in ${minutes} minute${minutes !== 1 ? 's' : ''}.`,
+            retryAfter: rateLimitResult.retryAfter,
+          },
+          {
+            status: 429,
+            headers: {
+              'Retry-After': rateLimitResult.retryAfter!.toString(),
+              'X-RateLimit-Limit': '100',
+              'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+              'X-RateLimit-Reset': new Date(rateLimitResult.resetTime).toISOString(),
+            },
+          }
+        )
+      }
+    }
+
     // Fetch the transcript to check access and get file path
     const { data: transcript, error: transcriptError } = await supabase
       .from('transcripts')
-      .select('file_storage_path, salesperson_name')
+      .select('file_storage_path, salesperson_name, transcript_redacted')
       .eq('id', transcriptId)
       .single()
 
@@ -65,37 +95,67 @@ export async function GET(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Try to download the redacted audio file first (using service role to bypass RLS)
-    const audioPath = transcript.file_storage_path.replace(/\.[^/.]+$/, '') + '_redacted.mp3'
-    let { data: audioData, error: audioError } = await supabaseAdmin.storage
-      .from('call-recordings')
-      .download(`redacted/${audioPath}`)
+    // Determine which audio file to serve
+    const redactedPath = transcript.transcript_redacted?.redacted_file_storage_path
+    let audioPath = redactedPath
 
-    // Fallback to original audio if redacted not available
-    if (audioError || !audioData) {
-      const result = await supabaseAdmin.storage
-        .from('call-recordings')
-        .download(transcript.file_storage_path)
-
-      audioData = result.data
-      audioError = result.error
+    // Fallback to original audio if redacted path not available
+    if (!audioPath) {
+      console.warn(`No redacted path for transcript ${transcriptId}, using original`)
+      audioPath = transcript.file_storage_path
     }
 
-    if (audioError || !audioData) {
+    // Generate a signed URL for streaming
+    // Supabase Storage natively supports HTTP range requests
+    const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin.storage
+      .from('call-recordings')
+      .createSignedUrl(audioPath, 3600) // 1 hour
+
+    if (signedUrlError || !signedUrlData) {
+      console.error('Failed to create signed URL:', signedUrlError)
       return NextResponse.json(
-        { error: 'Audio file not found', details: audioError },
-        { status: 404 }
+        { error: 'Failed to generate audio URL', details: signedUrlError?.message },
+        { status: 500 }
       )
     }
 
-    // Stream the audio file to the client
-    return new NextResponse(audioData, {
-      headers: {
-        'Content-Type': 'audio/mpeg',
-        'Content-Disposition': 'inline',
-        'Accept-Ranges': 'bytes',
-        'Cache-Control': 'private, max-age=3600',
-      },
+    // Proxy the request to Supabase, forwarding range headers
+    // This maintains access control while allowing range requests
+    const range = request.headers.get('range')
+    const headers: HeadersInit = {}
+
+    if (range) {
+      headers['Range'] = range
+    }
+
+    const audioResponse = await fetch(signedUrlData.signedUrl, { headers })
+
+    if (!audioResponse.ok) {
+      console.error('Failed to fetch audio from Supabase:', audioResponse.status)
+      return NextResponse.json(
+        { error: 'Failed to load audio' },
+        { status: audioResponse.status }
+      )
+    }
+
+    // Forward the response from Supabase with all headers intact
+    const responseHeaders = new Headers()
+    responseHeaders.set('Content-Type', audioResponse.headers.get('Content-Type') || 'audio/mpeg')
+    responseHeaders.set('Accept-Ranges', 'bytes')
+    responseHeaders.set('Cache-Control', 'private, max-age=3600')
+
+    // Forward range-related headers if present
+    if (audioResponse.headers.get('Content-Range')) {
+      responseHeaders.set('Content-Range', audioResponse.headers.get('Content-Range')!)
+    }
+    if (audioResponse.headers.get('Content-Length')) {
+      responseHeaders.set('Content-Length', audioResponse.headers.get('Content-Length')!)
+    }
+
+    // Stream the response body
+    return new NextResponse(audioResponse.body, {
+      status: audioResponse.status,
+      headers: responseHeaders,
     })
 
   } catch (error) {
