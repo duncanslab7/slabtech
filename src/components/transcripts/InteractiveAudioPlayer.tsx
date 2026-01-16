@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Card, Text } from '@/components'
+import { logger } from '@/utils/logger'
 
 interface Word {
   word: string
@@ -95,7 +96,7 @@ export function InteractiveAudioPlayer({
           setIsPlaying(true)
         }).catch((err) => {
           // Autoplay blocked by browser - user needs to manually start
-          console.log('Autoplay prevented, user must click play:', err)
+          logger.debug({ error: err }, 'Autoplay prevented by browser')
         })
       }
     }
@@ -171,7 +172,7 @@ export function InteractiveAudioPlayer({
         setDuration(audio.duration)
       } else if (estimatedDuration > 0) {
         // Fallback: use estimated duration from transcript words
-        console.log('Using estimated duration from transcript:', estimatedDuration)
+        logger.debug({ estimatedDuration }, 'Using estimated duration from transcript')
         setDuration(estimatedDuration)
       }
     }
@@ -181,7 +182,7 @@ export function InteractiveAudioPlayer({
         setDuration(audio.duration)
       } else if (estimatedDuration > 0 && duration === 0) {
         // Fallback for mobile Safari with large files
-        console.log('Using estimated duration (durationchange):', estimatedDuration)
+        logger.debug({ estimatedDuration }, 'Using estimated duration (durationchange event)')
         setDuration(estimatedDuration)
       }
     }
@@ -192,7 +193,7 @@ export function InteractiveAudioPlayer({
         setDuration(audio.duration)
       } else if (estimatedDuration > 0 && duration === 0) {
         // Fallback for mobile Safari with large files
-        console.log('Using estimated duration (canplay):', estimatedDuration)
+        logger.debug({ estimatedDuration }, 'Using estimated duration (canplay event)')
         setDuration(estimatedDuration)
       }
     }
@@ -202,7 +203,7 @@ export function InteractiveAudioPlayer({
     }
 
     const handleError = (e: Event) => {
-      console.error('Audio error:', e)
+      logger.error({ event: e }, 'Audio playback error')
     }
 
     audio.addEventListener('timeupdate', handleTimeUpdate)
@@ -217,7 +218,7 @@ export function InteractiveAudioPlayer({
       setDuration(audio.duration)
     } else if (estimatedDuration > 0 && duration === 0) {
       // Set estimated duration immediately for large files (mobile Safari)
-      console.log('Setting estimated duration on mount:', estimatedDuration)
+      logger.debug({ estimatedDuration }, 'Setting estimated duration on mount')
       setDuration(estimatedDuration)
     }
 
@@ -261,7 +262,7 @@ export function InteractiveAudioPlayer({
         }),
       }).catch(err => {
         // Silently fail - don't interrupt user experience
-        console.error('Failed to log streak:', err)
+        logger.warn({ error: err, transcriptId }, 'Failed to log streak activity')
       })
     }
   }, [isPlaying, transcriptId])
@@ -322,52 +323,28 @@ export function InteractiveAudioPlayer({
   const handleSeek = (time: number) => {
     const audio = audioRef.current
     if (!audio) {
-      console.error('Audio ref not available for seeking')
+      logger.error('Audio ref not available for seeking')
       return
     }
 
     // Ensure time is valid
     if (!isFinite(time) || time < 0) {
-      console.error('Invalid seek time:', time)
+      logger.error({ time }, 'Invalid seek time')
       return
     }
-
-    console.log('Attempting to seek to:', time, 'readyState:', audio.readyState)
-    console.log('Audio seekable ranges:', audio.seekable.length,
-                audio.seekable.length > 0 ? `[${audio.seekable.start(0)} - ${audio.seekable.end(0)}]` : 'none')
-    console.log('Audio buffered ranges:', audio.buffered.length,
-                audio.buffered.length > 0 ? `[${audio.buffered.start(0)} - ${audio.buffered.end(0)}]` : 'none')
 
     // For mobile Safari with large files, use a simpler synchronous approach
     const performSeek = () => {
       const wasPlaying = !audio.paused
-      const oldTime = audio.currentTime
-
-      console.log('=== SEEK START ===')
-      console.log('Target time:', time, 'Current time:', oldTime, 'Playing:', wasPlaying)
-      console.log('Duration:', audio.duration, 'ReadyState:', audio.readyState)
-
-      // Check if target time is seekable
-      let isSeekable = false
-      for (let i = 0; i < audio.seekable.length; i++) {
-        if (time >= audio.seekable.start(i) && time <= audio.seekable.end(i)) {
-          isSeekable = true
-          break
-        }
-      }
-      console.log('Target time is seekable:', isSeekable)
 
       try {
         // Simple approach: just set currentTime directly
         // Safari will handle buffering on its own
         audio.currentTime = time
 
-        console.log('Set currentTime to:', time, 'Actual currentTime now:', audio.currentTime)
-
         // If we're playing, make sure playback continues from new position
         if (wasPlaying && audio.paused) {
-          console.log('Resuming playback after seek')
-          audio.play().catch(err => console.error('Failed to resume:', err))
+          audio.play().catch(err => logger.warn({ error: err }, 'Failed to resume playback after seek'))
         }
 
         // Update UI state immediately for responsiveness
@@ -376,19 +353,21 @@ export function InteractiveAudioPlayer({
         // Verify seek after a delay
         setTimeout(() => {
           const actualTime = audio.currentTime
-          console.log('=== SEEK VERIFY ===')
-          console.log('Target:', time, 'Actual:', actualTime, 'Diff:', Math.abs(actualTime - time))
+          const diff = Math.abs(actualTime - time)
 
-          if (Math.abs(actualTime - time) > 2) {
-            console.warn('Seek position off by', Math.abs(actualTime - time).toFixed(2), 'seconds, retrying...')
+          if (diff > 2) {
+            logger.warn({
+              targetTime: time,
+              actualTime,
+              diff: diff.toFixed(2)
+            }, 'Seek position inaccurate, retrying')
+
             // Try one more time with play/pause cycle
             audio.pause()
             audio.currentTime = time
             if (wasPlaying) {
-              audio.play().catch(err => console.warn('Retry play failed:', err))
+              audio.play().catch(err => logger.warn({ error: err }, 'Retry play failed'))
             }
-          } else {
-            console.log('Seek successful!')
           }
 
           setCurrentTime(audio.currentTime)
@@ -396,7 +375,7 @@ export function InteractiveAudioPlayer({
         }, 300)
 
       } catch (error) {
-        console.error('=== SEEK ERROR ===', error)
+        logger.error({ error, targetTime: time }, 'Seek operation failed')
         setCurrentTime(time)
         setForceScroll(prev => prev + 1)
       }
@@ -405,10 +384,7 @@ export function InteractiveAudioPlayer({
     // Mobile Safari strategy: Only reload if truly uninitialized
     if (audio.readyState === 0) {
       // HAVE_NOTHING - audio hasn't loaded at all, need to load first
-      console.log('Audio completely unloaded, loading before seek...')
-
       const onCanPlay = () => {
-        console.log('Audio loaded, seeking now')
         performSeek()
         audio.removeEventListener('loadedmetadata', onCanPlay)
       }
@@ -425,10 +401,7 @@ export function InteractiveAudioPlayer({
       }, 3000)
     } else if (audio.readyState === 1) {
       // HAVE_METADATA - wait for some data before seeking
-      console.log('Waiting for audio data before seek...')
-
       const onCanSeek = () => {
-        console.log('Audio ready, seeking now')
         performSeek()
       }
 

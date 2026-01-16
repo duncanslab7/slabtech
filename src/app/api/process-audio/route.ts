@@ -6,6 +6,7 @@ import path from 'path'
 import { detectPiiMatches, validatePiiRanges, PiiMatch } from '@/utils/pii'
 import { createClient } from '@/utils/supabase/server'
 import { checkRateLimit } from '@/utils/rateLimit'
+import { createApiLogger, logger } from '@/utils/logger'
 import { NextRequest, NextResponse } from 'next/server'
 import {
   segmentConversationsHybrid,
@@ -48,7 +49,7 @@ function getFfmpegPath(): string {
     // @ts-ignore
     const ffmpegStatic = require('ffmpeg-static')
     let ffmpegPath = typeof ffmpegStatic === 'string' ? ffmpegStatic : ffmpegStatic.path
-    console.log('FFmpeg static path (raw):', ffmpegPath)
+    logger.debug({ ffmpegPath }, 'FFmpeg static path (raw)')
 
     if (!ffmpegPath) {
       throw new Error('ffmpeg-static did not return a path')
@@ -61,7 +62,7 @@ function getFfmpegPath(): string {
       if (parts.length > 1) {
         // Resolve from project root
         const resolved = path.resolve(process.cwd(), parts[1])
-        console.log('Resolved from ROOT placeholder:', resolved)
+        logger.debug({ resolved }, 'Resolved from ROOT placeholder')
         return resolved
       }
     }
@@ -73,10 +74,10 @@ function getFfmpegPath(): string {
 
     // Otherwise resolve from cwd
     const resolved = path.resolve(process.cwd(), ffmpegPath)
-    console.log('Resolved FFmpeg path:', resolved)
+    logger.debug({ resolved }, 'Resolved FFmpeg path')
     return resolved
   } catch (error) {
-    console.error('Failed to load ffmpeg-static:', error)
+    logger.error({ error }, 'Failed to load ffmpeg-static')
   }
 
   // Fallback to system ffmpeg
@@ -150,7 +151,7 @@ function mergeRanges(ranges: PiiMatch[]): PiiMatch[] {
   return coalesced
 }
 
-async function runFfmpegBleep(inputPath: string, outputPath: string, ranges: PiiMatch[]) {
+async function runFfmpegBleep(inputPath: string, outputPath: string, ranges: PiiMatch[], log = logger) {
   if (!ranges.length) {
     await fs.copyFile(inputPath, outputPath)
     return
@@ -158,9 +159,11 @@ async function runFfmpegBleep(inputPath: string, outputPath: string, ranges: Pii
 
   const mergedRanges = mergeRanges(ranges)
 
-  console.log('PII ranges before merge:', ranges.length)
-  console.log('PII ranges after merge:', mergedRanges.length)
-  console.log('Merged ranges:', mergedRanges.map(r => `${r.start.toFixed(2)}-${r.end.toFixed(2)}`).join(', '))
+  log.debug({
+    rangesBeforeMerge: ranges.length,
+    rangesAfterMerge: mergedRanges.length,
+    mergedRanges: mergedRanges.map(r => `${r.start.toFixed(2)}-${r.end.toFixed(2)}`)
+  }, 'PII ranges merged for FFmpeg')
 
   // Build a single volume filter with all PII ranges combined using logical OR
   // This ensures audio is only muted during PII timestamps, not between them
@@ -170,7 +173,7 @@ async function runFfmpegBleep(inputPath: string, outputPath: string, ranges: Pii
 
   const volumeFilter = `volume=enable='${enableExpression}':volume=0`
 
-  console.log('FFmpeg volume filter:', volumeFilter)
+  log.debug({ volumeFilter, rangeCount: mergedRanges.length }, 'Applying FFmpeg volume filter')
 
   const args = ['-y', '-i', inputPath, '-af', volumeFilter, '-c:a', 'mp3', outputPath]
 
@@ -187,8 +190,11 @@ async function runFfmpegBleep(inputPath: string, outputPath: string, ranges: Pii
       if (code === 0) {
         resolve()
       } else {
-        console.error('FFmpeg stderr:', stderr)
-        console.error('FFmpeg args:', args)
+        log.error({
+          exitCode: code,
+          stderr: stderr.slice(-500),
+          args
+        }, 'FFmpeg process failed')
         reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(-500)}`))
       }
     })
@@ -295,6 +301,8 @@ async function pollTranscript(transcriptId: string, apiKey: string): Promise<Ass
 }
 
 export async function POST(request: NextRequest) {
+  const log = createApiLogger('POST', '/api/process-audio')
+
   try {
     const body = await request.json()
     const { filePath, originalFilename, salespersonId } = body
@@ -321,6 +329,10 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    // Add user context to logger
+    const userLog = log.child({ userId: user.id, filename: originalFilename })
+    userLog.info('Starting audio processing')
 
     // Get user profile to check if admin
     const { data: profile } = await supabase
@@ -385,20 +397,22 @@ export async function POST(request: NextRequest) {
     const audioResp = await fetch(signedUrl)
     if (!audioResp.ok) {
       const text = await audioResp.text()
-      console.error('Audio download error:', text)
+      userLog.error({ status: audioResp.status, error: text }, 'Audio download failed')
       return NextResponse.json({ error: 'Failed to download audio for processing' }, { status: 500 })
     }
     const audioBuffer = Buffer.from(await audioResp.arrayBuffer())
     const contentType = audioResp.headers.get('content-type') || 'audio/mpeg'
 
+    userLog.info({ fileSize: audioBuffer.length, contentType }, 'Audio downloaded successfully')
+
     // 4) Transcribe with AssemblyAI (synchronous polling)
-    console.log('Uploading to AssemblyAI...')
+    userLog.info('Uploading to AssemblyAI')
     const uploadUrl = await uploadToAssemblyAI(signedUrl, assemblyaiKey)
 
-    console.log('Creating transcript...')
+    userLog.info({ uploadUrl }, 'Creating transcription job')
     const transcriptId = await createTranscript(uploadUrl, assemblyaiKey)
 
-    console.log('Polling for transcript completion...')
+    userLog.info({ transcriptId }, 'Polling for transcript completion')
     const transcript = await pollTranscript(transcriptId, assemblyaiKey)
 
     // Convert AssemblyAI words to our format
@@ -416,7 +430,12 @@ export async function POST(request: NextRequest) {
     const audioDuration = words.length > 0 ? words[words.length - 1].end : 0
     const validatedPiiMatches = validatePiiRanges(piiMatches, audioDuration)
 
-    console.log(`PII detection: Found ${piiMatches.length} matches, ${validatedPiiMatches.length} valid after validation`)
+    userLog.info({
+      totalMatches: piiMatches.length,
+      validMatches: validatedPiiMatches.length,
+      audioDuration,
+      piiFields
+    }, 'PII detection complete')
 
     // 6) Redact audio locally with FFmpeg (silence)
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'slab-redact-'))
@@ -425,7 +444,7 @@ export async function POST(request: NextRequest) {
 
     try {
       await fs.writeFile(inputPath, audioBuffer)
-      await runFfmpegBleep(inputPath, outputPath, validatedPiiMatches)
+      await runFfmpegBleep(inputPath, outputPath, validatedPiiMatches, userLog)
       const redactedBuffer = await fs.readFile(outputPath)
 
       // 7) Upload redacted audio to Supabase
@@ -438,7 +457,7 @@ export async function POST(request: NextRequest) {
         })
 
       if (redactedUploadError) {
-        console.error('Redacted audio upload error:', redactedUploadError)
+        userLog.error({ error: redactedUploadError, path: redactedFilePath }, 'Redacted audio upload failed')
         // Redacted audio is critical - if upload fails, we should not proceed
         // Otherwise users could get unredacted audio with PII exposed
         return NextResponse.json(
@@ -450,7 +469,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      console.log(`Successfully uploaded redacted audio to: ${redactedFilePath}`)
+      userLog.info({ path: redactedFilePath, fileSize: redactedBuffer.length }, 'Redacted audio uploaded successfully')
 
       // 8) Get salesperson name
       const { data: salespersonData } = await supabase
@@ -490,14 +509,14 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (transcriptError) {
-        console.error('Database insert error:', transcriptError)
+        userLog.error({ error: transcriptError }, 'Database insert failed')
 
         // Cleanup: Delete redacted audio since we failed to save transcript
         // This prevents orphaned files in storage
         await supabase.storage
           .from('call-recordings')
           .remove([redactedFilePath])
-          .catch(err => console.error('Failed to cleanup redacted audio:', err))
+          .catch(err => userLog.error({ error: err, path: redactedFilePath }, 'Failed to cleanup redacted audio'))
 
         return NextResponse.json(
           {
@@ -508,13 +527,13 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      console.log(`Successfully created transcript record: ${transcriptData.id}`)
+      userLog.info({ transcriptId: transcriptData.id }, 'Transcript record created successfully')
 
       // 10) Segment conversations and analyze them
       try {
-        console.log('Segmenting conversations...')
+        userLog.info('Segmenting conversations')
         const conversations = segmentConversationsHybrid(words, 'A', 30)
-        console.log(`Found ${conversations.length} conversations`)
+        userLog.info({ conversationCount: conversations.length }, 'Conversations segmented')
 
         const anthropicKey = process.env.ANTHROPIC_API_KEY
 
@@ -540,7 +559,7 @@ export async function POST(request: NextRequest) {
           const hasMeaningfulContent = analysis.objections.length > 0 || analysis.category === 'sale'
 
           if (!hasMeaningfulContent) {
-            console.log(`Skipping conversation ${conversation.conversationNumber}: no objections and not a sale`)
+            userLog.debug({ conversationNumber: conversation.conversationNumber }, 'Skipping conversation (no objections, not a sale)')
             continue
           }
 
@@ -564,10 +583,9 @@ export async function POST(request: NextRequest) {
           })
         }
 
-        console.log('Conversation processing completed')
+        userLog.info({ transcriptId: transcriptData.id }, 'Conversation processing completed')
       } catch (error) {
-        console.error('Conversation processing error (non-fatal):', error)
-      }
+        userLog.error({ error }, 'Conversation processing failed (non-fatal)')
 
       return NextResponse.json({
         success: true,
@@ -577,11 +595,11 @@ export async function POST(request: NextRequest) {
     } finally {
       // Clean up temp files
       await fs.rm(tmpDir, { recursive: true, force: true }).catch((err) => {
-        console.error('Failed to clean up temp directory:', err)
+        userLog.error({ error: err, tmpDir }, 'Failed to clean up temp directory')
       })
     }
   } catch (error: any) {
-    console.error('Unexpected error:', error)
+    log.error({ error }, 'Unexpected error in audio processing')
     return NextResponse.json(
       { error: error.message || 'An unexpected error occurred' },
       { status: 500 }

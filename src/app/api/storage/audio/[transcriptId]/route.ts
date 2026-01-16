@@ -1,14 +1,17 @@
 import { createClient } from '@/utils/supabase/server'
 import { createServiceRoleClient } from '@/utils/supabase/service-role'
 import { checkRateLimit } from '@/utils/rateLimit'
+import { createApiLogger } from '@/utils/logger'
 import { NextResponse } from 'next/server'
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ transcriptId: string }> }
 ) {
+  const { transcriptId } = await params
+  const log = createApiLogger('GET', `/api/storage/audio/${transcriptId}`)
+
   try {
-    const { transcriptId } = await params
     const supabase = await createClient()
     const supabaseAdmin = createServiceRoleClient()
 
@@ -95,13 +98,16 @@ export async function GET(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
+    // Add user context to logger
+    const userLog = log.child({ userId: user.id, transcriptId })
+
     // Determine which audio file to serve
     const redactedPath = transcript.transcript_redacted?.redacted_file_storage_path
     let audioPath = redactedPath
 
     // Fallback to original audio if redacted path not available
     if (!audioPath) {
-      console.warn(`No redacted path for transcript ${transcriptId}, using original`)
+      userLog.warn('No redacted path found, using original audio')
       audioPath = transcript.file_storage_path
     }
 
@@ -112,7 +118,7 @@ export async function GET(
       .createSignedUrl(audioPath, 3600) // 1 hour
 
     if (signedUrlError || !signedUrlData) {
-      console.error('Failed to create signed URL:', signedUrlError)
+      userLog.error({ error: signedUrlError }, 'Failed to create signed URL')
       return NextResponse.json(
         { error: 'Failed to generate audio URL', details: signedUrlError?.message },
         { status: 500 }
@@ -131,12 +137,14 @@ export async function GET(
     const audioResponse = await fetch(signedUrlData.signedUrl, { headers })
 
     if (!audioResponse.ok) {
-      console.error('Failed to fetch audio from Supabase:', audioResponse.status)
+      userLog.error({ status: audioResponse.status, hasRange: !!range }, 'Failed to fetch audio from Supabase')
       return NextResponse.json(
         { error: 'Failed to load audio' },
         { status: audioResponse.status }
       )
     }
+
+    userLog.debug({ hasRange: !!range, status: audioResponse.status }, 'Audio streaming started')
 
     // Forward the response from Supabase with all headers intact
     const responseHeaders = new Headers()
@@ -159,7 +167,7 @@ export async function GET(
     })
 
   } catch (error) {
-    console.error('Error streaming audio:', error)
+    log.error({ error, transcriptId }, 'Error streaming audio')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
