@@ -48,6 +48,7 @@ export default function CompanyDashboard() {
     longest_streak: number;
     activity_days: number[];
   }>({ current_streak: 0, longest_streak: 0, activity_days: [] });
+  const [companyRank, setCompanyRank] = useState<number | null>(null);
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
   const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
   const [companyId, setCompanyId] = useState<string>('');
@@ -218,6 +219,52 @@ export default function CompanyDashboard() {
         }
       } catch (error) {
         console.error('Error fetching streak data:', error);
+      }
+
+      // Fetch company rank (for regular users)
+      if (userProfile?.role !== 'super_admin' && company) {
+        try {
+          // Get all active users in the company
+          const { data: companyUsers } = await supabase
+            .from('user_profiles')
+            .select('id')
+            .eq('company_id', company.id)
+            .eq('is_active', true);
+
+          if (companyUsers && companyUsers.length > 0) {
+            // Get streak data for these users
+            const userIds = companyUsers.map(u => u.id);
+            const { data: streaks } = await supabase
+              .from('user_streaks')
+              .select('user_id, current_streak, longest_streak')
+              .in('user_id', userIds);
+
+            // Merge and sort
+            const leaderboardData = companyUsers.map((u) => {
+              const userStreak = streaks?.find(s => s.user_id === u.id);
+              return {
+                user_id: u.id,
+                current_streak: userStreak?.current_streak || 0,
+                longest_streak: userStreak?.longest_streak || 0,
+              };
+            });
+
+            leaderboardData.sort((a, b) => {
+              if (b.current_streak !== a.current_streak) {
+                return b.current_streak - a.current_streak;
+              }
+              return b.longest_streak - a.longest_streak;
+            });
+
+            // Find user's rank
+            const rank = leaderboardData.findIndex(s => s.user_id === user.id) + 1;
+            if (rank > 0) {
+              setCompanyRank(rank);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching company rank:', error);
+        }
       }
 
       setLoading(false);
@@ -741,11 +788,34 @@ export default function CompanyDashboard() {
                 {streakData.longest_streak > streakData.current_streak && (
                   <p className="text-xs text-steel-gray mt-1">Best: {streakData.longest_streak} days</p>
                 )}
+
+                {/* Company Rank */}
+                {companyRank && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-sm text-steel-gray">Company Rank:</span>
+                      <div className="flex items-center gap-1">
+                        {companyRank === 1 && <span className="text-2xl">🥇</span>}
+                        {companyRank === 2 && <span className="text-2xl">🥈</span>}
+                        {companyRank === 3 && <span className="text-2xl">🥉</span>}
+                        <span className={`text-xl font-bold ${companyRank <= 3 ? 'text-amber-600' : 'text-midnight-blue'}`}>
+                          #{companyRank}
+                        </span>
+                      </div>
+                    </div>
+                    <Link
+                      href={`/c/${slug}/leaderboard`}
+                      className="text-xs text-success-gold hover:text-amber-600 mt-1 inline-block"
+                    >
+                      View Leaderboard →
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Right Side - 2x2 Grid of Navigation Boxes */}
+          {/* Right Side - Grid of Navigation Boxes */}
           <div className="lg:w-2/3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Subscriptions Box */}
@@ -821,6 +891,43 @@ export default function CompanyDashboard() {
                 <p className="text-sm text-steel-gray">Practice with AI-powered scenarios</p>
                 <p className="text-xs text-amber-600 mt-4">Coming Soon</p>
               </div>
+
+              {/* Company Training Videos Box */}
+              <div className="bg-white rounded-lg shadow p-6 cursor-not-allowed opacity-60 border-2 border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-semibold text-midnight-blue">Company Training</h3>
+                  <svg className="w-6 h-6 text-success-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <p className="text-sm text-steel-gray">Company-specific training videos and resources</p>
+                <p className="text-xs text-amber-600 mt-4">Coming Soon</p>
+              </div>
+
+              {/* Company Leaderboard Box */}
+              <Link
+                href={`/c/${slug}/leaderboard`}
+                className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow border-2 border-transparent hover:border-success-gold block"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-semibold text-midnight-blue">Company Leaderboard</h3>
+                  <svg className="w-6 h-6 text-success-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                  </svg>
+                </div>
+                <p className="text-sm text-steel-gray">See how you rank against your teammates</p>
+                {companyRank && (
+                  <div className="mt-4">
+                    <div className="flex items-center gap-2">
+                      {companyRank === 1 && <span className="text-2xl">🥇</span>}
+                      {companyRank === 2 && <span className="text-2xl">🥈</span>}
+                      {companyRank === 3 && <span className="text-2xl">🥉</span>}
+                      <span className="text-3xl font-bold text-success-gold">#{companyRank}</span>
+                    </div>
+                    <p className="text-xs text-steel-gray">Your rank</p>
+                  </div>
+                )}
+              </Link>
             </div>
           </div>
         </div>
@@ -970,6 +1077,17 @@ export default function CompanyDashboard() {
                     no_soliciting: 'No Soliciting'
                   };
 
+                  const objectionIcons: Record<string, string> = {
+                    delay: '⏰',
+                    not_interested: '🚫',
+                    diy: '🔨',
+                    no_problem: '❌',
+                    spouse: '👥',
+                    competitor: '🏢',
+                    price: '💰',
+                    no_soliciting: '🚪',
+                  };
+
                   return (
                     <Link
                       key={playlist.objectionType}
@@ -977,9 +1095,12 @@ export default function CompanyDashboard() {
                       className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 border-2 border-transparent hover:border-success-gold"
                     >
                       <div className="flex items-start justify-between mb-2">
-                        <h3 className="text-lg font-semibold text-midnight-blue">
-                          {objectionLabels[playlist.objectionType] || playlist.objectionType}
-                        </h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl">{objectionIcons[playlist.objectionType]}</span>
+                          <h3 className="text-lg font-semibold text-midnight-blue">
+                            {objectionLabels[playlist.objectionType] || playlist.objectionType}
+                          </h3>
+                        </div>
                         <svg className="w-5 h-5 text-success-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>

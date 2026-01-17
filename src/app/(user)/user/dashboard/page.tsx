@@ -756,6 +756,17 @@ export default function UserDashboard() {
                     no_soliciting: 'No Soliciting'
                   };
 
+                  const objectionIcons: Record<string, string> = {
+                    delay: '⏰',
+                    not_interested: '🚫',
+                    diy: '🔨',
+                    no_problem: '❌',
+                    spouse: '👥',
+                    competitor: '🏢',
+                    price: '💰',
+                    no_soliciting: '🚪',
+                  };
+
                   return (
                     <Link
                       key={playlist.objectionType}
@@ -763,9 +774,12 @@ export default function UserDashboard() {
                       className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 border-2 border-transparent hover:border-success-gold"
                     >
                       <div className="flex items-start justify-between mb-2">
-                        <h3 className="text-lg font-semibold text-midnight-blue">
-                          {objectionLabels[playlist.objectionType] || playlist.objectionType}
-                        </h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl">{objectionIcons[playlist.objectionType]}</span>
+                          <h3 className="text-lg font-semibold text-midnight-blue">
+                            {objectionLabels[playlist.objectionType] || playlist.objectionType}
+                          </h3>
+                        </div>
                         <svg className="w-5 h-5 text-success-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>

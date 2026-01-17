@@ -12,6 +12,7 @@ interface StreakData {
   last_activity_date: string | null
   display_name: string
   email: string
+  profile_picture_url: string | null
   rank: number
 }
 
@@ -38,39 +39,82 @@ export default function CompanyLeaderboard() {
     try {
       // Get current user to find company
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        console.log('No user found')
+        return
+      }
 
       // Get user profile with company info
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
-        .select('companies!inner(id)')
+        .select('company_id')
         .eq('id', user.id)
         .single()
 
-      if (!profile) return
+      console.log('User profile:', profile, 'Error:', profileError)
 
-      // Fetch leaderboard
-      const { data: streaks } = await supabase
-        .from('user_streaks')
-        .select('user_id, current_streak, longest_streak, total_activities, last_activity_date, user_profiles!inner(display_name, email, is_active)')
-        .eq('company_id', (profile.companies as any)?.id)
-        .eq('user_profiles.is_active', true)
-        .order('current_streak', { ascending: false })
-        .order('longest_streak', { ascending: false })
-
-      if (streaks) {
-        const leaderboardData = streaks.map((s: any, index: number) => ({
-          user_id: s.user_id,
-          current_streak: s.current_streak || 0,
-          longest_streak: s.longest_streak || 0,
-          total_activities: s.total_activities || 0,
-          last_activity_date: s.last_activity_date,
-          display_name: s.user_profiles?.display_name || s.user_profiles?.email,
-          email: s.user_profiles?.email,
-          rank: index + 1,
-        }))
-        setLeaderboard(leaderboardData)
+      if (!profile || !profile.company_id) {
+        console.log('No profile or company_id found')
+        return
       }
+
+      console.log('Fetching leaderboard for company_id:', profile.company_id)
+
+      // Fetch all active users in the company with their streak data (if any)
+      const { data: companyUsers, error: usersError } = await supabase
+        .from('user_profiles')
+        .select('id, display_name, email, is_active, profile_picture_url')
+        .eq('company_id', profile.company_id)
+        .eq('is_active', true)
+
+      console.log('Company users:', companyUsers, 'Error:', usersError)
+
+      if (!companyUsers || companyUsers.length === 0) {
+        console.log('No users found in company')
+        setLoading(false)
+        return
+      }
+
+      // Get streak data for these users
+      const userIds = companyUsers.map(u => u.id)
+      const { data: streaks, error: streaksError } = await supabase
+        .from('user_streaks')
+        .select('user_id, current_streak, longest_streak, total_activities, last_activity_date')
+        .in('user_id', userIds)
+
+      console.log('Streaks data:', streaks, 'Error:', streaksError)
+
+      // Merge user data with streak data
+      const leaderboardData = companyUsers.map((user) => {
+        const userStreak = streaks?.find(s => s.user_id === user.id)
+        return {
+          user_id: user.id,
+          current_streak: userStreak?.current_streak || 0,
+          longest_streak: userStreak?.longest_streak || 0,
+          total_activities: userStreak?.total_activities || 0,
+          last_activity_date: userStreak?.last_activity_date || null,
+          display_name: user.display_name || user.email,
+          email: user.email,
+          profile_picture_url: user.profile_picture_url || null,
+          rank: 0, // Will be set after sorting
+        }
+      })
+
+      // Sort by current_streak (desc), then longest_streak (desc)
+      leaderboardData.sort((a, b) => {
+        if (b.current_streak !== a.current_streak) {
+          return b.current_streak - a.current_streak
+        }
+        return b.longest_streak - a.longest_streak
+      })
+
+      // Assign ranks
+      leaderboardData.forEach((entry, index) => {
+        entry.rank = index + 1
+      })
+
+      console.log('Processed leaderboard data:', leaderboardData)
+      setLeaderboard(leaderboardData)
     } catch (error) {
       console.error('Error fetching leaderboard:', error)
     } finally {
@@ -118,8 +162,28 @@ export default function CompanyLeaderboard() {
         <div className="grid grid-cols-3 gap-4 max-w-4xl mx-auto mb-8">
           {/* 2nd Place */}
           <div className="flex flex-col items-center mt-8">
-            <div className="w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold bg-gradient-to-br from-gray-300 to-gray-400 text-white mb-2">
-              2
+            <div className="relative mb-2">
+              {leaderboard[1].profile_picture_url ? (
+                <img
+                  src={leaderboard[1].profile_picture_url}
+                  alt={leaderboard[1].display_name}
+                  className="w-20 h-20 rounded-full object-cover border-4"
+                  style={{ borderColor: 'var(--company-secondary)' }}
+                />
+              ) : (
+                <div
+                  className="w-20 h-20 rounded-full flex items-center justify-center text-white font-bold text-2xl border-4"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--company-primary) 0%, var(--company-secondary) 100%)',
+                    borderColor: 'var(--company-secondary)'
+                  }}
+                >
+                  {leaderboard[1].display_name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold bg-gradient-to-br from-gray-300 to-gray-400 text-white border-2 border-white">
+                2
+              </div>
             </div>
             <Card variant="outlined" padding="md" className="w-full text-center">
               <Text className="font-bold truncate">{leaderboard[1].display_name}</Text>
@@ -136,9 +200,29 @@ export default function CompanyLeaderboard() {
 
           {/* 1st Place */}
           <div className="flex flex-col items-center">
-            <div className="w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold bg-gradient-to-br from-yellow-400 to-yellow-600 text-white mb-2 relative">
-              <span className="absolute -top-6 text-4xl">👑</span>
-              1
+            <div className="relative mb-2">
+              <span className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-4xl">👑</span>
+              {leaderboard[0].profile_picture_url ? (
+                <img
+                  src={leaderboard[0].profile_picture_url}
+                  alt={leaderboard[0].display_name}
+                  className="w-24 h-24 rounded-full object-cover border-4"
+                  style={{ borderColor: 'var(--company-secondary)' }}
+                />
+              ) : (
+                <div
+                  className="w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-3xl border-4"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--company-primary) 0%, var(--company-secondary) 100%)',
+                    borderColor: 'var(--company-secondary)'
+                  }}
+                >
+                  {leaderboard[0].display_name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="absolute -bottom-1 -right-1 w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold bg-gradient-to-br from-yellow-400 to-yellow-600 text-white border-2 border-white">
+                1
+              </div>
             </div>
             <div style={{ borderColor: 'var(--company-primary)' }} className="border-2 rounded-lg">
               <Card variant="outlined" padding="md" className="w-full text-center border-0">
@@ -157,8 +241,28 @@ export default function CompanyLeaderboard() {
 
           {/* 3rd Place */}
           <div className="flex flex-col items-center mt-12">
-            <div className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold bg-gradient-to-br from-orange-300 to-orange-500 text-white mb-2">
-              3
+            <div className="relative mb-2">
+              {leaderboard[2].profile_picture_url ? (
+                <img
+                  src={leaderboard[2].profile_picture_url}
+                  alt={leaderboard[2].display_name}
+                  className="w-16 h-16 rounded-full object-cover border-4"
+                  style={{ borderColor: 'var(--company-secondary)' }}
+                />
+              ) : (
+                <div
+                  className="w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-xl border-4"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--company-primary) 0%, var(--company-secondary) 100%)',
+                    borderColor: 'var(--company-secondary)'
+                  }}
+                >
+                  {leaderboard[2].display_name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-gradient-to-br from-orange-300 to-orange-500 text-white border-2 border-white">
+                3
+              </div>
             </div>
             <Card variant="outlined" padding="md" className="w-full text-center">
               <Text className="font-bold truncate">{leaderboard[2].display_name}</Text>
@@ -186,62 +290,77 @@ export default function CompanyLeaderboard() {
         ) : (
           <div className="space-y-3">
             {leaderboard.map((entry) => {
-              const weekColor = WEEK_COLORS[getWeekColorIndex(entry.current_streak)]
-
               return (
                 <div
                   key={entry.user_id}
-                  className={`flex items-center justify-between p-4 rounded-lg transition-all border ${
-                    entry.rank <= 3 ? 'bg-gradient-to-r ' + weekColor + ' bg-opacity-10 border-gray-200' : 'bg-gray-50 border-gray-100'
-                  }`}
+                  className="flex items-center justify-between p-4 rounded-lg transition-all border border-gray-200 relative overflow-hidden"
+                  style={{
+                    background: `linear-gradient(90deg, var(--company-primary) 0%, var(--company-primary) 100%)`,
+                    backgroundImage: `
+                      linear-gradient(90deg, var(--company-primary) 0%, var(--company-primary) 100%),
+                      url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15'/%3E%3C/svg%3E")
+                    `
+                  }}
                 >
                   <div className="flex items-center gap-4 flex-1 min-w-0">
                     {/* Rank */}
                     <div
-                      className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold flex-shrink-0 ${
-                        entry.rank === 1
-                          ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white'
-                          : entry.rank === 2
-                          ? 'bg-gradient-to-br from-gray-300 to-gray-400 text-white'
-                          : entry.rank === 3
-                          ? 'bg-gradient-to-br from-orange-300 to-orange-500 text-white'
-                          : 'bg-gray-200 text-gray-600'
-                      }`}
+                      className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold flex-shrink-0 border-2"
+                      style={{
+                        background: 'linear-gradient(135deg, var(--company-primary) 0%, var(--company-secondary) 100%)',
+                        borderColor: 'var(--company-secondary)',
+                        color: 'var(--company-secondary)'
+                      }}
                     >
-                      {entry.rank}
+                      <span className="text-white">{entry.rank}</span>
+                    </div>
+
+                    {/* Profile Picture */}
+                    <div className="relative flex-shrink-0">
+                      {entry.profile_picture_url ? (
+                        <img
+                          src={entry.profile_picture_url}
+                          alt={entry.display_name}
+                          className="w-12 h-12 rounded-full object-cover border-2"
+                          style={{ borderColor: 'var(--company-secondary)' }}
+                        />
+                      ) : (
+                        <div
+                          className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg border-2"
+                          style={{
+                            background: 'linear-gradient(135deg, var(--company-primary) 0%, var(--company-secondary) 100%)',
+                            borderColor: 'var(--company-secondary)'
+                          }}
+                        >
+                          {entry.display_name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
                     </div>
 
                     {/* User Info */}
                     <div className="flex-1 min-w-0">
-                      <Text className="font-semibold truncate text-gray-900">{entry.display_name}</Text>
-                      <Text size="sm" variant="muted" className="truncate text-gray-500">{entry.email}</Text>
-                      <Text size="sm" variant="muted" className="text-gray-500 text-xs">
+                      <Text className="font-semibold truncate" style={{ color: 'var(--company-secondary)' }}>{entry.display_name}</Text>
+                      <Text size="sm" className="text-xs" style={{ color: 'var(--company-secondary)', opacity: 0.8 }}>
                         Last activity: {formatDate(entry.last_activity_date)}
                       </Text>
                     </div>
                   </div>
 
                   {/* Stats */}
-                  <div className="flex items-center gap-6 flex-shrink-0">
+                  <div className="flex items-center gap-8 flex-shrink-0">
                     <div className="text-center">
-                      <div style={{ color: 'var(--company-primary)' }}>
-                        <Text className="text-2xl font-bold">
+                      <div style={{ color: 'var(--company-secondary)' }}>
+                        <div className="text-4xl font-bold">
                           {entry.current_streak} 🔥
-                        </Text>
+                        </div>
                       </div>
-                      <Text size="sm" variant="muted" className="text-gray-500">Current</Text>
+                      <Text size="sm" className="text-xs font-medium" style={{ color: 'var(--company-secondary)', opacity: 0.8 }}>Current</Text>
                     </div>
                     <div className="text-center">
-                      <Text className="text-lg font-semibold text-gray-600">
+                      <div className="text-lg font-semibold" style={{ color: 'var(--company-secondary)' }}>
                         {entry.longest_streak}
-                      </Text>
-                      <Text size="sm" variant="muted" className="text-gray-500">Best</Text>
-                    </div>
-                    <div className="text-center">
-                      <Text className="text-lg font-semibold text-gray-600">
-                        {entry.total_activities}
-                      </Text>
-                      <Text size="sm" variant="muted" className="text-gray-500">Total</Text>
+                      </div>
+                      <Text size="sm" className="text-xs" style={{ color: 'var(--company-secondary)', opacity: 0.7 }}>Best</Text>
                     </div>
                   </div>
                 </div>

@@ -71,8 +71,11 @@ export default async function CompanyLayout({
               </Link>
             )}
 
-            {/* Center: Company Logo */}
-            <div className={`flex items-center ${isSuperAdmin ? 'absolute left-1/2 transform -translate-x-1/2' : ''}`}>
+            {/* Center: Company Logo (clickable to leaderboard) */}
+            <Link
+              href={`/c/${slug}/leaderboard`}
+              className={`flex items-center hover:opacity-80 transition-opacity ${isSuperAdmin ? 'absolute left-1/2 transform -translate-x-1/2' : ''}`}
+            >
               {company.logo_url ? (
                 <Image
                   src={company.logo_url}
@@ -90,7 +93,7 @@ export default async function CompanyLayout({
                   {company.name}
                 </div>
               )}
-            </div>
+            </Link>
 
             {/* Right: Navigation & User Info */}
             <div className="flex items-center gap-4">
