@@ -39,6 +39,14 @@ export function CompanyNav({ slug, isCompanyAdmin, primaryColor, secondaryColor 
             Users
           </Link>
           <Link
+            href={`/c/${slug}/usage`}
+            style={getLinkStyle('usage')}
+            onMouseEnter={() => setHoveredLink('usage')}
+            onMouseLeave={() => setHoveredLink(null)}
+          >
+            Usage
+          </Link>
+          <Link
             href={`/c/${slug}/leaderboard`}
             style={getLinkStyle('leaderboard')}
             onMouseEnter={() => setHoveredLink('leaderboard')}

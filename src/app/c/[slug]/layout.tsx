@@ -4,6 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { CompanyBrandingProvider } from '@/components/CompanyBrandingProvider'
 import { CompanyNav } from '@/components/CompanyNav'
+import { ActivityTrackingProvider } from '@/components/ActivityTrackingProvider'
 
 export default async function CompanyLayout({
   children,
@@ -57,8 +58,9 @@ export default async function CompanyLayout({
   const isSuperAdmin = profile.role === 'super_admin'
 
   return (
-    <CompanyBrandingProvider primaryColor={primaryColor} secondaryColor={secondaryColor}>
-      <div className="min-h-screen bg-gray-100">
+    <ActivityTrackingProvider>
+      <CompanyBrandingProvider primaryColor={primaryColor} secondaryColor={secondaryColor}>
+        <div className="min-h-screen bg-gray-100">
         <nav className="bg-pure-white border-b-2" style={{ borderColor: primaryColor }}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 justify-between items-center">
@@ -130,10 +132,11 @@ export default async function CompanyLayout({
         </div>
       </nav>
 
-      <main className="py-6">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">{children}</div>
-      </main>
-    </div>
-    </CompanyBrandingProvider>
+        <main className="py-6">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">{children}</div>
+        </main>
+      </div>
+      </CompanyBrandingProvider>
+    </ActivityTrackingProvider>
   )
 }

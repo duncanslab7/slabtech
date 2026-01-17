@@ -1,5 +1,3 @@
-import { logger } from '@/utils/logger'
-
 export type PiiMatch = {
   start: number
   end: number
@@ -246,18 +244,13 @@ export function validatePiiRanges(matches: PiiMatch[], audioDuration: number): P
   for (const match of matches) {
     // Skip invalid ranges
     if (match.start < 0 || match.end < 0 || match.start >= match.end) {
-      logger.warn({ start: match.start, end: match.end, label: match.label }, 'Skipping invalid PII range')
+      console.warn(`Skipping invalid PII range: ${match.start}-${match.end}`)
       continue
     }
 
     // Skip ranges that start beyond audio duration
     if (match.start >= audioDuration) {
-      logger.warn({
-        start: match.start,
-        end: match.end,
-        audioDuration,
-        label: match.label
-      }, 'Skipping PII range beyond audio duration')
+      console.warn(`Skipping PII range beyond audio duration: ${match.start}-${match.end} (duration: ${audioDuration})`)
       continue
     }
 
@@ -265,12 +258,7 @@ export function validatePiiRanges(matches: PiiMatch[], audioDuration: number): P
     const clampedEnd = Math.min(match.end, audioDuration)
 
     if (clampedEnd !== match.end) {
-      logger.warn({
-        originalEnd: match.end,
-        clampedEnd,
-        audioDuration,
-        label: match.label
-      }, 'Clamping PII range end to audio duration')
+      console.warn(`Clamping PII range end from ${match.end} to ${clampedEnd} (duration: ${audioDuration})`)
     }
 
     validated.push({

@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
+import { ActivityTrackingProvider } from '@/components/ActivityTrackingProvider'
 
 export default async function AdminLayout({
   children,
@@ -49,74 +50,82 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-pure-white border-b-2 border-midnight-blue">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 justify-between items-center">
-            <div className="flex items-center gap-8">
-              <Link href="/">
-                <Image
-                  src="/slab-logo.png"
-                  alt="SLAB"
-                  width={50}
-                  height={50}
-                  className="h-[50px] w-auto"
-                  priority
-                />
-              </Link>
-              <div className="hidden md:flex items-center gap-6">
-                <Link
-                  href="/admin"
-                  className="text-midnight-blue hover:text-success-gold font-medium transition-colors"
-                >
-                  Dashboard
+    <ActivityTrackingProvider>
+      <div className="min-h-screen bg-gray-100">
+        <nav className="bg-pure-white border-b-2 border-midnight-blue">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="flex h-16 justify-between items-center">
+              <div className="flex items-center gap-8">
+                <Link href="/">
+                  <Image
+                    src="/slab-logo.png"
+                    alt="SLAB"
+                    width={50}
+                    height={50}
+                    className="h-[50px] w-auto"
+                    priority
+                  />
                 </Link>
-                <Link
-                  href="/companies"
-                  className="text-midnight-blue hover:text-success-gold font-medium transition-colors"
-                >
-                  Companies
-                </Link>
-                <Link
-                  href="/dashboard"
-                  className="text-midnight-blue hover:text-success-gold font-medium transition-colors"
-                >
-                  Transcripts
-                </Link>
-                <Link
-                  href="/users"
-                  className="text-midnight-blue hover:text-success-gold font-medium transition-colors"
-                >
-                  Users
-                </Link>
-                <Link
-                  href="/config"
-                  className="text-midnight-blue hover:text-success-gold font-medium transition-colors"
-                >
-                  Config
-                </Link>
+                <div className="hidden md:flex items-center gap-6">
+                  <Link
+                    href="/admin"
+                    className="text-midnight-blue hover:text-success-gold font-medium transition-colors"
+                  >
+                    Dashboard
+                  </Link>
+                  <Link
+                    href="/companies"
+                    className="text-midnight-blue hover:text-success-gold font-medium transition-colors"
+                  >
+                    Companies
+                  </Link>
+                  <Link
+                    href="/dashboard"
+                    className="text-midnight-blue hover:text-success-gold font-medium transition-colors"
+                  >
+                    Transcripts
+                  </Link>
+                  <Link
+                    href="/users"
+                    className="text-midnight-blue hover:text-success-gold font-medium transition-colors"
+                  >
+                    Users
+                  </Link>
+                  <Link
+                    href="/usage-analytics"
+                    className="text-midnight-blue hover:text-success-gold font-medium transition-colors"
+                  >
+                    Usage
+                  </Link>
+                  <Link
+                    href="/config"
+                    className="text-midnight-blue hover:text-success-gold font-medium transition-colors"
+                  >
+                    Config
+                  </Link>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-steel-gray">{user.email}</span>
+                <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
+                  Super Admin
+                </span>
+                <form action="/auth/signout" method="post">
+                  <button
+                    type="submit"
+                    className="text-sm text-steel-gray hover:text-success-gold transition-colors"
+                  >
+                    Sign Out
+                  </button>
+                </form>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-steel-gray">{user.email}</span>
-              <span className="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">
-                Super Admin
-              </span>
-              <form action="/auth/signout" method="post">
-                <button
-                  type="submit"
-                  className="text-sm text-steel-gray hover:text-success-gold transition-colors"
-                >
-                  Sign Out
-                </button>
-              </form>
-            </div>
           </div>
-        </div>
-      </nav>
-      <main className="py-6">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">{children}</div>
-      </main>
-    </div>
+        </nav>
+        <main className="py-6">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">{children}</div>
+        </main>
+      </div>
+    </ActivityTrackingProvider>
   )
 }

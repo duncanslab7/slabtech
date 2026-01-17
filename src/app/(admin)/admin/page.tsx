@@ -165,6 +165,36 @@ export default function AdminDashboard() {
           </div>
         </Link>
 
+        {/* Usage Analytics Card */}
+        <Link href="/usage-analytics" className="group">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-full transition-all hover:shadow-lg">
+            <div className="flex items-start justify-between mb-4">
+              <div className="p-3 rounded-lg bg-success-gold bg-opacity-10">
+                <svg
+                  className="h-6 w-6 text-success-gold"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                  />
+                </svg>
+              </div>
+              <span className="text-success-gold group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+            <Heading level={3} size="md" className="mb-2 text-gray-900">
+              Usage Analytics
+            </Heading>
+            <Text variant="muted" className="text-gray-600">
+              Track user engagement, active time, and platform usage metrics
+            </Text>
+          </div>
+        </Link>
+
         {/* Stats Card */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-start justify-between mb-4">
@@ -179,7 +209,7 @@ export default function AdminDashboard() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
             </div>
