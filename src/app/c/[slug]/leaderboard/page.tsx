@@ -339,10 +339,10 @@ export default function CompanyLeaderboard() {
 
                     {/* User Info */}
                     <div className="flex-1 min-w-0">
-                      <Text className="font-semibold truncate" style={{ color: 'var(--company-secondary)' }}>{entry.display_name}</Text>
-                      <Text size="sm" className="text-xs" style={{ color: 'var(--company-secondary)', opacity: 0.8 }}>
+                      <div className="font-semibold truncate" style={{ color: 'var(--company-secondary)' }}>{entry.display_name}</div>
+                      <div className="text-xs" style={{ color: 'var(--company-secondary)', opacity: 0.8 }}>
                         Last activity: {formatDate(entry.last_activity_date)}
-                      </Text>
+                      </div>
                     </div>
                   </div>
 
@@ -354,13 +354,13 @@ export default function CompanyLeaderboard() {
                           {entry.current_streak} 🔥
                         </div>
                       </div>
-                      <Text size="sm" className="text-xs font-medium" style={{ color: 'var(--company-secondary)', opacity: 0.8 }}>Current</Text>
+                      <div className="text-xs font-medium" style={{ color: 'var(--company-secondary)', opacity: 0.8 }}>Current</div>
                     </div>
                     <div className="text-center">
                       <div className="text-lg font-semibold" style={{ color: 'var(--company-secondary)' }}>
                         {entry.longest_streak}
                       </div>
-                      <Text size="sm" className="text-xs" style={{ color: 'var(--company-secondary)', opacity: 0.7 }}>Best</Text>
+                      <div className="text-xs" style={{ color: 'var(--company-secondary)', opacity: 0.7 }}>Best</div>
                     </div>
                   </div>
                 </div>
