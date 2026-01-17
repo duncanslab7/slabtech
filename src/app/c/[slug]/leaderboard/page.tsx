@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useParams } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { Heading, Text, Card } from '@/components'
 
@@ -26,6 +27,8 @@ const WEEK_COLORS = [
 ]
 
 export default function CompanyLeaderboard() {
+  const params = useParams()
+  const slug = params.slug as string
   const [loading, setLoading] = useState(true)
   const [leaderboard, setLeaderboard] = useState<StreakData[]>([])
 
@@ -33,41 +36,43 @@ export default function CompanyLeaderboard() {
 
   useEffect(() => {
     fetchLeaderboard()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug])
 
   const fetchLeaderboard = async () => {
     try {
-      // Get current user to find company
+      // Get current user (for auth check)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         console.log('No user found')
         return
       }
 
-      // Get user profile with company info
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('company_id')
-        .eq('id', user.id)
+      // Get the company from the URL slug (not the user's company!)
+      const { data: company, error: companyError } = await supabase
+        .from('companies')
+        .select('id, name, slug')
+        .eq('slug', slug)
         .single()
 
-      console.log('User profile:', profile, 'Error:', profileError)
+      console.log('Company from slug:', company, 'Error:', companyError)
 
-      if (!profile || !profile.company_id) {
-        console.log('No profile or company_id found')
+      if (!company) {
+        console.log('No company found for slug:', slug)
         return
       }
 
-      console.log('Fetching leaderboard for company_id:', profile.company_id)
+      console.log('Fetching leaderboard for company_id:', company.id)
 
       // Fetch all active users in the company with their streak data (if any)
       const { data: companyUsers, error: usersError } = await supabase
         .from('user_profiles')
-        .select('id, display_name, email, is_active, profile_picture_url')
-        .eq('company_id', profile.company_id)
+        .select('id, display_name, email, is_active, profile_picture_url, company_id')
+        .eq('company_id', company.id)
         .eq('is_active', true)
 
       console.log('Company users:', companyUsers, 'Error:', usersError)
+      console.log('Company users detail:', companyUsers?.map(u => ({ id: u.id, name: u.display_name || u.email, company_id: u.company_id })))
 
       if (!companyUsers || companyUsers.length === 0) {
         console.log('No users found in company')
@@ -158,9 +163,10 @@ export default function CompanyLeaderboard() {
       </div>
 
       {/* Podium - Top 3 */}
-      {leaderboard.length >= 3 && (
-        <div className="grid grid-cols-3 gap-4 max-w-4xl mx-auto mb-8">
+      {leaderboard.length > 0 && (
+        <div className={`grid gap-4 max-w-4xl mx-auto mb-8 ${leaderboard.length === 1 ? 'grid-cols-1 justify-center' : leaderboard.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
           {/* 2nd Place */}
+          {leaderboard.length >= 2 && (
           <div className="flex flex-col items-center mt-8">
             <div className="relative mb-2">
               {leaderboard[1].profile_picture_url ? (
@@ -185,18 +191,17 @@ export default function CompanyLeaderboard() {
                 2
               </div>
             </div>
-            <Card variant="outlined" padding="md" className="w-full text-center">
-              <Text className="font-bold truncate">{leaderboard[1].display_name}</Text>
-              <div className="mt-2">
-                <div style={{ color: 'var(--company-primary)' }}>
-                  <Text className="text-2xl font-bold">
-                    {leaderboard[1].current_streak}
-                  </Text>
+            <div className="w-full text-center bg-white rounded-lg p-4 shadow-lg border-2" style={{ borderColor: 'var(--company-primary)' }}>
+              <div className="text-xl font-bold text-gray-900 truncate">{leaderboard[1].display_name}</div>
+              <div className="mt-3">
+                <div className="text-4xl font-bold" style={{ color: 'var(--company-primary)' }}>
+                  {leaderboard[1].current_streak}
                 </div>
-                <Text size="sm" variant="muted">days</Text>
+                <div className="text-sm text-gray-600 mt-1">days</div>
               </div>
-            </Card>
+            </div>
           </div>
+          )}
 
           {/* 1st Place */}
           <div className="flex flex-col items-center">
@@ -224,22 +229,19 @@ export default function CompanyLeaderboard() {
                 1
               </div>
             </div>
-            <div style={{ borderColor: 'var(--company-primary)' }} className="border-2 rounded-lg">
-              <Card variant="outlined" padding="md" className="w-full text-center border-0">
-                <Text className="font-bold truncate">{leaderboard[0].display_name}</Text>
-                <div className="mt-2">
-                  <div style={{ color: 'var(--company-primary)' }}>
-                    <Text className="text-3xl font-bold">
-                      {leaderboard[0].current_streak}
-                    </Text>
-                  </div>
-                  <Text size="sm" variant="muted">days</Text>
+            <div className="w-full text-center bg-white rounded-lg p-6 shadow-xl border-4" style={{ borderColor: 'var(--company-primary)' }}>
+              <div className="text-2xl font-bold text-gray-900 truncate">{leaderboard[0].display_name}</div>
+              <div className="mt-4">
+                <div className="text-5xl font-bold" style={{ color: 'var(--company-primary)' }}>
+                  {leaderboard[0].current_streak}
                 </div>
-              </Card>
+                <div className="text-base text-gray-600 mt-2">days</div>
+              </div>
             </div>
           </div>
 
           {/* 3rd Place */}
+          {leaderboard.length >= 3 && (
           <div className="flex flex-col items-center mt-12">
             <div className="relative mb-2">
               {leaderboard[2].profile_picture_url ? (
@@ -264,18 +266,17 @@ export default function CompanyLeaderboard() {
                 3
               </div>
             </div>
-            <Card variant="outlined" padding="md" className="w-full text-center">
-              <Text className="font-bold truncate">{leaderboard[2].display_name}</Text>
-              <div className="mt-2">
-                <div style={{ color: 'var(--company-primary)' }}>
-                  <Text className="text-xl font-bold">
-                    {leaderboard[2].current_streak}
-                  </Text>
+            <div className="w-full text-center bg-white rounded-lg p-4 shadow-lg border-2" style={{ borderColor: 'var(--company-primary)' }}>
+              <div className="text-lg font-bold text-gray-900 truncate">{leaderboard[2].display_name}</div>
+              <div className="mt-3">
+                <div className="text-3xl font-bold" style={{ color: 'var(--company-primary)' }}>
+                  {leaderboard[2].current_streak}
                 </div>
-                <Text size="sm" variant="muted">days</Text>
+                <div className="text-sm text-gray-600 mt-1">days</div>
               </div>
-            </Card>
+            </div>
           </div>
+          )}
         </div>
       )}
 
