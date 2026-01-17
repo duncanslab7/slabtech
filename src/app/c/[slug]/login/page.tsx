@@ -2,14 +2,15 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import CompanyLoginForm from './CompanyLoginForm'
 
-export default async function CompanyLoginPage({ params }: { params: { slug: string } }) {
+export default async function CompanyLoginPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
   const supabase = await createClient()
 
   // Fetch company data
   const { data: company } = await supabase
     .from('companies')
     .select('name, slug, logo_url, primary_color, secondary_color')
-    .eq('slug', params.slug)
+    .eq('slug', slug)
     .eq('is_active', true)
     .single()
 
@@ -31,7 +32,7 @@ export default async function CompanyLoginPage({ params }: { params: { slug: str
 
   if (user) {
     // Already authenticated, redirect to dashboard
-    redirect(`/c/${params.slug}/dashboard`)
+    redirect(`/c/${slug}/dashboard`)
   }
 
   return <CompanyLoginForm company={company} />
