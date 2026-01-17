@@ -41,84 +41,17 @@ export default function CompanyLeaderboard() {
 
   const fetchLeaderboard = async () => {
     try {
-      // Get current user (for auth check)
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        console.log('No user found')
+      // Fetch leaderboard data from API route
+      const response = await fetch(`/api/company/${slug}/leaderboard`)
+
+      if (!response.ok) {
+        console.error('Failed to fetch leaderboard:', response.status, response.statusText)
         return
       }
 
-      // Get the company from the URL slug (not the user's company!)
-      const { data: company, error: companyError } = await supabase
-        .from('companies')
-        .select('id, name, slug')
-        .eq('slug', slug)
-        .single()
+      const leaderboardData = await response.json()
+      console.log('Leaderboard data from API:', leaderboardData)
 
-      console.log('Company from slug:', company, 'Error:', companyError)
-
-      if (!company) {
-        console.log('No company found for slug:', slug)
-        return
-      }
-
-      console.log('Fetching leaderboard for company_id:', company.id)
-
-      // Fetch all active users in the company with their streak data (if any)
-      const { data: companyUsers, error: usersError } = await supabase
-        .from('user_profiles')
-        .select('id, display_name, email, is_active, profile_picture_url, company_id')
-        .eq('company_id', company.id)
-        .eq('is_active', true)
-
-      console.log('Company users:', companyUsers, 'Error:', usersError)
-      console.log('Company users detail:', companyUsers?.map(u => ({ id: u.id, name: u.display_name || u.email, company_id: u.company_id })))
-
-      if (!companyUsers || companyUsers.length === 0) {
-        console.log('No users found in company')
-        setLoading(false)
-        return
-      }
-
-      // Get streak data for these users
-      const userIds = companyUsers.map(u => u.id)
-      const { data: streaks, error: streaksError } = await supabase
-        .from('user_streaks')
-        .select('user_id, current_streak, longest_streak, total_activities, last_activity_date')
-        .in('user_id', userIds)
-
-      console.log('Streaks data:', streaks, 'Error:', streaksError)
-
-      // Merge user data with streak data
-      const leaderboardData = companyUsers.map((user) => {
-        const userStreak = streaks?.find(s => s.user_id === user.id)
-        return {
-          user_id: user.id,
-          current_streak: userStreak?.current_streak || 0,
-          longest_streak: userStreak?.longest_streak || 0,
-          total_activities: userStreak?.total_activities || 0,
-          last_activity_date: userStreak?.last_activity_date || null,
-          display_name: user.display_name || user.email,
-          email: user.email,
-          profile_picture_url: user.profile_picture_url || null,
-          rank: 0, // Will be set after sorting
-        }
-      })
-
-      // Sort by current_streak (desc), then longest_streak (desc)
-      leaderboardData.sort((a, b) => {
-        if (b.current_streak !== a.current_streak) {
-          return b.current_streak - a.current_streak
-        }
-        return b.longest_streak - a.longest_streak
-      })
-
-      // Assign ranks
-      leaderboardData.forEach((entry, index) => {
-        entry.rank = index + 1
-      })
-
-      console.log('Processed leaderboard data:', leaderboardData)
       setLeaderboard(leaderboardData)
     } catch (error) {
       console.error('Error fetching leaderboard:', error)
