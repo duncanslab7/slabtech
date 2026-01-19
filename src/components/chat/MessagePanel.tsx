@@ -71,7 +71,10 @@ export function MessagePanel({ channel, onChannelUpdate }: MessagePanelProps) {
     if (!response.ok) {
       console.error('Failed to load messages:', data.error)
     } else {
-      const newMessages = data.messages || []
+      const newMessages = (data.messages || []).map((msg: any) => ({
+        ...msg,
+        user_profiles: Array.isArray(msg.user_profiles) ? msg.user_profiles[0] : msg.user_profiles
+      }))
 
       if (before) {
         // Prepend older messages
@@ -128,7 +131,12 @@ export function MessagePanel({ channel, onChannelUpdate }: MessagePanelProps) {
             .single()
 
           if (data) {
-            setMessages(prev => [...prev, data as Message])
+            // Transform the data to match Message interface (user_profiles is an array from Supabase)
+            const transformedData: Message = {
+              ...data,
+              user_profiles: Array.isArray(data.user_profiles) ? data.user_profiles[0] : data.user_profiles
+            }
+            setMessages(prev => [...prev, transformedData])
             setTimeout(scrollToBottom, 100)
 
             // Mark as read
