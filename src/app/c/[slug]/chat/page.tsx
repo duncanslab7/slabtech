@@ -15,7 +15,7 @@ export default async function ChatPage({ params }: { params: Promise<{ slug: str
   // Get user's profile and company
   const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
-    .select('id, company_id, companies!inner(id, name, slug)')
+    .select('id, role, company_id, companies!inner(id, name, slug)')
     .eq('id', user.id)
     .single()
 
