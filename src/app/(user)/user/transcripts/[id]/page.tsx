@@ -59,6 +59,31 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
   const [error, setError] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState('');
+  const [dashboardUrl, setDashboardUrl] = useState('/user/dashboard');
+
+  // Fetch user's company to determine correct dashboard URL
+  useEffect(() => {
+    const fetchUserCompany = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('company_id, companies(slug)')
+        .eq('id', user.id)
+        .single();
+
+      if (profile?.companies) {
+        const companySlug = (profile.companies as any)?.slug;
+        if (companySlug) {
+          setDashboardUrl(`/c/${companySlug}/dashboard`);
+        }
+      }
+    };
+
+    fetchUserCompany();
+  }, []);
 
   useEffect(() => {
     const fetchTranscript = async () => {
@@ -195,7 +220,7 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
         <div className="max-w-4xl mx-auto px-6 py-12">
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
             <p className="text-red-700">{error}</p>
-            <Link href="/user/dashboard" className="mt-4 inline-block text-success-gold hover:underline">
+            <Link href={dashboardUrl} className="mt-4 inline-block text-success-gold hover:underline">
               Back to Dashboard
             </Link>
           </div>

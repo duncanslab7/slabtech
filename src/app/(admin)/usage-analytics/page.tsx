@@ -140,6 +140,9 @@ export default function UsageAnalyticsPage() {
         <Text variant="muted" className="text-gray-600">
           Track user engagement and platform usage across all companies
         </Text>
+        <Text variant="muted" size="sm" className="text-green-700 bg-green-50 px-3 py-2 rounded-md inline-block mt-2">
+          ✓ Unified Analytics: Days active shown here match User Management and Leaderboard streaks
+        </Text>
       </div>
 
       {/* View Tabs */}

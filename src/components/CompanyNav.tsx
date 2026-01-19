@@ -28,6 +28,14 @@ export function CompanyNav({ slug, isCompanyAdmin, primaryColor, secondaryColor 
       >
         Dashboard
       </Link>
+      <Link
+        href={`/c/${slug}/chat`}
+        style={getLinkStyle('chat')}
+        onMouseEnter={() => setHoveredLink('chat')}
+        onMouseLeave={() => setHoveredLink(null)}
+      >
+        Chat
+      </Link>
       {isCompanyAdmin && (
         <>
           <Link

@@ -30,64 +30,37 @@ export async function GET(
       return NextResponse.json({ error: 'Company not found' }, { status: 404 })
     }
 
-    // Get all active users in the company
-    const { data: companyUsers, error: usersError } = await supabase
-      .from('user_profiles')
-      .select('id, display_name, email, is_active, profile_picture_url, company_id')
+    // Use the unified company_streak_leaderboard view
+    // This view includes ALL active users and automatically ranks them
+    const { data: leaderboardData, error: leaderboardError } = await supabase
+      .from('company_streak_leaderboard')
+      .select('*')
       .eq('company_id', company.id)
-      .eq('is_active', true)
+      .order('company_rank', { ascending: true })
 
-    if (usersError) {
-      console.error('Error fetching company users:', usersError)
-      return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
+    if (leaderboardError) {
+      console.error('Error fetching leaderboard:', leaderboardError)
+      return NextResponse.json({ error: 'Failed to fetch leaderboard' }, { status: 500 })
     }
 
-    if (!companyUsers || companyUsers.length === 0) {
+    if (!leaderboardData || leaderboardData.length === 0) {
       return NextResponse.json([])
     }
 
-    // Get streak data for these users
-    const userIds = companyUsers.map((u) => u.id)
-    const { data: streaks, error: streaksError } = await supabase
-      .from('user_streaks')
-      .select('user_id, current_streak, longest_streak, total_activities, last_activity_date')
-      .in('user_id', userIds)
+    // Format the data for the frontend (rename company_rank to rank)
+    const formattedData = leaderboardData.map((entry) => ({
+      user_id: entry.user_id,
+      current_streak: entry.current_streak,
+      longest_streak: entry.longest_streak,
+      total_activities: entry.total_activities,
+      last_activity_date: entry.last_activity_date,
+      display_name: entry.display_name || entry.email,
+      email: entry.email,
+      profile_picture_url: entry.profile_picture_url || null,
+      rank: entry.company_rank,
+    }))
 
-    if (streaksError) {
-      console.error('Error fetching streaks:', streaksError)
-      return NextResponse.json({ error: 'Failed to fetch streaks' }, { status: 500 })
-    }
-
-    // Merge user data with streak data
-    const leaderboardData = companyUsers.map((user) => {
-      const userStreak = streaks?.find((s) => s.user_id === user.id)
-      return {
-        user_id: user.id,
-        current_streak: userStreak?.current_streak || 0,
-        longest_streak: userStreak?.longest_streak || 0,
-        total_activities: userStreak?.total_activities || 0,
-        last_activity_date: userStreak?.last_activity_date || null,
-        display_name: user.display_name || user.email,
-        email: user.email,
-        profile_picture_url: user.profile_picture_url || null,
-        rank: 0, // Will be set after sorting
-      }
-    })
-
-    // Sort by current_streak (desc), then longest_streak (desc)
-    leaderboardData.sort((a, b) => {
-      if (b.current_streak !== a.current_streak) {
-        return b.current_streak - a.current_streak
-      }
-      return b.longest_streak - a.longest_streak
-    })
-
-    // Assign ranks
-    leaderboardData.forEach((entry, index) => {
-      entry.rank = index + 1
-    })
-
-    return NextResponse.json(leaderboardData)
+    return NextResponse.json(formattedData)
   } catch (error) {
     console.error('Unexpected error in GET /api/company/[slug]/leaderboard:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

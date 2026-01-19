@@ -33,6 +33,31 @@ export default function UserPlaylistPage({ params }: { params: Promise<{ objecti
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [favoritedConversations, setFavoritedConversations] = useState<Set<string>>(new Set());
+  const [dashboardUrl, setDashboardUrl] = useState('/user/dashboard');
+
+  // Fetch user's company to determine correct dashboard URL
+  useEffect(() => {
+    const fetchUserCompany = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('company_id, companies(slug)')
+        .eq('id', user.id)
+        .single();
+
+      if (profile?.companies) {
+        const companySlug = (profile.companies as any)?.slug;
+        if (companySlug) {
+          setDashboardUrl(`/c/${companySlug}/dashboard`);
+        }
+      }
+    };
+
+    fetchUserCompany();
+  }, []);
 
   useEffect(() => {
     const fetchPlaylist = async () => {
@@ -187,7 +212,7 @@ export default function UserPlaylistPage({ params }: { params: Promise<{ objecti
       <div className="min-h-screen bg-gray-50 p-6">
         <div className="max-w-4xl mx-auto">
           <Link
-            href="/user/dashboard"
+            href={dashboardUrl}
             className="inline-flex items-center text-success-gold hover:text-amber-600 mb-6"
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -212,7 +237,7 @@ export default function UserPlaylistPage({ params }: { params: Promise<{ objecti
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <Link
-          href="/user/dashboard"
+          href={dashboardUrl}
           className="inline-flex items-center text-success-gold hover:text-amber-600 mb-6"
         >
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
