@@ -34,13 +34,25 @@ interface MessageBubbleProps {
 export function MessageBubble({ message, showAvatar, channelId, onReactionChange }: MessageBubbleProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const supabase = createClient()
   const router = useRouter()
 
-  // Get current user ID
+  // Get current user ID and role
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setCurrentUserId(user.id)
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (user) {
+        setCurrentUserId(user.id)
+        // Get user role
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+        if (profile) {
+          setUserRole(profile.role)
+        }
+      }
     })
   }, [])
 
@@ -87,7 +99,12 @@ export function MessageBubble({ message, showAvatar, channelId, onReactionChange
   // Handle transcript link click
   function handleTranscriptClick() {
     if (message.transcript_id) {
-      router.push(`/transcripts/${message.transcript_id}?t=${message.timestamp_start}`)
+      // Route based on user role
+      const isAdmin = userRole === 'super_admin' || userRole === 'company_admin'
+      const route = isAdmin
+        ? `/transcripts/${message.transcript_id}?t=${message.timestamp_start}`
+        : `/user/transcripts/${message.transcript_id}?t=${message.timestamp_start}`
+      router.push(route)
     }
   }
 

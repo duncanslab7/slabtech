@@ -98,9 +98,9 @@ export default function CompanyLeaderboard() {
       {/* Podium - Top 3 */}
       {leaderboard.length > 0 && (
         <div className={`grid gap-4 max-w-4xl mx-auto mb-8 px-4 ${leaderboard.length === 1 ? 'grid-cols-1 justify-center' : leaderboard.length === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
-          {/* 2nd Place */}
+          {/* 2nd Place - Mobile second, desktop left */}
           {leaderboard.length >= 2 && (
-          <div className="flex flex-col items-center sm:mt-8">
+          <div className="flex flex-col items-center sm:mt-8 order-2 lg:order-1">
             <div className="relative mb-2">
               {leaderboard[1].profile_picture_url ? (
                 <img
@@ -136,8 +136,8 @@ export default function CompanyLeaderboard() {
           </div>
           )}
 
-          {/* 1st Place */}
-          <div className="flex flex-col items-center">
+          {/* 1st Place - Mobile first, desktop center */}
+          <div className="flex flex-col items-center order-1 lg:order-2">
             <div className="relative mb-2">
               <span className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-4xl">👑</span>
               {leaderboard[0].profile_picture_url ? (
@@ -173,9 +173,9 @@ export default function CompanyLeaderboard() {
             </div>
           </div>
 
-          {/* 3rd Place */}
+          {/* 3rd Place - Mobile third, desktop right */}
           {leaderboard.length >= 3 && (
-          <div className="flex flex-col items-center sm:mt-12">
+          <div className="flex flex-col items-center sm:mt-12 order-3 lg:order-3">
             <div className="relative mb-2">
               {leaderboard[2].profile_picture_url ? (
                 <img
@@ -227,7 +227,7 @@ export default function CompanyLeaderboard() {
               return (
                 <div
                   key={entry.user_id}
-                  className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg transition-all border border-gray-200 relative overflow-hidden gap-4"
+                  className="flex items-stretch rounded-lg transition-all border border-gray-200 relative overflow-hidden"
                   style={{
                     background: `linear-gradient(90deg, var(--company-primary) 0%, var(--company-primary) 100%)`,
                     backgroundImage: `
@@ -236,31 +236,25 @@ export default function CompanyLeaderboard() {
                     `
                   }}
                 >
-                  <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0 w-full sm:w-auto">
-                    {/* Rank */}
-                    <div
-                      className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-base sm:text-lg font-bold flex-shrink-0 border-2"
-                      style={{
-                        background: 'linear-gradient(135deg, var(--company-primary) 0%, var(--company-secondary) 100%)',
-                        borderColor: 'var(--company-secondary)',
-                        color: 'var(--company-secondary)'
-                      }}
-                    >
-                      <span className="text-white">{entry.rank}</span>
-                    </div>
+                  {/* Rank - Full height number */}
+                  <div className="flex items-center justify-center px-4 sm:px-6" style={{ color: 'var(--company-secondary)' }}>
+                    <div className="text-3xl sm:text-5xl font-bold">{entry.rank}</div>
+                  </div>
 
+                  {/* User Info Section */}
+                  <div className="flex flex-col sm:flex-row items-center sm:items-center gap-3 sm:gap-4 flex-1 py-4">
                     {/* Profile Picture */}
                     <div className="relative flex-shrink-0">
                       {entry.profile_picture_url ? (
                         <img
                           src={entry.profile_picture_url}
                           alt={entry.display_name}
-                          className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover border-2"
+                          className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border-2"
                           style={{ borderColor: 'var(--company-secondary)' }}
                         />
                       ) : (
                         <div
-                          className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-white font-bold text-base sm:text-lg border-2"
+                          className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white font-bold text-xl border-2"
                           style={{
                             background: 'linear-gradient(135deg, var(--company-primary) 0%, var(--company-secondary) 100%)',
                             borderColor: 'var(--company-secondary)'
@@ -271,30 +265,34 @@ export default function CompanyLeaderboard() {
                       )}
                     </div>
 
-                    {/* User Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold break-words" style={{ color: 'var(--company-secondary)' }}>{entry.display_name}</div>
+                    {/* Name and Last Activity */}
+                    <div className="text-center sm:text-left">
+                      <div className="text-lg sm:text-xl font-bold" style={{ color: 'var(--company-secondary)' }}>{entry.display_name}</div>
                       <div className="text-xs" style={{ color: 'var(--company-secondary)', opacity: 0.8 }}>
                         Last activity: {formatDate(entry.last_activity_date)}
                       </div>
                     </div>
                   </div>
 
-                  {/* Stats */}
-                  <div className="flex items-center gap-4 sm:gap-8 flex-shrink-0 w-full sm:w-auto justify-end">
+                  {/* Current Streak - Center */}
+                  <div className="flex items-center justify-center px-4 sm:px-6">
                     <div className="text-center">
                       <div style={{ color: 'var(--company-secondary)' }}>
-                        <div className="text-2xl sm:text-4xl font-bold">
+                        <div className="text-3xl sm:text-5xl font-bold">
                           {entry.current_streak} 🔥
                         </div>
                       </div>
-                      <div className="text-xs font-medium" style={{ color: 'var(--company-secondary)', opacity: 0.8 }}>Current</div>
+                      <div className="text-xs font-medium mt-1" style={{ color: 'var(--company-secondary)', opacity: 0.8 }}>Current</div>
                     </div>
+                  </div>
+
+                  {/* Best Streak */}
+                  <div className="flex items-center justify-center px-4 sm:px-6">
                     <div className="text-center">
-                      <div className="text-base sm:text-lg font-semibold" style={{ color: 'var(--company-secondary)' }}>
+                      <div className="text-xl sm:text-2xl font-bold" style={{ color: 'var(--company-secondary)' }}>
                         {entry.longest_streak}
                       </div>
-                      <div className="text-xs" style={{ color: 'var(--company-secondary)', opacity: 0.7 }}>Best</div>
+                      <div className="text-xs mt-1" style={{ color: 'var(--company-secondary)', opacity: 0.7 }}>Best</div>
                     </div>
                   </div>
                 </div>

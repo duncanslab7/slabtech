@@ -8,10 +8,15 @@ interface TranscriptDetailsProps {
   params: Promise<{
     id: string
   }>
+  searchParams: Promise<{
+    t?: string
+  }>
 }
 
-export default async function TranscriptDetailsPage({ params }: TranscriptDetailsProps) {
+export default async function TranscriptDetailsPage({ params, searchParams }: TranscriptDetailsProps) {
   const { id } = await params
+  const searchParamsData = await searchParams
+  const initialTimestamp = searchParamsData.t ? parseFloat(searchParamsData.t) : undefined
   const supabase = await createClient()
 
   // Fetch transcript details
@@ -163,6 +168,7 @@ export default async function TranscriptDetailsPage({ params }: TranscriptDetail
             transcriptData={transcript.transcript_redacted}
             transcriptId={id}
             salespersonName={transcript.salesperson_name}
+            initialTimestamp={initialTimestamp}
           />
         </div>
       </div>

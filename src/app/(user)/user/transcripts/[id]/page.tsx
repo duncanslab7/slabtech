@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { TranscriptWithConversations } from '@/components/transcripts/TranscriptWithConversations';
 import type { ObjectionType, ConversationCategory } from '@/utils/conversationAnalysis';
@@ -53,6 +54,8 @@ interface Conversation {
 
 export default function UserTranscriptPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const searchParams = useSearchParams();
+  const initialTimestamp = searchParams.get('t') ? parseFloat(searchParams.get('t')!) : undefined;
   const [transcript, setTranscript] = useState<TranscriptData | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -298,6 +301,7 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
                 transcriptData={transcript.transcript_redacted}
                 transcriptId={id}
                 salespersonName={transcript.salesperson_name}
+                initialTimestamp={initialTimestamp}
               />
             ) : (
               <div className="text-center text-gray-500 py-8">

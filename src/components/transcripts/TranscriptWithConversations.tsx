@@ -49,6 +49,7 @@ interface TranscriptWithConversationsProps {
   transcriptData: any
   transcriptId?: string
   salespersonName?: string
+  initialTimestamp?: number
 }
 
 export function TranscriptWithConversations({
@@ -61,9 +62,10 @@ export function TranscriptWithConversations({
   redactionConfigUsed,
   transcriptData,
   transcriptId,
-  salespersonName
+  salespersonName,
+  initialTimestamp
 }: TranscriptWithConversationsProps) {
-  const [seekToTime, setSeekToTime] = useState<number | undefined>(undefined)
+  const [seekToTime, setSeekToTime] = useState<number | undefined>(initialTimestamp)
   const [currentConversationIndex, setCurrentConversationIndex] = useState(0)
 
   const handleConversationSelect = (conversation: Conversation) => {
