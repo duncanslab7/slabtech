@@ -84,23 +84,23 @@ export default function CompanyLeaderboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="text-center">
+      <div className="text-center px-4">
         <div style={{ color: 'var(--company-primary)' }}>
-          <Heading level={1} size="xl">
+          <Heading level={1} size="xl" className="text-2xl sm:text-4xl">
             Streak Leaderboard 🔥
           </Heading>
         </div>
-        <Text variant="muted" className="mt-2">
+        <Text variant="muted" className="mt-2 text-sm sm:text-base">
           Top performers ranked by current streak
         </Text>
       </div>
 
       {/* Podium - Top 3 */}
       {leaderboard.length > 0 && (
-        <div className={`grid gap-4 max-w-4xl mx-auto mb-8 ${leaderboard.length === 1 ? 'grid-cols-1 justify-center' : leaderboard.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+        <div className={`grid gap-4 max-w-4xl mx-auto mb-8 px-4 ${leaderboard.length === 1 ? 'grid-cols-1 justify-center' : leaderboard.length === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
           {/* 2nd Place */}
           {leaderboard.length >= 2 && (
-          <div className="flex flex-col items-center mt-8">
+          <div className="flex flex-col items-center sm:mt-8">
             <div className="relative mb-2">
               {leaderboard[1].profile_picture_url ? (
                 <img
@@ -125,7 +125,7 @@ export default function CompanyLeaderboard() {
               </div>
             </div>
             <div className="w-full text-center bg-white rounded-lg p-4 shadow-lg border-2" style={{ borderColor: 'var(--company-primary)' }}>
-              <div className="text-xl font-bold text-gray-900 truncate">{leaderboard[1].display_name}</div>
+              <div className="text-lg sm:text-xl font-bold text-gray-900 break-words px-2">{leaderboard[1].display_name}</div>
               <div className="mt-3">
                 <div className="text-4xl font-bold" style={{ color: 'var(--company-primary)' }}>
                   {leaderboard[1].current_streak}
@@ -163,7 +163,7 @@ export default function CompanyLeaderboard() {
               </div>
             </div>
             <div className="w-full text-center bg-white rounded-lg p-6 shadow-xl border-4" style={{ borderColor: 'var(--company-primary)' }}>
-              <div className="text-2xl font-bold text-gray-900 truncate">{leaderboard[0].display_name}</div>
+              <div className="text-xl sm:text-2xl font-bold text-gray-900 break-words px-2">{leaderboard[0].display_name}</div>
               <div className="mt-4">
                 <div className="text-5xl font-bold" style={{ color: 'var(--company-primary)' }}>
                   {leaderboard[0].current_streak}
@@ -175,7 +175,7 @@ export default function CompanyLeaderboard() {
 
           {/* 3rd Place */}
           {leaderboard.length >= 3 && (
-          <div className="flex flex-col items-center mt-12">
+          <div className="flex flex-col items-center sm:mt-12">
             <div className="relative mb-2">
               {leaderboard[2].profile_picture_url ? (
                 <img
@@ -200,7 +200,7 @@ export default function CompanyLeaderboard() {
               </div>
             </div>
             <div className="w-full text-center bg-white rounded-lg p-4 shadow-lg border-2" style={{ borderColor: 'var(--company-primary)' }}>
-              <div className="text-lg font-bold text-gray-900 truncate">{leaderboard[2].display_name}</div>
+              <div className="text-base sm:text-lg font-bold text-gray-900 break-words px-2">{leaderboard[2].display_name}</div>
               <div className="mt-3">
                 <div className="text-3xl font-bold" style={{ color: 'var(--company-primary)' }}>
                   {leaderboard[2].current_streak}
@@ -214,8 +214,8 @@ export default function CompanyLeaderboard() {
       )}
 
       {/* Full Leaderboard */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <Heading level={2} size="lg" className="mb-6 text-gray-900">All Participants</Heading>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mx-4">
+        <Heading level={2} size="lg" className="mb-4 sm:mb-6 text-gray-900">All Participants</Heading>
 
         {leaderboard.length === 0 ? (
           <div className="text-center py-12">
@@ -227,7 +227,7 @@ export default function CompanyLeaderboard() {
               return (
                 <div
                   key={entry.user_id}
-                  className="flex items-center justify-between p-4 rounded-lg transition-all border border-gray-200 relative overflow-hidden"
+                  className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg transition-all border border-gray-200 relative overflow-hidden gap-4"
                   style={{
                     background: `linear-gradient(90deg, var(--company-primary) 0%, var(--company-primary) 100%)`,
                     backgroundImage: `
@@ -236,10 +236,10 @@ export default function CompanyLeaderboard() {
                     `
                   }}
                 >
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0 w-full sm:w-auto">
                     {/* Rank */}
                     <div
-                      className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold flex-shrink-0 border-2"
+                      className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-base sm:text-lg font-bold flex-shrink-0 border-2"
                       style={{
                         background: 'linear-gradient(135deg, var(--company-primary) 0%, var(--company-secondary) 100%)',
                         borderColor: 'var(--company-secondary)',
@@ -255,12 +255,12 @@ export default function CompanyLeaderboard() {
                         <img
                           src={entry.profile_picture_url}
                           alt={entry.display_name}
-                          className="w-12 h-12 rounded-full object-cover border-2"
+                          className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover border-2"
                           style={{ borderColor: 'var(--company-secondary)' }}
                         />
                       ) : (
                         <div
-                          className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg border-2"
+                          className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-white font-bold text-base sm:text-lg border-2"
                           style={{
                             background: 'linear-gradient(135deg, var(--company-primary) 0%, var(--company-secondary) 100%)',
                             borderColor: 'var(--company-secondary)'
@@ -273,7 +273,7 @@ export default function CompanyLeaderboard() {
 
                     {/* User Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold truncate" style={{ color: 'var(--company-secondary)' }}>{entry.display_name}</div>
+                      <div className="font-semibold break-words" style={{ color: 'var(--company-secondary)' }}>{entry.display_name}</div>
                       <div className="text-xs" style={{ color: 'var(--company-secondary)', opacity: 0.8 }}>
                         Last activity: {formatDate(entry.last_activity_date)}
                       </div>
@@ -281,17 +281,17 @@ export default function CompanyLeaderboard() {
                   </div>
 
                   {/* Stats */}
-                  <div className="flex items-center gap-8 flex-shrink-0">
+                  <div className="flex items-center gap-4 sm:gap-8 flex-shrink-0 w-full sm:w-auto justify-end">
                     <div className="text-center">
                       <div style={{ color: 'var(--company-secondary)' }}>
-                        <div className="text-4xl font-bold">
+                        <div className="text-2xl sm:text-4xl font-bold">
                           {entry.current_streak} 🔥
                         </div>
                       </div>
                       <div className="text-xs font-medium" style={{ color: 'var(--company-secondary)', opacity: 0.8 }}>Current</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-semibold" style={{ color: 'var(--company-secondary)' }}>
+                      <div className="text-base sm:text-lg font-semibold" style={{ color: 'var(--company-secondary)' }}>
                         {entry.longest_streak}
                       </div>
                       <div className="text-xs" style={{ color: 'var(--company-secondary)', opacity: 0.7 }}>Best</div>
@@ -305,7 +305,7 @@ export default function CompanyLeaderboard() {
       </div>
 
       {/* Legend */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mx-4">
         <Text size="sm" variant="muted" className="text-center text-gray-600">
           💡 Your streak color changes every week! Keep it going to unlock all 6 colors.
         </Text>
