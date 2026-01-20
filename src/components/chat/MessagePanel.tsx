@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { MessageBubble } from './MessageBubble'
 import { MessageComposer } from './MessageComposer'
+import { ChannelSettingsMenu } from './ChannelSettingsMenu'
 
 interface Message {
   id: string
@@ -45,9 +46,30 @@ export function MessagePanel({ channel, onChannelUpdate, onBack }: MessagePanelP
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
+
+  // Get current user info
+  useEffect(() => {
+    async function getUserInfo() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setCurrentUserId(user.id)
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+        if (profile) {
+          setUserRole(profile.role)
+        }
+      }
+    }
+    getUserInfo()
+  }, [])
 
   // Scroll to bottom
   const scrollToBottom = () => {
@@ -252,6 +274,18 @@ export function MessagePanel({ channel, onChannelUpdate, onBack }: MessagePanelP
               </p>
             )}
           </div>
+
+          {/* Settings menu */}
+          {currentUserId && (
+            <ChannelSettingsMenu
+              channelId={channel.id}
+              channelType={channel.channel_type}
+              isCreator={channel.created_by === currentUserId}
+              isCompanyAdmin={userRole === 'company_admin' || userRole === 'super_admin'}
+              onArchived={onChannelUpdate}
+              onLeft={onChannelUpdate}
+            />
+          )}
         </div>
       </div>
 

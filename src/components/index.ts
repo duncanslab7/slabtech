@@ -12,3 +12,7 @@ export { StreakCounter } from './StreakCounter';
 export { CompanyBrandingProvider } from './CompanyBrandingProvider';
 export { CompanyNav } from './CompanyNav';
 export { ActivityTrackingProvider } from './ActivityTrackingProvider';
+
+// Chat Components
+export { ShareToChat } from './chat/ShareToChat';
+export { ChatLayout } from './chat/ChatLayout';

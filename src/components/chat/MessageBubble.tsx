@@ -136,11 +136,26 @@ export function MessageBubble({ message, showAvatar, channelId, onReactionChange
             {message.transcript_id && (
               <button
                 onClick={handleTranscriptClick}
-                className={`mt-2 text-sm underline flex items-center gap-1 ${
-                  isOwnMessage ? 'text-black opacity-80 hover:opacity-100' : 'text-blue-400 hover:text-blue-300'
+                className={`mt-2 p-2 rounded border transition-colors w-full text-left ${
+                  isOwnMessage
+                    ? 'border-black border-opacity-20 hover:bg-black hover:bg-opacity-10'
+                    : 'border-gray-600 hover:bg-gray-600'
                 }`}
               >
-                🔊 Audio clip ({message.timestamp_start}s - {message.timestamp_end}s)
+                <div className="flex items-start gap-2">
+                  <div className="text-2xl">🔊</div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`font-semibold text-sm ${isOwnMessage ? 'text-black' : 'text-white'}`}>
+                      Shared Audio Clip
+                    </div>
+                    <div className={`text-xs ${isOwnMessage ? 'text-black opacity-70' : 'text-gray-400'}`}>
+                      {message.timestamp_start}s - {message.timestamp_end}s
+                    </div>
+                    <div className={`text-xs mt-1 ${isOwnMessage ? 'text-black opacity-60' : 'text-blue-400'}`}>
+                      Tap to listen →
+                    </div>
+                  </div>
+                </div>
               </button>
             )}
 
