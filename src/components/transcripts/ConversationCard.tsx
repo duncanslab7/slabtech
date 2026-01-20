@@ -1,6 +1,7 @@
 'use client'
 
-import { Card, Text } from '@/components'
+import { useState } from 'react'
+import { Card, Text, ShareToChat } from '@/components'
 import { formatCategory, getCategoryColor, formatObjectionType, getObjectionColor } from '@/utils/conversationAnalysis'
 import type { ObjectionType, ConversationCategory } from '@/utils/conversationAnalysis'
 
@@ -25,6 +26,8 @@ interface ConversationCardProps {
   onToggleFavorite?: (conversationId: string, isFavorited: boolean) => void
   isActive?: boolean
   isFavorited?: boolean
+  transcriptId?: string
+  salespersonName?: string
 }
 
 function formatTime(seconds: number): string {
@@ -56,7 +59,9 @@ export function ConversationCard({
   onObjectionClick,
   onToggleFavorite,
   isActive = false,
-  isFavorited = false
+  isFavorited = false,
+  transcriptId,
+  salespersonName
 }: ConversationCardProps) {
   const handleStarClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // Don't trigger conversation click
@@ -81,6 +86,17 @@ export function ConversationCard({
             </Text>
           </div>
           <div className="flex items-center gap-2">
+            {transcriptId && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <ShareToChat
+                  transcriptId={transcriptId}
+                  transcriptTitle={salespersonName || `Conversation #${conversationNumber}`}
+                  timestampStart={startTime}
+                  timestampEnd={endTime}
+                  iconOnly
+                />
+              </div>
+            )}
             <button
               onClick={handleStarClick}
               className="p-1 hover:bg-gray-100 rounded transition-colors"

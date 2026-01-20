@@ -48,6 +48,7 @@ interface TranscriptWithConversationsProps {
   redactionConfigUsed: string
   transcriptData: any
   transcriptId?: string
+  salespersonName?: string
 }
 
 export function TranscriptWithConversations({
@@ -59,7 +60,8 @@ export function TranscriptWithConversations({
   transcriptText,
   redactionConfigUsed,
   transcriptData,
-  transcriptId
+  transcriptId,
+  salespersonName
 }: TranscriptWithConversationsProps) {
   const [seekToTime, setSeekToTime] = useState<number | undefined>(undefined)
   const [currentConversationIndex, setCurrentConversationIndex] = useState(0)
@@ -113,6 +115,8 @@ export function TranscriptWithConversations({
             conversations={conversations}
             onConversationSelect={handleConversationSelect}
             onObjectionClick={handleObjectionClick}
+            transcriptId={transcriptId}
+            salespersonName={salespersonName}
           />
         </div>
       )}

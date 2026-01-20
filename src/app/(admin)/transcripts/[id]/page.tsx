@@ -1,5 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
-import { Heading, Text, Card, Container, ShareToChat } from '@/components'
+import { Heading, Text, Card, Container } from '@/components'
 import { TranscriptWithConversations } from '@/components/transcripts/TranscriptWithConversations'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -146,13 +146,6 @@ export default async function TranscriptDetailsPage({ params }: TranscriptDetail
                   {transcript.redaction_config_used}
                 </span>
               </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <ShareToChat
-                  transcriptId={id}
-                  transcriptTitle={transcript.salesperson_name}
-                />
-              </div>
             </div>
           </div>
         </div>
@@ -169,6 +162,7 @@ export default async function TranscriptDetailsPage({ params }: TranscriptDetail
             redactionConfigUsed={transcript.redaction_config_used}
             transcriptData={transcript.transcript_redacted}
             transcriptId={id}
+            salespersonName={transcript.salesperson_name}
           />
         </div>
       </div>

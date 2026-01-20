@@ -5,7 +5,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/utils/supabase/client';
 import { TranscriptWithConversations } from '@/components/transcripts/TranscriptWithConversations';
-import { ShareToChat } from '@/components';
 import type { ObjectionType, ConversationCategory } from '@/utils/conversationAnalysis';
 
 interface TranscriptData {
@@ -270,28 +269,18 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
         <div className="bg-white rounded-lg shadow overflow-hidden">
           {/* Header */}
           <div className="bg-midnight-blue text-white px-4 sm:px-6 py-3 sm:py-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <h1 className="text-base sm:text-xl font-bold break-words">{transcript?.original_filename}</h1>
-                <div className="flex flex-col sm:flex-row sm:gap-6 mt-2 text-xs sm:text-sm text-gray-300 gap-1">
-                  <span>
-                    {transcript?.created_at
-                      ? new Date(transcript.created_at).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                        })
-                      : ''}
-                  </span>
-                  <span>Salesperson: {transcript?.salesperson_name}</span>
-                </div>
-              </div>
-              <div className="flex-shrink-0">
-                <ShareToChat
-                  transcriptId={id}
-                  transcriptTitle={transcript?.salesperson_name || transcript?.original_filename}
-                />
-              </div>
+            <h1 className="text-base sm:text-xl font-bold break-words">{transcript?.original_filename}</h1>
+            <div className="flex flex-col sm:flex-row sm:gap-6 mt-2 text-xs sm:text-sm text-gray-300 gap-1">
+              <span>
+                {transcript?.created_at
+                  ? new Date(transcript.created_at).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })
+                  : ''}
+              </span>
+              <span>Salesperson: {transcript?.salesperson_name}</span>
             </div>
           </div>
 
@@ -308,6 +297,7 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
                 redactionConfigUsed={transcript.redaction_config_used}
                 transcriptData={transcript.transcript_redacted}
                 transcriptId={id}
+                salespersonName={transcript.salesperson_name}
               />
             ) : (
               <div className="text-center text-gray-500 py-8">

@@ -28,9 +28,11 @@ interface ConversationListProps {
   conversations: Conversation[]
   onConversationSelect?: (conversation: Conversation) => void
   onObjectionClick?: (timestamp: number) => void
+  transcriptId?: string
+  salespersonName?: string
 }
 
-export function ConversationList({ conversations, onConversationSelect, onObjectionClick }: ConversationListProps) {
+export function ConversationList({ conversations, onConversationSelect, onObjectionClick, transcriptId, salespersonName }: ConversationListProps) {
   const [selectedCategory, setSelectedCategory] = useState<ConversationCategory | 'all'>('all')
   const [selectedObjection, setSelectedObjection] = useState<ObjectionType | 'all'>('all')
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
@@ -332,6 +334,8 @@ export function ConversationList({ conversations, onConversationSelect, onObject
                 onToggleFavorite={handleToggleFavorite}
                 isActive={conversation.id === activeConversationId}
                 isFavorited={favoritedConversations.has(conversation.id)}
+                transcriptId={transcriptId}
+                salespersonName={salespersonName}
               />
             ))}
           </div>
