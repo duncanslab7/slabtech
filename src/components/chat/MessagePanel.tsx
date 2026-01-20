@@ -37,9 +37,10 @@ interface MessagePanelProps {
     members: any[]
   }
   onChannelUpdate: () => void
+  onBack?: () => void
 }
 
-export function MessagePanel({ channel, onChannelUpdate }: MessagePanelProps) {
+export function MessagePanel({ channel, onChannelUpdate, onBack }: MessagePanelProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -216,6 +217,19 @@ export function MessagePanel({ channel, onChannelUpdate }: MessagePanelProps) {
       {/* Header */}
       <div className="p-4 border-b border-gray-700 bg-gray-800">
         <div className="flex items-center gap-3">
+          {/* Mobile back button */}
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="md:hidden text-gray-400 hover:text-white transition-colors"
+              aria-label="Back to channels"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
+
           {channel.picture_url ? (
             <img
               src={channel.picture_url}
@@ -227,10 +241,10 @@ export function MessagePanel({ channel, onChannelUpdate }: MessagePanelProps) {
               {channel.name.charAt(0).toUpperCase()}
             </div>
           )}
-          <div className="flex-1">
-            <h2 className="text-xl font-bold text-white">{channel.name}</h2>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-bold text-white truncate">{channel.name}</h2>
             {channel.description && (
-              <p className="text-sm text-gray-400">{channel.description}</p>
+              <p className="text-sm text-gray-400 truncate">{channel.description}</p>
             )}
             {!channel.description && channel.members && (
               <p className="text-sm text-gray-400">

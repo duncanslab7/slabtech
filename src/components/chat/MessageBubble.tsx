@@ -153,10 +153,10 @@ export function MessageBubble({ message, showAvatar, channelId, onReactionChange
             </div>
           </div>
 
-          {/* Reaction Button */}
+          {/* Reaction Button - visible on mobile, hover on desktop */}
           <button
             onClick={() => setShowReactionPicker(!showReactionPicker)}
-            className="absolute -top-2 right-2 bg-gray-600 text-white rounded-full w-6 h-6 text-xs opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-500"
+            className="absolute -top-2 right-2 bg-gray-600 text-white rounded-full w-7 h-7 text-sm md:w-6 md:h-6 md:text-xs md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-gray-500"
             title="Add reaction"
           >
             +
@@ -169,7 +169,7 @@ export function MessageBubble({ message, showAvatar, channelId, onReactionChange
                 <button
                   key={emoji}
                   onClick={() => addReaction(emoji)}
-                  className="w-8 h-8 text-xl hover:bg-gray-700 rounded transition-colors"
+                  className="w-10 h-10 md:w-8 md:h-8 text-2xl md:text-xl hover:bg-gray-700 rounded transition-colors"
                 >
                   {emoji}
                 </button>
@@ -188,7 +188,7 @@ export function MessageBubble({ message, showAvatar, channelId, onReactionChange
                 <button
                   key={reaction.emoji}
                   onClick={() => handleReactionClick(reaction.emoji)}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm transition-colors ${
+                  className={`flex items-center gap-1 px-2 py-1 md:px-2 md:py-1 rounded-full text-base md:text-sm transition-colors min-h-[32px] md:min-h-0 ${
                     userReacted
                       ? 'bg-company-primary text-black'
                       : 'bg-gray-700 text-white hover:bg-gray-600'
@@ -196,7 +196,7 @@ export function MessageBubble({ message, showAvatar, channelId, onReactionChange
                   title={reaction.users.map(u => u.display_name).join(', ')}
                 >
                   <span>{reaction.emoji}</span>
-                  <span className="text-xs">{reaction.count}</span>
+                  <span className="text-sm md:text-xs">{reaction.count}</span>
                 </button>
               )
             })}

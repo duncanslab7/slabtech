@@ -19,51 +19,63 @@ export function CompanyNav({ slug, isCompanyAdmin, primaryColor, secondaryColor 
   })
 
   return (
-    <div className="hidden md:flex items-center gap-6">
-      <Link
-        href={`/c/${slug}/dashboard`}
-        style={getLinkStyle('dashboard')}
-        onMouseEnter={() => setHoveredLink('dashboard')}
-        onMouseLeave={() => setHoveredLink(null)}
-      >
-        Dashboard
-      </Link>
+    <>
+      {/* Desktop Navigation */}
+      <div className="hidden md:flex items-center gap-6">
+        <Link
+          href={`/c/${slug}/dashboard`}
+          style={getLinkStyle('dashboard')}
+          onMouseEnter={() => setHoveredLink('dashboard')}
+          onMouseLeave={() => setHoveredLink(null)}
+        >
+          Dashboard
+        </Link>
+        <Link
+          href={`/c/${slug}/chat`}
+          style={getLinkStyle('chat')}
+          onMouseEnter={() => setHoveredLink('chat')}
+          onMouseLeave={() => setHoveredLink(null)}
+        >
+          Chat
+        </Link>
+        {isCompanyAdmin && (
+          <>
+            <Link
+              href={`/c/${slug}/users`}
+              style={getLinkStyle('users')}
+              onMouseEnter={() => setHoveredLink('users')}
+              onMouseLeave={() => setHoveredLink(null)}
+            >
+              Users
+            </Link>
+            <Link
+              href={`/c/${slug}/usage`}
+              style={getLinkStyle('usage')}
+              onMouseEnter={() => setHoveredLink('usage')}
+              onMouseLeave={() => setHoveredLink(null)}
+            >
+              Usage
+            </Link>
+            <Link
+              href={`/c/${slug}/leaderboard`}
+              style={getLinkStyle('leaderboard')}
+              onMouseEnter={() => setHoveredLink('leaderboard')}
+              onMouseLeave={() => setHoveredLink(null)}
+            >
+              Leaderboard
+            </Link>
+          </>
+        )}
+      </div>
+
+      {/* Mobile: Chat Button (floating) */}
       <Link
         href={`/c/${slug}/chat`}
-        style={getLinkStyle('chat')}
-        onMouseEnter={() => setHoveredLink('chat')}
-        onMouseLeave={() => setHoveredLink(null)}
+        className="md:hidden"
+        style={{ color: primaryColor }}
       >
-        Chat
+        💬
       </Link>
-      {isCompanyAdmin && (
-        <>
-          <Link
-            href={`/c/${slug}/users`}
-            style={getLinkStyle('users')}
-            onMouseEnter={() => setHoveredLink('users')}
-            onMouseLeave={() => setHoveredLink(null)}
-          >
-            Users
-          </Link>
-          <Link
-            href={`/c/${slug}/usage`}
-            style={getLinkStyle('usage')}
-            onMouseEnter={() => setHoveredLink('usage')}
-            onMouseLeave={() => setHoveredLink(null)}
-          >
-            Usage
-          </Link>
-          <Link
-            href={`/c/${slug}/leaderboard`}
-            style={getLinkStyle('leaderboard')}
-            onMouseEnter={() => setHoveredLink('leaderboard')}
-            onMouseLeave={() => setHoveredLink(null)}
-          >
-            Leaderboard
-          </Link>
-        </>
-      )}
-    </div>
+    </>
   )
 }

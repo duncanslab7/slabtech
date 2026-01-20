@@ -120,8 +120,8 @@ export function NewChannelModal({ companyId, onClose, onChannelCreated }: NewCha
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg w-full max-w-2xl max-h-[80vh] flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-800 rounded-lg w-full max-w-2xl max-h-[90vh] md:max-h-[80vh] flex flex-col">
         {/* Header */}
         <div className="p-6 border-b border-gray-700 flex items-center justify-between">
           <h2 className="text-2xl font-bold text-company-primary">New Conversation</h2>
@@ -288,18 +288,18 @@ export function NewChannelModal({ companyId, onClose, onChannelCreated }: NewCha
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-700 flex gap-3 justify-end">
+        <div className="p-4 md:p-6 border-t border-gray-700 flex gap-3 justify-end">
           <button
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50"
+            className="px-4 py-2 md:px-4 md:py-2 min-h-[44px] md:min-h-0 bg-gray-700 text-white rounded-md hover:bg-gray-600 transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleCreate}
             disabled={loading}
-            className="px-4 py-2 bg-company-primary text-black rounded-md font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="px-4 py-2 md:px-4 md:py-2 min-h-[44px] md:min-h-0 bg-company-primary text-black rounded-md font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             {loading ? 'Creating...' : 'Create'}
           </button>

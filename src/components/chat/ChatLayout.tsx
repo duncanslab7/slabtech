@@ -24,6 +24,7 @@ export function ChatLayout({ companyId }: { companyId: string }) {
   const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const supabase = createClient()
 
   // Fetch channels
@@ -100,34 +101,86 @@ export function ChatLayout({ companyId }: { companyId: string }) {
 
   const activeChannel = channels.find(ch => ch.id === activeChannelId)
 
+  // On mobile, close sidebar when selecting a channel
+  function handleSelectChannel(channelId: string) {
+    setActiveChannelId(channelId)
+    // Close sidebar on mobile after selecting
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false)
+    }
+  }
+
+  // On mobile, open sidebar when going back
+  function handleBackToChannels() {
+    setSidebarOpen(true)
+    if (window.innerWidth < 768) {
+      setActiveChannelId(null)
+    }
+  }
+
   return (
-    <div className="flex h-screen bg-gray-900">
-      {/* Sidebar */}
-      <ChannelSidebar
-        channels={channels}
-        activeChannelId={activeChannelId}
-        onSelectChannel={setActiveChannelId}
-        onChannelCreated={loadChannels}
-        loading={loading}
-        companyId={companyId}
-      />
+    <div className="flex h-screen bg-gray-900 relative overflow-hidden">
+      {/* Mobile: Sidebar overlay */}
+      {sidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar - hidden on mobile unless open */}
+      <div className={`
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:translate-x-0
+        fixed md:relative
+        z-50 md:z-0
+        transition-transform duration-300 ease-in-out
+        h-full
+      `}>
+        <ChannelSidebar
+          channels={channels}
+          activeChannelId={activeChannelId}
+          onSelectChannel={handleSelectChannel}
+          onChannelCreated={loadChannels}
+          loading={loading}
+          companyId={companyId}
+        />
+      </div>
 
       {/* Message Panel */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {activeChannel ? (
           <MessagePanel
             channel={activeChannel}
             onChannelUpdate={loadChannels}
+            onBack={handleBackToChannels}
           />
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-400">
+          <div className="flex-1 flex items-center justify-center text-gray-400 p-4">
             <div className="text-center">
               <p className="text-xl mb-2">Select a channel to start messaging</p>
               <p className="text-sm">or create a new conversation</p>
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="mt-4 md:hidden bg-company-primary text-black px-4 py-2 rounded-md font-medium"
+              >
+                Open Channels
+              </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* Mobile: Floating button to toggle sidebar (when channel is active) */}
+      {activeChannel && !sidebarOpen && (
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="md:hidden fixed top-20 right-4 bg-company-primary text-black p-3 rounded-full shadow-lg z-30"
+          aria-label="Open channels"
+        >
+          ☰
+        </button>
+      )}
     </div>
   )
 }

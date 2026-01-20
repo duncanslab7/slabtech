@@ -16,7 +16,9 @@
       "Bash(git reset:*)",
       "Bash(npm run build:*)",
       "Bash(grep:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(git show:*)",
+      "Bash(git ls-tree:*)"
     ],
     "deny": [],
     "ask": []
