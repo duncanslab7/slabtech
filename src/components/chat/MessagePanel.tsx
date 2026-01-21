@@ -14,6 +14,7 @@ interface Message {
   transcript_id?: string
   timestamp_start?: number
   timestamp_end?: number
+  shared_content_title?: string
   user_profiles: {
     id: string
     display_name: string
@@ -148,6 +149,7 @@ export function MessagePanel({ channel, onChannelUpdate, onBack }: MessagePanelP
               transcript_id,
               timestamp_start,
               timestamp_end,
+              shared_content_title,
               user_profiles!chat_messages_user_id_fkey(id, display_name, profile_picture_url, email)
             `)
             .eq('id', payload.new.id)

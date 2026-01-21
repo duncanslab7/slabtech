@@ -68,6 +68,7 @@ export async function GET(
         transcript_id,
         timestamp_start,
         timestamp_end,
+        shared_content_title,
         user_profiles!chat_messages_user_id_fkey(id, display_name, profile_picture_url, email),
         message_reactions(id, emoji, user_id, user_profiles!message_reactions_user_id_fkey(display_name))
       `)
@@ -144,7 +145,7 @@ export async function POST(
     }
 
     const body = await request.json()
-    const { text, transcriptId, timestampStart, timestampEnd } = body
+    const { text, transcriptId, timestampStart, timestampEnd, sharedContentTitle } = body
 
     // Validate message text
     if (!text || text.trim().length === 0) {
@@ -188,6 +189,9 @@ export async function POST(
       messageData.transcript_id = transcriptId
       messageData.timestamp_start = timestampStart
       messageData.timestamp_end = timestampEnd
+      if (sharedContentTitle) {
+        messageData.shared_content_title = sharedContentTitle
+      }
     }
 
     const { data: message, error: messageError } = await supabase
@@ -202,6 +206,7 @@ export async function POST(
         transcript_id,
         timestamp_start,
         timestamp_end,
+        shared_content_title,
         user_profiles!chat_messages_user_id_fkey(id, display_name, profile_picture_url, email)
       `)
       .single()

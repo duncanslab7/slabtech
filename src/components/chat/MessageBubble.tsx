@@ -12,6 +12,7 @@ interface Message {
   transcript_id?: string
   timestamp_start?: number
   timestamp_end?: number
+  shared_content_title?: string
   user_profiles: {
     id: string
     display_name: string
@@ -163,7 +164,7 @@ export function MessageBubble({ message, showAvatar, channelId, onReactionChange
                   <div className="text-2xl">🔊</div>
                   <div className="flex-1 min-w-0">
                     <div className={`font-semibold text-sm ${isOwnMessage ? 'text-black' : 'text-white'}`}>
-                      Shared Audio Clip
+                      {message.shared_content_title || 'Shared Audio Clip'}
                     </div>
                     <div className={`text-xs ${isOwnMessage ? 'text-black opacity-70' : 'text-gray-400'}`}>
                       {message.timestamp_start}s - {message.timestamp_end}s

@@ -76,6 +76,7 @@ export function ShareToChat({
           transcriptId,
           timestampStart,
           timestampEnd,
+          sharedContentTitle: transcriptTitle,
         }),
       })
 

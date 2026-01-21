@@ -259,7 +259,7 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {/* Back Link */}
         <Link
-          href="/user/dashboard"
+          href={dashboardUrl}
           className="inline-flex items-center text-steel-gray hover:text-success-gold mb-4 sm:mb-6 text-sm sm:text-base"
         >
           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
