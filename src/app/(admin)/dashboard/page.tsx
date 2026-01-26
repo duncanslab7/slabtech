@@ -18,9 +18,20 @@ interface Transcript {
   redaction_config_used: string
 }
 
+interface PurchaseInquiry {
+  id: string
+  created_at: string
+  product_type: 'hoodie' | 'individual' | 'company'
+  name: string
+  email: string
+  phone: string
+  status: string
+}
+
 export default function DashboardPage() {
   const [salespeople, setSalespeople] = useState<Salesperson[]>([])
   const [transcripts, setTranscripts] = useState<Transcript[]>([])
+  const [purchaseInquiries, setPurchaseInquiries] = useState<PurchaseInquiry[]>([])
   const [selectedTab, setSelectedTab] = useState<string>('all')
   const [loading, setLoading] = useState(true)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
@@ -50,6 +61,17 @@ export default function DashboardPage() {
         }
         if (data.pagination) {
           setPagination(data.pagination)
+        }
+
+        // Fetch purchase inquiries (recent 5)
+        const piResponse = await fetch('/api/purchase-inquiry')
+        const piData = await piResponse.json()
+        if (piData.inquiries) {
+          // Get only pending inquiries, sorted by created_at desc, limit to 5
+          const pendingInquiries = piData.inquiries
+            .filter((inq: PurchaseInquiry) => inq.status === 'pending')
+            .slice(0, 5)
+          setPurchaseInquiries(pendingInquiries)
         }
       } catch (error) {
         console.error('Error fetching data:', error)
@@ -219,6 +241,90 @@ export default function DashboardPage() {
             Configure Settings
           </Link>
         </div>
+
+        {/* Purchase Inquiries Section */}
+        {purchaseInquiries.length > 0 && (
+          <div className="mb-6 bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur rounded-2xl border border-purple-500/30 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Pending Purchase Requests</h2>
+                  <p className="text-purple-200 text-sm">{purchaseInquiries.length} customer{purchaseInquiries.length !== 1 ? 's' : ''} waiting for response</p>
+                </div>
+              </div>
+              <Link
+                href="/purchase-inquiries"
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium hover:shadow-lg hover:shadow-purple-500/25 transition-all inline-flex items-center gap-2"
+              >
+                View All
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            </div>
+
+            {/* Inquiries List */}
+            <div className="space-y-3">
+              {purchaseInquiries.map((inquiry) => (
+                <Link
+                  key={inquiry.id}
+                  href="/purchase-inquiries"
+                  className="block bg-white/10 backdrop-blur rounded-xl border border-white/20 p-4 hover:bg-white/15 transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center flex-shrink-0">
+                        <span className="text-white font-bold text-lg">
+                          {inquiry.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div>
+                        <div className="text-white font-semibold">{inquiry.name}</div>
+                        <div className="text-purple-200 text-sm">
+                          {inquiry.product_type === 'hoodie' && 'Custom Hoodie'}
+                          {inquiry.product_type === 'individual' && 'Individual Access'}
+                          {inquiry.product_type === 'company' && 'Company Access'}
+                          <span className="text-purple-300 mx-2">•</span>
+                          {new Date(inquiry.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <a
+                        href={`mailto:${inquiry.email}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-purple-300 hover:text-white transition-all"
+                        title="Email customer"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      </a>
+                      <a
+                        href={`tel:${inquiry.phone}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-purple-300 hover:text-white transition-all"
+                        title="Call customer"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                      </a>
+                      <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Salesperson Tabs */}
         <div className="mb-6">

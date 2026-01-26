@@ -130,6 +130,6 @@ export const config = {
     '/users/:path*',
     '/config/:path*',
     '/transcripts/:path*',
-    '/((?!_next/static|_next/image|favicon.ico|api/process-audio|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/process-audio|api/purchase-inquiry|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4)$).*)',
   ],
 }

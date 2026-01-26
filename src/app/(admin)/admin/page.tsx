@@ -195,6 +195,36 @@ export default function AdminDashboard() {
           </div>
         </Link>
 
+        {/* Purchase Inquiries Card */}
+        <Link href="/purchase-inquiries" className="group">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 h-full transition-all hover:shadow-lg">
+            <div className="flex items-start justify-between mb-4">
+              <div className="p-3 rounded-lg bg-success-gold bg-opacity-10">
+                <svg
+                  className="h-6 w-6 text-success-gold"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+              </div>
+              <span className="text-success-gold group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+            <Heading level={3} size="md" className="mb-2 text-gray-900">
+              Purchase Inquiries
+            </Heading>
+            <Text variant="muted" className="text-gray-600">
+              View customer requests for hoodies and platform access
+            </Text>
+          </div>
+        </Link>
+
         {/* Stats Card */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-start justify-between mb-4">
