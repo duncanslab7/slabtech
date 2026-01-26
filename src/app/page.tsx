@@ -56,7 +56,7 @@ export default function HomePage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col lg:flex-row items-center justify-center px-6 py-12 gap-8 lg:gap-16 relative z-10">
+      <div className="flex-1 flex flex-col lg:flex-row items-center justify-center px-2 sm:px-6 py-12 gap-8 lg:gap-16 relative z-10">
 
         {/* Desktop Layout: Letters horizontal, logo below */}
         <div className="hidden lg:flex flex-col items-center gap-8">
@@ -132,7 +132,7 @@ export default function HomePage() {
         </div>
 
         {/* Mobile Layout: New pristine layout */}
-        <div className="flex lg:hidden flex-col items-center gap-6 w-full px-4">
+        <div className="flex lg:hidden flex-col items-center gap-6 w-full px-2">
           {/* Quote at top */}
           <p
             className={`text-lg font-medium italic text-center px-4 transition-opacity ${
@@ -249,7 +249,7 @@ function LetterButton({ letter, isExpanded, isDimmed, onClick, onClose }: Letter
         </Link>
       ) : isExpanded ? (
         // Expanded but no href (Story, Buy)
-        <div className="flex flex-col items-center gap-6 max-w-6xl px-4">
+        <div className="flex flex-col items-center gap-6 max-w-6xl px-0 sm:px-4">
           <div
             className={`${textClassName} text-[#ffff00] px-2`}
             style={expandedStyle}
@@ -367,10 +367,10 @@ function BuyContent() {
   const [selectedProduct, setSelectedProduct] = useState<'hoodie' | 'individual' | 'company' | null>(null);
 
   return (
-    <div className="flex flex-col items-center gap-8 w-full max-w-6xl py-4 px-4">
+    <div className="flex flex-col items-center gap-6 sm:gap-8 w-full max-w-6xl py-3 sm:py-4 px-0 sm:px-4">
       {/* Product Grid */}
       {!selectedProduct && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6 w-full">
           {/* Custom Hoodie Card - Coming Soon */}
           <div className="relative">
             <ProductCard
@@ -381,13 +381,13 @@ function BuyContent() {
               disabled
             />
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm rounded-lg flex items-center justify-center pointer-events-none">
-              <div className="text-center">
-                <p className="text-[#ffff00] text-2xl font-bold mb-2" style={{
+              <div className="text-center px-4">
+                <p className="text-[#ffff00] text-xl sm:text-2xl font-bold mb-2" style={{
                   textShadow: '0 0 10px rgba(255, 255, 0, 0.6)'
                 }}>
                   Coming Soon
                 </p>
-                <p className="text-[#f39c12] text-sm">
+                <p className="text-[#f39c12] text-xs sm:text-sm">
                   Custom hoodies will be available soon
                 </p>
               </div>
@@ -451,17 +451,19 @@ function BuyContent() {
       {/* Contact Info */}
       {!selectedProduct && (
         <div className="text-center mt-4">
-          <p className="text-[#f39c12] text-lg" style={{
+          <p className="text-[#f39c12] text-base sm:text-lg" style={{
             textShadow: '0 0 8px rgba(243, 156, 18, 0.5), 0 0 15px rgba(243, 156, 18, 0.3)'
           }}>
             Questions? Contact us at{' '}
-            <a href="mailto:duncan@slabtraining.com" className="underline hover:text-white transition-colors">
+            <a href="mailto:duncan@slabtraining.com" className="underline hover:text-white transition-colors break-all">
               duncan@slabtraining.com
             </a>
-            {' '}or{' '}
-            <a href="tel:5208341750" className="underline hover:text-white transition-colors">
-              520-834-1750
-            </a>
+            <span className="hidden sm:inline">{' '}or{' '}</span>
+            <span className="block sm:inline mt-2 sm:mt-0">
+              <a href="tel:5208341750" className="underline hover:text-white transition-colors">
+                520-834-1750
+              </a>
+            </span>
           </p>
         </div>
       )}
@@ -482,7 +484,7 @@ interface ProductCardProps {
 function ProductCard({ title, description, price, features, onClick, highlighted, disabled }: ProductCardProps) {
   return (
     <div
-      className={`relative bg-black/40 rounded-lg border-2 ${highlighted ? 'border-[#ffff00]' : 'border-[#f39c12]/50'} overflow-hidden backdrop-blur-sm p-6 flex flex-col gap-4 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-[#ffff00]'} transition-all group`}
+      className={`relative bg-black/40 rounded-lg border-2 ${highlighted ? 'border-[#ffff00]' : 'border-[#f39c12]/50'} overflow-hidden backdrop-blur-sm p-5 sm:p-6 flex flex-col gap-3 sm:gap-4 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-[#ffff00]'} transition-all group`}
       onClick={disabled ? undefined : onClick}
     >
       {/* Glow effect */}
@@ -494,37 +496,37 @@ function ProductCard({ title, description, price, features, onClick, highlighted
         }}
       />
 
-      <div className="relative z-10 flex flex-col gap-4 flex-1">
-        <h3 className="text-[#ffff00] text-2xl font-bold" style={{
+      <div className="relative z-10 flex flex-col gap-3 sm:gap-4 flex-1">
+        <h3 className="text-[#ffff00] text-xl sm:text-2xl font-bold" style={{
           textShadow: '0 0 10px rgba(255, 255, 0, 0.6), 0 0 20px rgba(255, 255, 0, 0.4)'
         }}>
           {title}
         </h3>
 
-        <p className="text-[#f39c12] text-sm leading-relaxed">
+        <p className="text-[#f39c12] text-xs sm:text-sm leading-relaxed">
           {description}
         </p>
 
         {features && (
-          <ul className="text-[#f39c12] text-sm space-y-2">
+          <ul className="text-[#f39c12] text-xs sm:text-sm space-y-1.5 sm:space-y-2">
             {features.map((feature, idx) => (
               <li key={idx} className="flex items-start gap-2">
-                <span className="text-[#ffff00] mt-1">•</span>
+                <span className="text-[#ffff00] mt-0.5 sm:mt-1 flex-shrink-0">•</span>
                 <span>{feature}</span>
               </li>
             ))}
           </ul>
         )}
 
-        <div className="mt-auto pt-4 border-t border-[#f39c12]/30">
-          <p className="text-[#ffff00] text-xl font-bold" style={{
+        <div className="mt-auto pt-3 sm:pt-4 border-t border-[#f39c12]/30">
+          <p className="text-[#ffff00] text-lg sm:text-xl font-bold" style={{
             textShadow: '0 0 8px rgba(255, 255, 0, 0.5)'
           }}>
             {price}
           </p>
         </div>
 
-        <button className="w-full bg-[#f39c12] hover:bg-[#ffff00] text-black font-bold py-3 rounded-lg transition-colors" style={{
+        <button className="w-full bg-[#f39c12] hover:bg-[#ffff00] text-black font-bold py-2.5 sm:py-3 rounded-lg transition-colors text-sm sm:text-base" style={{
           boxShadow: '0 0 20px rgba(243, 156, 18, 0.4)'
         }}>
           Learn More
@@ -561,27 +563,27 @@ function HoodieBuilder({ onBack }: { onBack: () => void }) {
     <div className="w-full max-w-4xl">
       <button
         onClick={onBack}
-        className="text-[#f39c12] hover:text-[#ffff00] mb-6 flex items-center gap-2 transition-colors"
+        className="text-[#f39c12] hover:text-[#ffff00] mb-4 sm:mb-6 flex items-center gap-2 transition-colors text-sm sm:text-base"
       >
         ← Back to Store
       </button>
 
-      <div className="bg-black/40 rounded-lg border-2 border-[#f39c12]/50 p-6 space-y-6">
-        <h3 className="text-[#ffff00] text-3xl font-bold text-center" style={{
+      <div className="bg-black/40 rounded-lg border-2 border-[#f39c12]/50 p-5 sm:p-6 space-y-4 sm:space-y-6">
+        <h3 className="text-[#ffff00] text-2xl sm:text-3xl font-bold text-center" style={{
           textShadow: '0 0 10px rgba(255, 255, 0, 0.6)'
         }}>
           Design Your 1 of 1 Hoodie
         </h3>
 
         {/* Hoodie Color */}
-        <div className="space-y-3">
-          <label className="text-[#f39c12] text-lg font-medium">Hoodie Color</label>
-          <div className="flex gap-4">
+        <div className="space-y-2 sm:space-y-3">
+          <label className="text-[#f39c12] text-base sm:text-lg font-medium">Hoodie Color</label>
+          <div className="flex gap-3 sm:gap-4">
             {['black', 'grey'].map((color) => (
               <button
                 key={color}
                 onClick={() => setHoodieColor(color as 'black' | 'grey')}
-                className={`px-6 py-3 rounded-lg font-medium transition-all ${
+                className={`flex-1 sm:flex-initial px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-medium transition-all text-sm sm:text-base ${
                   hoodieColor === color
                     ? 'bg-[#ffff00] text-black'
                     : 'bg-black/60 text-[#f39c12] border border-[#f39c12]/50 hover:border-[#ffff00]'
@@ -594,15 +596,15 @@ function HoodieBuilder({ onBack }: { onBack: () => void }) {
         </div>
 
         {/* Logo Placements */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <label className="text-[#f39c12] text-lg font-medium">
+        <div className="space-y-3 sm:space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-[#f39c12] text-base sm:text-lg font-medium">
               Logo Placements ({logos.length}/3)
             </label>
             {logos.length < 3 && (
               <button
                 onClick={addLogo}
-                className="bg-[#f39c12] hover:bg-[#ffff00] text-black font-medium px-4 py-2 rounded-lg transition-colors"
+                className="bg-[#f39c12] hover:bg-[#ffff00] text-black font-medium px-3 sm:px-4 py-2 rounded-lg transition-colors text-sm sm:text-base whitespace-nowrap"
               >
                 + Add Logo
               </button>
@@ -610,24 +612,24 @@ function HoodieBuilder({ onBack }: { onBack: () => void }) {
           </div>
 
           {logos.map((logo, index) => (
-            <div key={index} className="bg-black/60 rounded-lg p-4 space-y-3 border border-[#f39c12]/30">
+            <div key={index} className="bg-black/60 rounded-lg p-3 sm:p-4 space-y-3 border border-[#f39c12]/30">
               <div className="flex items-center justify-between">
-                <span className="text-[#ffff00] font-medium">Logo {index + 1}</span>
+                <span className="text-[#ffff00] font-medium text-sm sm:text-base">Logo {index + 1}</span>
                 <button
                   onClick={() => removeLogo(index)}
-                  className="text-[#f39c12] hover:text-red-500 transition-colors"
+                  className="text-[#f39c12] hover:text-red-500 transition-colors text-sm sm:text-base"
                 >
                   Remove
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <label className="text-[#f39c12] text-sm mb-2 block">Color</label>
+                  <label className="text-[#f39c12] text-xs sm:text-sm mb-2 block">Color</label>
                   <select
                     value={logo.color}
                     onChange={(e) => updateLogo(index, 'color', e.target.value)}
-                    className="w-full bg-black/60 border border-[#f39c12]/50 text-[#f39c12] rounded px-3 py-2"
+                    className="w-full bg-black/60 border border-[#f39c12]/50 text-[#f39c12] rounded px-3 py-2 text-sm sm:text-base"
                   >
                     {logoColors.map((color) => (
                       <option key={color} value={color}>{color}</option>
@@ -636,11 +638,11 @@ function HoodieBuilder({ onBack }: { onBack: () => void }) {
                 </div>
 
                 <div>
-                  <label className="text-[#f39c12] text-sm mb-2 block">Position</label>
+                  <label className="text-[#f39c12] text-xs sm:text-sm mb-2 block">Position</label>
                   <select
                     value={logo.position}
                     onChange={(e) => updateLogo(index, 'position', e.target.value)}
-                    className="w-full bg-black/60 border border-[#f39c12]/50 text-[#f39c12] rounded px-3 py-2"
+                    className="w-full bg-black/60 border border-[#f39c12]/50 text-[#f39c12] rounded px-3 py-2 text-sm sm:text-base"
                   >
                     {positions.map((pos) => (
                       <option key={pos} value={pos}>{pos}</option>
@@ -652,7 +654,7 @@ function HoodieBuilder({ onBack }: { onBack: () => void }) {
           ))}
 
           {logos.length === 0 && (
-            <p className="text-[#f39c12]/60 text-center py-8">
+            <p className="text-[#f39c12]/60 text-center py-6 sm:py-8 text-sm sm:text-base">
               Click "Add Logo" to start customizing your hoodie
             </p>
           )}
@@ -660,10 +662,10 @@ function HoodieBuilder({ onBack }: { onBack: () => void }) {
 
         {/* Summary & Contact Form Link */}
         {logos.length > 0 && (
-          <div className="pt-6 border-t border-[#f39c12]/30 space-y-4">
-            <div className="bg-black/60 rounded-lg p-4">
-              <h4 className="text-[#ffff00] font-medium mb-3">Your Design:</h4>
-              <div className="text-[#f39c12] space-y-2 text-sm">
+          <div className="pt-4 sm:pt-6 border-t border-[#f39c12]/30 space-y-3 sm:space-y-4">
+            <div className="bg-black/60 rounded-lg p-3 sm:p-4">
+              <h4 className="text-[#ffff00] font-medium mb-2 sm:mb-3 text-sm sm:text-base">Your Design:</h4>
+              <div className="text-[#f39c12] space-y-1 sm:space-y-2 text-xs sm:text-sm">
                 <p>• {hoodieColor.charAt(0).toUpperCase() + hoodieColor.slice(1)} hoodie</p>
                 {logos.map((logo, i) => (
                   <p key={i}>• {logo.color} logo on {logo.position}</p>
@@ -731,20 +733,20 @@ function InquiryForm({ productType, customData, onBack, inline }: InquiryFormPro
 
   if (submitted) {
     return (
-      <div className="bg-black/40 rounded-lg border-2 border-[#ffff00] p-8 text-center">
-        <div className="text-[#ffff00] text-5xl mb-4">✓</div>
-        <h3 className="text-[#ffff00] text-2xl font-bold mb-4" style={{
+      <div className="bg-black/40 rounded-lg border-2 border-[#ffff00] p-6 sm:p-8 text-center">
+        <div className="text-[#ffff00] text-4xl sm:text-5xl mb-3 sm:mb-4">✓</div>
+        <h3 className="text-[#ffff00] text-xl sm:text-2xl font-bold mb-3 sm:mb-4" style={{
           textShadow: '0 0 10px rgba(255, 255, 0, 0.6)'
         }}>
           Request Received!
         </h3>
-        <p className="text-[#f39c12] text-lg mb-6">
+        <p className="text-[#f39c12] text-sm sm:text-lg mb-4 sm:mb-6 break-words px-2">
           We'll contact you shortly at {formData.email} or {formData.phone}
         </p>
         {onBack && (
           <button
             onClick={onBack}
-            className="bg-[#f39c12] hover:bg-[#ffff00] text-black font-bold py-3 px-6 rounded-lg transition-colors"
+            className="bg-[#f39c12] hover:bg-[#ffff00] text-black font-bold py-2.5 sm:py-3 px-5 sm:px-6 rounded-lg transition-colors text-sm sm:text-base"
           >
             Back to Store
           </button>
@@ -754,10 +756,10 @@ function InquiryForm({ productType, customData, onBack, inline }: InquiryFormPro
   }
 
   const formContent = (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
       {!inline && (
         <>
-          <h3 className="text-[#ffff00] text-2xl font-bold text-center mb-6" style={{
+          <h3 className="text-[#ffff00] text-xl sm:text-2xl font-bold text-center mb-4 sm:mb-6" style={{
             textShadow: '0 0 10px rgba(255, 255, 0, 0.6)'
           }}>
             {productType === 'hoodie' && 'Request Your Custom Hoodie'}
@@ -766,16 +768,16 @@ function InquiryForm({ productType, customData, onBack, inline }: InquiryFormPro
           </h3>
 
           {productType === 'individual' && (
-            <div className="bg-black/60 rounded-lg p-4 mb-4">
-              <p className="text-[#f39c12] text-sm">
+            <div className="bg-black/60 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4">
+              <p className="text-[#f39c12] text-xs sm:text-sm">
                 <strong className="text-[#ffff00]">Includes:</strong> 3000+ hours of top 1% content, Patented Immersion Method, AI analytics
               </p>
             </div>
           )}
 
           {productType === 'company' && (
-            <div className="bg-black/60 rounded-lg p-4 mb-4">
-              <p className="text-[#f39c12] text-sm">
+            <div className="bg-black/60 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4">
+              <p className="text-[#f39c12] text-xs sm:text-sm">
                 <strong className="text-[#ffff00]">Includes:</strong> All Individual benefits + Company optimization, In-house messaging & leaderboard, Gameified learning, Training data & optics, and more
               </p>
             </div>
@@ -784,46 +786,46 @@ function InquiryForm({ productType, customData, onBack, inline }: InquiryFormPro
       )}
 
       <div>
-        <label className="text-[#f39c12] text-sm mb-2 block">Name *</label>
+        <label className="text-[#f39c12] text-xs sm:text-sm mb-1.5 sm:mb-2 block">Name *</label>
         <input
           type="text"
           required
           value={formData.name}
           onChange={(e) => setFormData({...formData, name: e.target.value})}
-          className="w-full bg-black/60 border border-[#f39c12]/50 text-white rounded px-4 py-2 focus:border-[#ffff00] focus:outline-none"
+          className="w-full bg-black/60 border border-[#f39c12]/50 text-white rounded px-3 sm:px-4 py-2 focus:border-[#ffff00] focus:outline-none text-sm sm:text-base"
         />
       </div>
 
       <div>
-        <label className="text-[#f39c12] text-sm mb-2 block">Email *</label>
+        <label className="text-[#f39c12] text-xs sm:text-sm mb-1.5 sm:mb-2 block">Email *</label>
         <input
           type="email"
           required
           value={formData.email}
           onChange={(e) => setFormData({...formData, email: e.target.value})}
-          className="w-full bg-black/60 border border-[#f39c12]/50 text-white rounded px-4 py-2 focus:border-[#ffff00] focus:outline-none"
+          className="w-full bg-black/60 border border-[#f39c12]/50 text-white rounded px-3 sm:px-4 py-2 focus:border-[#ffff00] focus:outline-none text-sm sm:text-base"
         />
       </div>
 
       <div>
-        <label className="text-[#f39c12] text-sm mb-2 block">Phone *</label>
+        <label className="text-[#f39c12] text-xs sm:text-sm mb-1.5 sm:mb-2 block">Phone *</label>
         <input
           type="tel"
           required
           value={formData.phone}
           onChange={(e) => setFormData({...formData, phone: e.target.value})}
-          className="w-full bg-black/60 border border-[#f39c12]/50 text-white rounded px-4 py-2 focus:border-[#ffff00] focus:outline-none"
+          className="w-full bg-black/60 border border-[#f39c12]/50 text-white rounded px-3 sm:px-4 py-2 focus:border-[#ffff00] focus:outline-none text-sm sm:text-base"
         />
       </div>
 
       {productType === 'individual' && (
         <>
           <div>
-            <label className="text-[#f39c12] text-sm mb-2 block">Industry *</label>
+            <label className="text-[#f39c12] text-xs sm:text-sm mb-1.5 sm:mb-2 block">Industry *</label>
             <select
               value={formData.industry}
               onChange={(e) => setFormData({...formData, industry: e.target.value})}
-              className="w-full bg-black/60 border border-[#f39c12]/50 text-white rounded px-4 py-2 focus:border-[#ffff00] focus:outline-none"
+              className="w-full bg-black/60 border border-[#f39c12]/50 text-white rounded px-3 sm:px-4 py-2 focus:border-[#ffff00] focus:outline-none text-sm sm:text-base"
             >
               <option value="Pest">Pest</option>
               <option value="Roofing">Roofing</option>
@@ -833,11 +835,11 @@ function InquiryForm({ productType, customData, onBack, inline }: InquiryFormPro
           </div>
 
           <div>
-            <label className="text-[#f39c12] text-sm mb-2 block">Payment Plan *</label>
+            <label className="text-[#f39c12] text-xs sm:text-sm mb-1.5 sm:mb-2 block">Payment Plan *</label>
             <select
               value={formData.paymentPlan}
               onChange={(e) => setFormData({...formData, paymentPlan: e.target.value})}
-              className="w-full bg-black/60 border border-[#f39c12]/50 text-white rounded px-4 py-2 focus:border-[#ffff00] focus:outline-none"
+              className="w-full bg-black/60 border border-[#f39c12]/50 text-white rounded px-3 sm:px-4 py-2 focus:border-[#ffff00] focus:outline-none text-sm sm:text-base"
             >
               <option value="summer">$500 for the summer</option>
               <option value="monthly">$100 per month</option>
@@ -847,12 +849,12 @@ function InquiryForm({ productType, customData, onBack, inline }: InquiryFormPro
       )}
 
       <div>
-        <label className="text-[#f39c12] text-sm mb-2 block">Additional Information</label>
+        <label className="text-[#f39c12] text-xs sm:text-sm mb-1.5 sm:mb-2 block">Additional Information</label>
         <textarea
           value={formData.message}
           onChange={(e) => setFormData({...formData, message: e.target.value})}
           rows={4}
-          className="w-full bg-black/60 border border-[#f39c12]/50 text-white rounded px-4 py-2 focus:border-[#ffff00] focus:outline-none"
+          className="w-full bg-black/60 border border-[#f39c12]/50 text-white rounded px-3 sm:px-4 py-2 focus:border-[#ffff00] focus:outline-none text-sm sm:text-base"
           placeholder="Any questions or special requests?"
         />
       </div>
@@ -860,7 +862,7 @@ function InquiryForm({ productType, customData, onBack, inline }: InquiryFormPro
       <button
         type="submit"
         disabled={submitting}
-        className="w-full bg-[#f39c12] hover:bg-[#ffff00] text-black font-bold py-3 rounded-lg transition-colors disabled:opacity-50"
+        className="w-full bg-[#f39c12] hover:bg-[#ffff00] text-black font-bold py-2.5 sm:py-3 rounded-lg transition-colors disabled:opacity-50 text-sm sm:text-base"
         style={{
           boxShadow: '0 0 20px rgba(243, 156, 18, 0.4)'
         }}
@@ -868,14 +870,14 @@ function InquiryForm({ productType, customData, onBack, inline }: InquiryFormPro
         {submitting ? 'Submitting...' : 'Submit Request'}
       </button>
 
-      <p className="text-[#f39c12] text-xs text-center">
+      <p className="text-[#f39c12] text-xs sm:text-sm text-center">
         We'll contact you within 24 hours at the email or phone you provided
       </p>
     </form>
   );
 
   if (inline) {
-    return <div className="space-y-4">{formContent}</div>;
+    return <div className="space-y-3 sm:space-y-4">{formContent}</div>;
   }
 
   return (
@@ -883,12 +885,12 @@ function InquiryForm({ productType, customData, onBack, inline }: InquiryFormPro
       {onBack && (
         <button
           onClick={onBack}
-          className="text-[#f39c12] hover:text-[#ffff00] mb-6 flex items-center gap-2 transition-colors"
+          className="text-[#f39c12] hover:text-[#ffff00] mb-4 sm:mb-6 flex items-center gap-2 transition-colors text-sm sm:text-base"
         >
           ← Back to Store
         </button>
       )}
-      <div className="bg-black/40 rounded-lg border-2 border-[#f39c12]/50 p-6">
+      <div className="bg-black/40 rounded-lg border-2 border-[#f39c12]/50 p-5 sm:p-6">
         {formContent}
       </div>
     </div>
@@ -897,7 +899,7 @@ function InquiryForm({ productType, customData, onBack, inline }: InquiryFormPro
 
 function StoryContent() {
   return (
-    <div className="flex flex-col items-center gap-6 w-full max-w-4xl py-4">
+    <div className="flex flex-col items-center gap-3 sm:gap-6 w-full max-w-4xl py-2 sm:py-4">
       {/* Video Placeholder */}
       <div className="relative w-full aspect-video max-w-3xl">
         {/* Orange glow effect */}
@@ -921,12 +923,12 @@ function StoryContent() {
             }}
           />
           {/* Placeholder content */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 z-20">
-            <div className="w-20 h-20 rounded-full border-4 border-[#f39c12]/50 flex items-center justify-center">
-              <div className="w-0 h-0 border-l-[20px] border-l-[#f39c12] border-t-[12px] border-t-transparent border-b-[12px] border-b-transparent ml-1"></div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 sm:gap-4 z-20">
+            <div className="w-12 h-12 sm:w-20 sm:h-20 rounded-full border-2 sm:border-4 border-[#f39c12]/50 flex items-center justify-center">
+              <div className="w-0 h-0 border-l-[12px] sm:border-l-[20px] border-l-[#f39c12] border-t-[8px] sm:border-t-[12px] border-t-transparent border-b-[8px] sm:border-b-[12px] border-b-transparent ml-1"></div>
             </div>
             <p
-              className="text-[#f39c12] text-xl font-medium tracking-wide"
+              className="text-[#f39c12] text-base sm:text-xl font-medium tracking-wide"
               style={{
                 textShadow: '0 0 10px rgba(243, 156, 18, 0.6), 0 0 20px rgba(243, 156, 18, 0.4)'
               }}
@@ -951,9 +953,9 @@ function StoryContent() {
       </div>
 
       {/* Optional: Story description text */}
-      <div className="text-center max-w-2xl px-4">
+      <div className="text-center max-w-2xl px-1 sm:px-4">
         <p
-          className="text-[#f39c12] text-lg leading-relaxed"
+          className="text-[#f39c12] text-sm sm:text-lg leading-relaxed"
           style={{
             textShadow: '0 0 8px rgba(243, 156, 18, 0.5), 0 0 15px rgba(243, 156, 18, 0.3)'
           }}
