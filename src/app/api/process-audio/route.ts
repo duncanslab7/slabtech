@@ -596,7 +596,7 @@ export async function POST(request: NextRequest) {
         // Third pass: Save to database
         for (const { conversation, analysis } of finalConversations) {
 
-          const objectionTimestamps = analysis.objectionsWithText.map(objection => {
+          const objectionTimestamps = analysis.objectionsWithText.map((objection: { type: string; text: string }) => {
             const timestamp = findTextTimestamp(objection.text, conversation.words)
             return {
               type: objection.type,
