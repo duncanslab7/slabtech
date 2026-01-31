@@ -16,10 +16,22 @@ export default function AdminUploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  // Metadata state
+  const [actualSalesCount, setActualSalesCount] = useState<string>('');
+  const [expectedCustomerCount, setExpectedCustomerCount] = useState<string>('');
+  const [areaType, setAreaType] = useState<string>('');
+  const [estimatedDurationHours, setEstimatedDurationHours] = useState<string>('');
+  const [uploadNotes, setUploadNotes] = useState<string>('');
+
   const { loading, uploadProgress, message, uploadAudio } = useAudioUpload({
     onSuccess: () => {
       setSalespersonId('');
       setFile(null);
+      setActualSalesCount('');
+      setExpectedCustomerCount('');
+      setAreaType('');
+      setEstimatedDurationHours('');
+      setUploadNotes('');
       const fileInput = document.getElementById('file-upload') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
     },
@@ -41,7 +53,16 @@ export default function AdminUploadPage() {
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file || !salespersonId) return;
-    await uploadAudio(file, salespersonId);
+
+    const metadata = {
+      actualSalesCount: actualSalesCount ? parseInt(actualSalesCount) : undefined,
+      expectedCustomerCount: expectedCustomerCount ? parseInt(expectedCustomerCount) : undefined,
+      areaType: areaType || undefined,
+      estimatedDurationHours: estimatedDurationHours ? parseFloat(estimatedDurationHours) : undefined,
+      uploadNotes: uploadNotes || undefined,
+    };
+
+    await uploadAudio(file, salespersonId, metadata);
   };
 
   return (
@@ -143,6 +164,107 @@ export default function AdminUploadPage() {
                   }}
                   disabled={loading}
                 />
+              </div>
+            </div>
+
+            {/* Metadata Fields */}
+            <div className="border-t border-gray-200 pt-6 space-y-4">
+              <h3 className="text-sm font-semibold text-midnight-blue mb-4">
+                Recording Details (Optional - helps improve AI accuracy)
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Actual Sales Count */}
+                <div>
+                  <label className="block text-sm font-medium text-midnight-blue mb-2">
+                    Actual Sales Count
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={actualSalesCount}
+                    onChange={(e) => setActualSalesCount(e.target.value)}
+                    placeholder="e.g., 7"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">How many sales did the rep actually get?</p>
+                </div>
+
+                {/* Expected Customer Count */}
+                <div>
+                  <label className="block text-sm font-medium text-midnight-blue mb-2">
+                    Customers Talked To
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={expectedCustomerCount}
+                    onChange={(e) => setExpectedCustomerCount(e.target.value)}
+                    placeholder="e.g., 50"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">How many doors/customers did they talk to?</p>
+                </div>
+
+                {/* Area Type */}
+                <div>
+                  <label className="block text-sm font-medium text-midnight-blue mb-2">
+                    Area Type
+                  </label>
+                  <select
+                    value={areaType}
+                    onChange={(e) => setAreaType(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={loading}
+                  >
+                    <option value="">Select area type...</option>
+                    <option value="city">City</option>
+                    <option value="suburb">Suburb</option>
+                    <option value="boonies">Boonies</option>
+                    <option value="townhomes">Townhomes</option>
+                    <option value="lake_homes">Lake Homes</option>
+                    <option value="rural">Rural</option>
+                    <option value="mixed">Mixed</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">What type of area were they working?</p>
+                </div>
+
+                {/* Estimated Duration */}
+                <div>
+                  <label className="block text-sm font-medium text-midnight-blue mb-2">
+                    Recording Duration (hours)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    max="24"
+                    value={estimatedDurationHours}
+                    onChange={(e) => setEstimatedDurationHours(e.target.value)}
+                    placeholder="e.g., 8"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Approximately how long is this recording?</p>
+                </div>
+              </div>
+
+              {/* Upload Notes */}
+              <div>
+                <label className="block text-sm font-medium text-midnight-blue mb-2">
+                  Additional Notes
+                </label>
+                <textarea
+                  value={uploadNotes}
+                  onChange={(e) => setUploadNotes(e.target.value)}
+                  placeholder="Any additional context? (e.g., 'Team event day', 'Lots of callbacks', 'New neighborhood')"
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  disabled={loading}
+                />
+                <p className="text-xs text-gray-500 mt-1">Provide any context that might help with analysis</p>
               </div>
             </div>
 

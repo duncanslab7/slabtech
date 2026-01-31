@@ -137,13 +137,17 @@ export function detectPiiMatches(words: WordLike[], piiConfig: string): PiiMatch
 
   // Multi-word credit card detection: scan 8-12 word windows for structured card patterns
   // Requires first digit to be valid BIN prefix (4, 5, 37, 6) and consistent 4-digit grouping
+  // IMPORTANT: Excludes price discussions by checking for money-related keywords
   if (shouldUseField('credit_card', piiConfig)) {
     const maxWindow = 12 // Reduced from 20 - cards should be spoken in ~4 groups
+    const priceKeywords = ['dollar', 'dollars', 'price', 'cost', 'payment', 'monthly', 'yearly', 'annual', 'per', 'total', 'savings', 'save', 'discount']
+
     for (let i = 0; i < words.length; i++) {
       let combined = ''
       let start = words[i].start
       let end = words[i].end
       let digitGroups: string[] = []
+      let hasPriceContext = false
 
       for (let w = 0; w < maxWindow && i + w < words.length; w++) {
         const segment = (words[i + w].word || '').trim()
@@ -152,24 +156,33 @@ export function detectPiiMatches(words: WordLike[], piiConfig: string): PiiMatch
           end = words[i + w].end
         }
 
-        // Extract digit groups (sequences of 3-4 digits)
+        // Check if this looks like a price discussion
+        const lowerSegment = segment.toLowerCase()
+        if (priceKeywords.some(kw => lowerSegment.includes(kw))) {
+          hasPriceContext = true
+        }
+
+        // Extract digit groups - MUST be exactly 4 digits (not 3)
         const wordDigits = segment.replace(/\D/g, '')
-        if (wordDigits.length >= 3 && wordDigits.length <= 4) {
+        if (wordDigits.length === 4) {  // Changed from >= 3 to exactly 4
           digitGroups.push(wordDigits)
         }
 
         // Check if combined text matches credit card pattern
         if (regexes.credit_card.test(combined)) {
-          addMatch(start, end, 'credit_card')
-          i += w
-          break
+          // Skip if this looks like a price discussion
+          if (!hasPriceContext) {
+            addMatch(start, end, 'credit_card')
+            i += w
+            break
+          }
         }
 
-        // Check if we have 4 groups of 4 digits (typical card format)
+        // Check if we have 4 groups of EXACTLY 4 digits (typical card format)
         if (digitGroups.length === 4 && digitGroups.every(g => g.length === 4)) {
           const firstDigit = digitGroups[0][0]
           // Validate BIN prefix (Visa=4, MC=5, Amex=3, Discover=6)
-          if (['4', '5', '3', '6'].includes(firstDigit)) {
+          if (['4', '5', '3', '6'].includes(firstDigit) && !hasPriceContext) {
             addMatch(start, end, 'credit_card')
             i += w
             break
@@ -186,8 +199,19 @@ export function detectPiiMatches(words: WordLike[], piiConfig: string): PiiMatch
 
   // Multi-word address/location detection: scan 2-6 word windows
   // Catches patterns like "123 Main Street" but excludes year references like "2008 Main"
+  // Also excludes common sales talk like "15 neighbors" or "20 homes"
   if (shouldUseField('address', piiConfig)) {
     const maxWindow = 6
+    // Words that indicate counts/quantities, not addresses
+    const nonAddressWords = [
+      'neighbors', 'neighbor', 'homes', 'home', 'houses', 'house',
+      'people', 'customers', 'customer', 'clients', 'client',
+      'doors', 'door', 'families', 'family', 'properties', 'property',
+      'residents', 'resident', 'homeowners', 'homeowner',
+      'appointments', 'appointment', 'calls', 'call', 'sales', 'sale',
+      'units', 'unit'
+    ]
+
     for (let i = 0; i < words.length; i++) {
       const firstWord = (words[i].word || '').trim()
 
@@ -204,6 +228,7 @@ export function detectPiiMatches(words: WordLike[], piiConfig: string): PiiMatch
       let combined = ''
       let start = words[i].start
       let end = words[i].end
+      let hasNonAddressWord = false
 
       for (let w = 0; w < maxWindow && i + w < words.length; w++) {
         const segment = (words[i + w].word || '').trim()
@@ -212,13 +237,27 @@ export function detectPiiMatches(words: WordLike[], piiConfig: string): PiiMatch
           end = words[i + w].end
         }
 
+        // Check if ANY word in the window is a non-address word
+        const lowerSegment = segment.toLowerCase()
+        if (nonAddressWords.includes(lowerSegment)) {
+          hasNonAddressWord = true
+          console.log(`[PII] Skipping potential address "${combined}" - contains non-address word: ${lowerSegment}`)
+          break // This is a count, not an address
+        }
+
         // Check if matches address pattern (already has year exclusion in regex)
         const hasStreet = regexes.address.test(combined)
         const hasCityState = regexes.city_state.test(combined)
 
         if (hasStreet || hasCityState) {
-          addMatch(start, end, 'address')
-          i += w // Skip past this match
+          // Only mark as address if NO non-address words were found
+          if (!hasNonAddressWord) {
+            console.log(`[PII] Detected address: "${combined}"`)
+            addMatch(start, end, 'address')
+            i += w // Skip past this match
+          } else {
+            console.log(`[PII] Skipping address match "${combined}" - has non-address context`)
+          }
           break
         }
       }

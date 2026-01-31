@@ -151,6 +151,64 @@ export default async function TranscriptDetailsPage({ params, searchParams }: Tr
                   {transcript.redaction_config_used}
                 </span>
               </div>
+
+              {/* Upload Metadata Section */}
+              {(transcript.actual_sales_count || transcript.expected_customer_count || transcript.area_type || transcript.estimated_duration_hours || transcript.upload_notes) && (
+                <>
+                  <div className="border-t border-gray-200 pt-4 mt-4">
+                    <Heading level={4} size="sm" className="mb-3 text-gray-900">
+                      Recording Context
+                    </Heading>
+                  </div>
+
+                  {transcript.actual_sales_count !== null && transcript.actual_sales_count !== undefined && (
+                    <div>
+                      <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1 text-gray-600">
+                        Actual Sales
+                      </Text>
+                      <Text variant="emphasis" className="text-gray-900">{transcript.actual_sales_count} sale{transcript.actual_sales_count !== 1 ? 's' : ''}</Text>
+                    </div>
+                  )}
+
+                  {transcript.expected_customer_count !== null && transcript.expected_customer_count !== undefined && (
+                    <div>
+                      <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1 text-gray-600">
+                        Customers Talked To
+                      </Text>
+                      <Text variant="emphasis" className="text-gray-900">{transcript.expected_customer_count} customer{transcript.expected_customer_count !== 1 ? 's' : ''}</Text>
+                    </div>
+                  )}
+
+                  {transcript.area_type && (
+                    <div>
+                      <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1 text-gray-600">
+                        Area Type
+                      </Text>
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                        {transcript.area_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                      </span>
+                    </div>
+                  )}
+
+                  {transcript.estimated_duration_hours !== null && transcript.estimated_duration_hours !== undefined && (
+                    <div>
+                      <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1 text-gray-600">
+                        Estimated Duration
+                      </Text>
+                      <Text variant="emphasis" className="text-gray-900">{transcript.estimated_duration_hours} hour{transcript.estimated_duration_hours !== 1 ? 's' : ''}</Text>
+                    </div>
+                  )}
+
+                  {transcript.upload_notes && (
+                    <div>
+                      <Text variant="muted" size="sm" className="uppercase tracking-wide mb-1 text-gray-600">
+                        Notes
+                      </Text>
+                      <Text className="text-gray-700 italic">"{transcript.upload_notes}"</Text>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>

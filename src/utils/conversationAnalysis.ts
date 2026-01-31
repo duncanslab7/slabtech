@@ -34,18 +34,28 @@ export interface ConversationAnalysis {
   analysisError?: string
 }
 
+export interface UploadMetadata {
+  actualSalesCount?: number
+  expectedCustomerCount?: number
+  areaType?: string
+  estimatedDurationHours?: number
+  uploadNotes?: string
+}
+
 /**
  * Analyze a conversation to categorize it and detect objections
  *
  * @param conversationText - The full text of the conversation
  * @param piiRedactionCount - Number of PII redactions in the conversation timeframe
  * @param anthropicApiKey - Anthropic API key for Claude analysis
+ * @param metadata - Optional upload metadata for context
  * @returns Analysis results
  */
 export async function analyzeConversation(
   conversationText: string,
   piiRedactionCount: number,
-  anthropicApiKey?: string
+  anthropicApiKey?: string,
+  metadata?: UploadMetadata
 ): Promise<ConversationAnalysis> {
   try {
     // Step 1: Check for price mentions (rule-based)
@@ -61,7 +71,7 @@ export async function analyzeConversation(
 
     if (anthropicApiKey) {
       try {
-        const result = await detectObjections(conversationText, anthropicApiKey)
+        const result = await detectObjections(conversationText, anthropicApiKey, metadata)
         objections = result.objections
         objectionsWithText = result.objectionsWithText
       } catch (error) {
@@ -158,18 +168,53 @@ function categorizeConversation(
  */
 async function detectObjections(
   conversationText: string,
-  anthropicApiKey: string
+  anthropicApiKey: string,
+  metadata?: UploadMetadata
 ): Promise<{ objections: ObjectionType[], objectionsWithText: ObjectionWithText[] }> {
   const anthropic = new Anthropic({
     apiKey: anthropicApiKey
   })
+
+  // Build context string from metadata
+  let contextInfo = ''
+  if (metadata) {
+    const contextParts = []
+    if (metadata.actualSalesCount !== undefined) {
+      contextParts.push(`The rep reported making ${metadata.actualSalesCount} sale(s) during this recording`)
+    }
+    if (metadata.expectedCustomerCount !== undefined) {
+      contextParts.push(`The rep talked to approximately ${metadata.expectedCustomerCount} customers`)
+    }
+    if (metadata.areaType) {
+      const areaTypeLabels: Record<string, string> = {
+        city: 'city area',
+        suburb: 'suburban area',
+        boonies: 'rural/boonies area',
+        townhomes: 'townhomes',
+        lake_homes: 'lake homes area',
+        rural: 'rural area',
+        mixed: 'mixed area types'
+      }
+      contextParts.push(`This was in a ${areaTypeLabels[metadata.areaType] || metadata.areaType}`)
+    }
+    if (metadata.estimatedDurationHours !== undefined) {
+      contextParts.push(`Recording is approximately ${metadata.estimatedDurationHours} hours long`)
+    }
+    if (metadata.uploadNotes) {
+      contextParts.push(`Rep notes: "${metadata.uploadNotes}"`)
+    }
+
+    if (contextParts.length > 0) {
+      contextInfo = `\n\nRECORDING CONTEXT (from rep):\n${contextParts.join('\n')}\n`
+    }
+  }
 
   const prompt = `You are analyzing a door-to-door PEST CONTROL sales conversation to identify customer objections and the EXACT PHRASES where they occur.
 
 IMPORTANT CONTEXT:
 - This is a pest control service sales call
 - The salesperson is selling ongoing pest treatment subscriptions
-- Listen carefully for objections, even subtle ones
+- Listen carefully for objections, even subtle ones${contextInfo}
 
 CONVERSATION TEXT:
 ${conversationText}

@@ -12,12 +12,20 @@ interface UploadState {
   message: { type: 'success' | 'error'; text: string } | null;
 }
 
+interface UploadMetadata {
+  actualSalesCount?: number;
+  expectedCustomerCount?: number;
+  areaType?: string;
+  estimatedDurationHours?: number;
+  uploadNotes?: string;
+}
+
 export function useAudioUpload(options?: UseAudioUploadOptions) {
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const uploadAudio = async (file: File, salespersonId: string) => {
+  const uploadAudio = async (file: File, salespersonId: string, metadata?: UploadMetadata) => {
     setLoading(true);
     setMessage(null);
     setUploadProgress('');
@@ -66,6 +74,7 @@ export function useAudioUpload(options?: UseAudioUploadOptions) {
           filePath: filePath,
           originalFilename: file.name,
           salespersonId: salespersonId,
+          metadata: metadata,
         }),
       });
 

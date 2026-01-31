@@ -297,7 +297,7 @@ async function pollTranscript(transcriptId: string, apiKey: string): Promise<Ass
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { filePath, originalFilename, salespersonId } = body
+    const { filePath, originalFilename, salespersonId, metadata } = body
 
     if (!filePath) {
       return NextResponse.json({ error: 'File path is required' }, { status: 400 })
@@ -468,7 +468,7 @@ export async function POST(request: NextRequest) {
         .eq('id', user.id)
         .single()
 
-      // 9) Save transcript + redaction metadata
+      // 9) Save transcript + redaction metadata + upload metadata
       const { data: transcriptData, error: transcriptError } = await supabase
         .from('transcripts')
         .insert({
@@ -485,6 +485,12 @@ export async function POST(request: NextRequest) {
           redaction_config_used: piiFields,
           uploaded_by: user.id,
           company_id: uploaderProfile?.company_id,
+          // Metadata fields
+          actual_sales_count: metadata?.actualSalesCount,
+          expected_customer_count: metadata?.expectedCustomerCount,
+          area_type: metadata?.areaType,
+          estimated_duration_hours: metadata?.estimatedDurationHours,
+          upload_notes: metadata?.uploadNotes,
         })
         .select()
         .single()
@@ -518,6 +524,14 @@ export async function POST(request: NextRequest) {
 
         const anthropicKey = process.env.ANTHROPIC_API_KEY
 
+        // First pass: analyze all conversations and collect PII counts
+        const conversationsWithAnalysis: Array<{
+          conversation: any
+          conversationText: string
+          piiCount: number
+          analysis: any
+        }> = []
+
         for (const conversation of conversations) {
           const conversationText = getConversationText(conversation)
           const piiCount = countPiiInConversation(validatedPiiMatches, conversation)
@@ -525,8 +539,62 @@ export async function POST(request: NextRequest) {
           const analysis = await analyzeConversation(
             conversationText,
             piiCount,
-            anthropicKey
+            anthropicKey,
+            metadata
           )
+
+          conversationsWithAnalysis.push({
+            conversation,
+            conversationText,
+            piiCount,
+            analysis
+          })
+        }
+
+        // Second pass: Calibrate sales using actual sales count from metadata
+        let finalConversations = conversationsWithAnalysis
+        if (metadata?.actualSalesCount !== undefined && metadata.actualSalesCount > 0) {
+          console.log(`Calibrating sales count: Rep reported ${metadata.actualSalesCount} sales`)
+
+          // Filter to conversations that mentioned price
+          const priceConversations = conversationsWithAnalysis.filter(c => c.analysis.hasPriceMention)
+
+          // Sort by PII count (highest first) - conversations with more PII likely have credit cards
+          priceConversations.sort((a, b) => b.piiCount - a.piiCount)
+
+          // Mark top N conversations as sales (where N = actual sales count)
+          const salesConversations = new Set(
+            priceConversations
+              .slice(0, metadata.actualSalesCount)
+              .map(c => c.conversation.conversationNumber)
+          )
+
+          console.log(`Marking conversations as sales based on PII count: ${Array.from(salesConversations).join(', ')}`)
+
+          // Update categories: top N = sale, rest with price = pitch, no price = interaction
+          finalConversations = conversationsWithAnalysis.map(item => {
+            let category = item.analysis.category
+
+            if (salesConversations.has(item.conversation.conversationNumber)) {
+              category = 'sale'
+            } else if (item.analysis.hasPriceMention) {
+              category = 'pitch'
+            } else {
+              category = 'interaction'
+            }
+
+            return {
+              ...item,
+              analysis: {
+                ...item.analysis,
+                category
+              }
+            }
+          })
+        }
+
+        // Third pass: Save to database
+        for (const { conversation, analysis } of finalConversations) {
 
           const objectionTimestamps = analysis.objectionsWithText.map(objection => {
             const timestamp = findTextTimestamp(objection.text, conversation.words)
