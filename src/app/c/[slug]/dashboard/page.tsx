@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import { useAudioUpload } from '@/hooks/useAudioUpload';
+import { useLockedSections } from '@/hooks/useLockedSections';
 
 interface Transcript {
   id: string;
@@ -78,6 +79,8 @@ export default function CompanyDashboard() {
       if (fileInput) fileInput.value = '';
     },
   });
+
+  const { transcripts: transcriptsLock, trainingPlaylists: trainingPlaylistsLock } = useLockedSections();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -820,48 +823,82 @@ export default function CompanyDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Subscriptions Box */}
               <div
-                onClick={() => handleBoxClick('transcripts')}
-                className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow border-2 border-transparent hover:border-success-gold"
+                onClick={() => !transcriptsLock.locked && handleBoxClick('transcripts')}
+                className={`bg-white rounded-lg shadow p-6 transition-shadow border-2 ${
+                  transcriptsLock.locked
+                    ? 'opacity-75 cursor-not-allowed border-gray-300'
+                    : 'cursor-pointer hover:shadow-lg border-transparent hover:border-success-gold'
+                }`}
               >
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-semibold text-midnight-blue">Subscriptions</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-semibold text-midnight-blue">Subscriptions</h3>
+                    {transcriptsLock.locked && <span className="text-xl">🔒</span>}
+                  </div>
                   <svg className="w-6 h-6 text-success-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
-                <div className="space-y-2">
-                  {subscribedSalespeople.length > 0 ? (
-                    subscribedSalespeople.slice(0, 3).map((name, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-success-gold to-amber-600 flex items-center justify-center text-white text-sm font-bold">
-                          {name.charAt(0)}
+                {transcriptsLock.locked ? (
+                  <div>
+                    <p className="text-sm text-gray-600 mb-2">Complete required quiz to unlock</p>
+                    <Link href={`/c/${slug}/training`} className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                      Go to Training →
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {subscribedSalespeople.length > 0 ? (
+                      subscribedSalespeople.slice(0, 3).map((name, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-success-gold to-amber-600 flex items-center justify-center text-white text-sm font-bold">
+                            {name.charAt(0)}
+                          </div>
+                          <span className="text-sm text-steel-gray">{name}</span>
                         </div>
-                        <span className="text-sm text-steel-gray">{name}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-steel-gray">No subscriptions yet</p>
-                  )}
-                  {subscribedSalespeople.length > 3 && (
-                    <p className="text-xs text-steel-gray">+{subscribedSalespeople.length - 3} more</p>
-                  )}
-                </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-steel-gray">No subscriptions yet</p>
+                    )}
+                    {subscribedSalespeople.length > 3 && (
+                      <p className="text-xs text-steel-gray">+{subscribedSalespeople.length - 3} more</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Training Playlists Box */}
               <div
-                onClick={() => handleBoxClick('playlists')}
-                className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow border-2 border-transparent hover:border-success-gold"
+                onClick={() => !trainingPlaylistsLock.locked && handleBoxClick('playlists')}
+                className={`bg-white rounded-lg shadow p-6 transition-shadow border-2 ${
+                  trainingPlaylistsLock.locked
+                    ? 'opacity-75 cursor-not-allowed border-gray-300'
+                    : 'cursor-pointer hover:shadow-lg border-transparent hover:border-success-gold'
+                }`}
               >
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-semibold text-midnight-blue">Training Playlists</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-semibold text-midnight-blue">Training Playlists</h3>
+                    {trainingPlaylistsLock.locked && <span className="text-xl">🔒</span>}
+                  </div>
                   <svg className="w-6 h-6 text-success-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                 </div>
-                <p className="text-sm text-steel-gray">Practice specific objection handling</p>
-                <p className="text-3xl font-bold text-success-gold mt-4">{playlists.length}</p>
-                <p className="text-xs text-steel-gray">Available playlists</p>
+                {trainingPlaylistsLock.locked ? (
+                  <div>
+                    <p className="text-sm text-gray-600 mb-2">Complete required quiz to unlock</p>
+                    <Link href={`/c/${slug}/training`} className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                      Go to Training →
+                    </Link>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm text-steel-gray">Practice specific objection handling</p>
+                    <p className="text-3xl font-bold text-success-gold mt-4">{playlists.length}</p>
+                    <p className="text-xs text-steel-gray">Available playlists</p>
+                  </>
+                )}
               </div>
 
               {/* Favorites Box */}
@@ -893,7 +930,10 @@ export default function CompanyDashboard() {
               </div>
 
               {/* Company Training Videos Box */}
-              <div className="bg-white rounded-lg shadow p-6 cursor-not-allowed opacity-60 border-2 border-gray-200">
+              <Link
+                href={`/c/${slug}/training`}
+                className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow border-2 border-transparent hover:border-success-gold block"
+              >
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-semibold text-midnight-blue">Company Training</h3>
                   <svg className="w-6 h-6 text-success-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -901,8 +941,7 @@ export default function CompanyDashboard() {
                   </svg>
                 </div>
                 <p className="text-sm text-steel-gray">Company-specific training videos and resources</p>
-                <p className="text-xs text-amber-600 mt-4">Coming Soon</p>
-              </div>
+              </Link>
 
               {/* Company Leaderboard Box */}
               <Link

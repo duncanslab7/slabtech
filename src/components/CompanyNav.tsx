@@ -38,6 +38,14 @@ export function CompanyNav({ slug, isCompanyAdmin, primaryColor, secondaryColor 
         >
           Chat
         </Link>
+        <Link
+          href={`/c/${slug}/training`}
+          style={getLinkStyle('training')}
+          onMouseEnter={() => setHoveredLink('training')}
+          onMouseLeave={() => setHoveredLink(null)}
+        >
+          Training
+        </Link>
         {isCompanyAdmin && (
           <>
             <Link
@@ -71,10 +79,10 @@ export function CompanyNav({ slug, isCompanyAdmin, primaryColor, secondaryColor 
       {/* Mobile: Chat Button (floating) */}
       <Link
         href={`/c/${slug}/chat`}
-        className="md:hidden"
-        style={{ color: primaryColor }}
+        className="md:hidden flex items-center justify-center w-10 h-10 rounded-full shadow-lg hover:shadow-xl transition-shadow"
+        style={{ backgroundColor: primaryColor }}
       >
-        💬
+        <span className="text-white text-xl">💬</span>
       </Link>
     </>
   )
