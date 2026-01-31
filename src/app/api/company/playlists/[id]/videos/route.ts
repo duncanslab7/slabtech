@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 // POST /api/company/playlists/[id]/videos - Add video to playlist (company admin only)
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
@@ -25,7 +25,7 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    const playlistId = params.id
+    const { id: playlistId } = await params
     const body = await request.json()
     const { video_id, position } = body
 
@@ -110,7 +110,7 @@ export async function POST(
 // DELETE /api/company/playlists/[id]/videos?video_id=xxx - Remove video from playlist
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient()
@@ -131,7 +131,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    const playlistId = params.id
+    const { id: playlistId } = await params
     const { searchParams } = new URL(request.url)
     const videoId = searchParams.get('video_id')
 
