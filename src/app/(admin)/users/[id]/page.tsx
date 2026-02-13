@@ -52,13 +52,17 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
   const [assignments, setAssignments] = useState<TranscriptAssignment[]>([]);
   const [availableTranscripts, setAvailableTranscripts] = useState<AvailableTranscript[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'details' | 'transcripts' | 'playlists' | 'activity'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'transcripts' | 'playlists' | 'training' | 'activity'>('details');
   const [playlists, setPlaylists] = useState<Array<{ objectionType: string; conversationCount: number }>>([]);
   const [subscriptions, setSubscriptions] = useState<Array<{ id: string; salesperson_name: string; created_at: string }>>([]);
   const [availableSalespeople, setAvailableSalespeople] = useState<string[]>([]);
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
   const [selectedSalesperson, setSelectedSalesperson] = useState('');
   const [subscribeLoading, setSubscribeLoading] = useState(false);
+
+  // Quiz/Training progress
+  const [quizProgress, setQuizProgress] = useState<any>(null);
+  const [quizLoading, setQuizLoading] = useState(false);
 
   // Edit form
   const [editing, setEditing] = useState(false);
@@ -174,8 +178,26 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
   useEffect(() => {
     if (activeTab === 'playlists') {
       fetchPlaylists();
+    } else if (activeTab === 'training') {
+      fetchQuizProgress();
     }
   }, [activeTab]);
+
+  const fetchQuizProgress = async () => {
+    setQuizLoading(true);
+    try {
+      const response = await fetch(`/api/admin/users/${id}/quiz-progress`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setQuizProgress(data);
+      }
+    } catch (error) {
+      console.error('Error fetching quiz progress:', error);
+    } finally {
+      setQuizLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (showSubscribeModal) {
@@ -356,7 +378,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-6 overflow-x-auto">
         <div className="flex gap-4 sm:gap-8 min-w-max sm:min-w-0">
-          {(['details', 'transcripts', 'playlists', 'activity'] as const).map((tab) => (
+          {(['details', 'transcripts', 'playlists', 'training', 'activity'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -366,7 +388,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                   : 'border-transparent text-steel-gray hover:text-midnight-blue'
               }`}
             >
-              {tab === 'activity' ? 'Login Activity' : tab === 'playlists' ? 'Training Playlists' : tab}
+              {tab === 'activity' ? 'Login Activity' : tab === 'playlists' ? 'Training Playlists' : tab === 'training' ? 'Quiz Progress' : tab}
             </button>
           ))}
         </div>
@@ -635,6 +657,143 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                   </div>
                 </Link>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'training' && (
+        <div>
+          {quizLoading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-success-gold"></div>
+            </div>
+          ) : !quizProgress ? (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
+              <Text variant="muted" className="text-gray-600">Failed to load quiz progress</Text>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Summary Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                  <Text variant="muted" size="sm" className="text-gray-600">Total Attempts</Text>
+                  <Text className="text-2xl font-bold text-gray-900">{quizProgress.summary.totalAttempts}</Text>
+                </div>
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                  <Text variant="muted" size="sm" className="text-gray-600">Videos Attempted</Text>
+                  <Text className="text-2xl font-bold text-gray-900">{quizProgress.summary.uniqueVideos}</Text>
+                </div>
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                  <Text variant="muted" size="sm" className="text-gray-600">Videos Passed</Text>
+                  <Text className="text-2xl font-bold text-green-600">{quizProgress.summary.passedVideos}</Text>
+                </div>
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                  <Text variant="muted" size="sm" className="text-gray-600">Average Score</Text>
+                  <Text className="text-2xl font-bold text-gray-900">{quizProgress.summary.averageScore}%</Text>
+                </div>
+              </div>
+
+              {/* Quiz Attempts by Video */}
+              {quizProgress.videoProgress.length === 0 ? (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
+                  <Text variant="muted" className="text-gray-600">No quiz attempts yet</Text>
+                  <Text variant="muted" size="sm" className="mt-2 text-gray-500">
+                    This user hasn't taken any quizzes
+                  </Text>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {quizProgress.videoProgress.map((videoData: any) => (
+                    <div
+                      key={videoData.video.id}
+                      className="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                            <Text variant="emphasis" className="text-lg font-semibold text-gray-900">
+                              {videoData.video.title}
+                            </Text>
+                            {videoData.hasPassed ? (
+                              <span className="px-3 py-1 text-sm font-medium bg-green-100 text-green-700 rounded-full">
+                                ✓ Passed
+                              </span>
+                            ) : (
+                              <span className="px-3 py-1 text-sm font-medium bg-red-100 text-red-700 rounded-full">
+                                Not Passed
+                              </span>
+                            )}
+                          </div>
+                          <Text variant="muted" size="sm" className="mt-1 text-gray-600">
+                            {videoData.totalAttempts} attempt{videoData.totalAttempts !== 1 ? 's' : ''} •
+                            Best Score: {videoData.bestAttempt.score}%
+                          </Text>
+                        </div>
+                      </div>
+
+                      {/* Attempts Table */}
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Attempt
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Score
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Questions
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Status
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Date
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {videoData.allAttempts.map((attempt: any) => (
+                              <tr key={attempt.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 text-sm text-gray-900">
+                                  #{attempt.attempt_number}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className={`text-sm font-semibold ${
+                                    attempt.score >= 80 ? 'text-green-600' :
+                                    attempt.score >= 60 ? 'text-amber-600' : 'text-red-600'
+                                  }`}>
+                                    {attempt.score}%
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-600">
+                                  {attempt.correct_answers}/{attempt.total_questions}
+                                </td>
+                                <td className="px-4 py-3">
+                                  {attempt.passed ? (
+                                    <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                                      Passed
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-700 rounded-full">
+                                      Failed
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-sm text-gray-500">
+                                  {new Date(attempt.completed_at).toLocaleString()}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

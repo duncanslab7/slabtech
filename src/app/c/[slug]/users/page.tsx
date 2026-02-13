@@ -240,13 +240,21 @@ export default function CompanyUsersPage() {
                       </Text>
                     </td>
                     <td className="px-4 py-4 text-right">
-                      <button
-                        onClick={() => handleToggleActive(user.id, user.is_active)}
-                        className="text-sm font-medium hover:underline"
-                        style={{ color: 'var(--company-primary)' }}
-                      >
-                        {user.is_active ? 'Deactivate' : 'Activate'}
-                      </button>
+                      <div className="flex items-center justify-end gap-3">
+                        <Link
+                          href={`/c/${slug}/users/${user.id}`}
+                          className="text-sm font-medium hover:underline"
+                          style={{ color: 'var(--company-primary)' }}
+                        >
+                          View Details
+                        </Link>
+                        <button
+                          onClick={() => handleToggleActive(user.id, user.is_active)}
+                          className="text-sm font-medium text-gray-500 hover:text-gray-700 hover:underline"
+                        >
+                          {user.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
