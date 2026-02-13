@@ -78,8 +78,7 @@ export async function GET(
       .from('video_completions')
       .select(`
         video_id,
-        completed,
-        last_watched_at,
+        completed_at,
         training_videos (
           id,
           title,
