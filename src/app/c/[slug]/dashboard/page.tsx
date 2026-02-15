@@ -540,10 +540,20 @@ export default function CompanyDashboard() {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <Link href="/admin" className="text-sm text-steel-gray hover:text-success-gold transition-colors font-medium">
+                <Link
+                  href="/admin"
+                  className="text-sm text-steel-gray transition-colors font-medium"
+                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--company-primary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = ''}
+                >
                   ← Admin
                 </Link>
-                <button onClick={handleSignOut} className="text-sm text-steel-gray hover:text-success-gold transition-colors font-medium">
+                <button
+                  onClick={handleSignOut}
+                  className="text-sm text-steel-gray transition-colors font-medium"
+                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--company-primary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = ''}
+                >
                   Sign Out
                 </button>
               </div>
@@ -554,7 +564,7 @@ export default function CompanyDashboard() {
         <div className="max-w-7xl mx-auto px-6 py-8">
           {loading ? (
             <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-success-gold"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--company-primary)' }}></div>
             </div>
           ) : (
             <div className="space-y-6">
@@ -692,7 +702,9 @@ export default function CompanyDashboard() {
 
             <button
               onClick={handleSignOut}
-              className="text-sm text-steel-gray hover:text-success-gold transition-colors font-medium"
+              className="text-sm text-steel-gray transition-colors font-medium"
+              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--company-primary)'}
+              onMouseLeave={(e) => e.currentTarget.style.color = ''}
             >
               Sign Out
             </button>
@@ -716,7 +728,12 @@ export default function CompanyDashboard() {
                     className="w-32 h-32 rounded-full object-cover group-hover:opacity-90 transition-opacity"
                   />
                 ) : (
-                  <div className="w-32 h-32 rounded-full bg-gradient-to-br from-success-gold to-amber-600 flex items-center justify-center text-white font-bold text-4xl group-hover:opacity-90 transition-opacity">
+                  <div
+                    className="w-32 h-32 rounded-full flex items-center justify-center text-white font-bold text-4xl group-hover:opacity-90 transition-opacity"
+                    style={{
+                      background: `linear-gradient(to bottom right, var(--company-primary), var(--company-secondary))`
+                    }}
+                  >
                     {userName.charAt(0).toUpperCase()}
                   </div>
                 )}
@@ -808,7 +825,10 @@ export default function CompanyDashboard() {
                     </div>
                     <Link
                       href={`/c/${slug}/leaderboard`}
-                      className="text-xs text-success-gold hover:text-amber-600 mt-1 inline-block"
+                      className="text-xs mt-1 inline-block transition-colors"
+                      style={{ color: 'var(--company-primary)' }}
+                      onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                      onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                     >
                       View Leaderboard →
                     </Link>
@@ -827,15 +847,17 @@ export default function CompanyDashboard() {
                 className={`bg-white rounded-lg shadow p-6 transition-shadow border-2 ${
                   transcriptsLock.locked
                     ? 'opacity-75 cursor-not-allowed border-gray-300'
-                    : 'cursor-pointer hover:shadow-lg border-transparent hover:border-success-gold'
+                    : 'cursor-pointer hover:shadow-lg border-transparent'
                 }`}
+                onMouseEnter={(e) => { if (!transcriptsLock.locked) e.currentTarget.style.borderColor = 'var(--company-primary)' }}
+                onMouseLeave={(e) => { if (!transcriptsLock.locked) e.currentTarget.style.borderColor = 'transparent' }}
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <h3 className="text-xl font-semibold text-midnight-blue">Subscriptions</h3>
                     {transcriptsLock.locked && <span className="text-xl">🔒</span>}
                   </div>
-                  <svg className="w-6 h-6 text-success-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6" style={{ color: 'var(--company-primary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
@@ -851,7 +873,12 @@ export default function CompanyDashboard() {
                     {subscribedSalespeople.length > 0 ? (
                       subscribedSalespeople.slice(0, 3).map((name, index) => (
                         <div key={index} className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-success-gold to-amber-600 flex items-center justify-center text-white text-sm font-bold">
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold"
+                            style={{
+                              background: `linear-gradient(to bottom right, var(--company-primary), var(--company-secondary))`
+                            }}
+                          >
                             {name.charAt(0)}
                           </div>
                           <span className="text-sm text-steel-gray">{name}</span>
@@ -873,15 +900,17 @@ export default function CompanyDashboard() {
                 className={`bg-white rounded-lg shadow p-6 transition-shadow border-2 ${
                   trainingPlaylistsLock.locked
                     ? 'opacity-75 cursor-not-allowed border-gray-300'
-                    : 'cursor-pointer hover:shadow-lg border-transparent hover:border-success-gold'
+                    : 'cursor-pointer hover:shadow-lg border-transparent'
                 }`}
+                onMouseEnter={(e) => { if (!transcriptsLock.locked) e.currentTarget.style.borderColor = 'var(--company-primary)' }}
+                onMouseLeave={(e) => { if (!transcriptsLock.locked) e.currentTarget.style.borderColor = 'transparent' }}
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <h3 className="text-xl font-semibold text-midnight-blue">Training Playlists</h3>
                     {trainingPlaylistsLock.locked && <span className="text-xl">🔒</span>}
                   </div>
-                  <svg className="w-6 h-6 text-success-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6" style={{ color: 'var(--company-primary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                 </div>
@@ -895,7 +924,7 @@ export default function CompanyDashboard() {
                 ) : (
                   <>
                     <p className="text-sm text-steel-gray">Practice specific objection handling</p>
-                    <p className="text-3xl font-bold text-success-gold mt-4">{playlists.length}</p>
+                    <p className="text-3xl font-bold mt-4" style={{ color: 'var(--company-primary)' }}>{playlists.length}</p>
                     <p className="text-xs text-steel-gray">Available playlists</p>
                   </>
                 )}
@@ -904,16 +933,18 @@ export default function CompanyDashboard() {
               {/* Favorites Box */}
               <div
                 onClick={() => handleBoxClick('favorites')}
-                className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow border-2 border-transparent hover:border-success-gold"
+                className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow border-2 border-transparent"
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--company-primary)'}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}
               >
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-semibold text-midnight-blue">Favorites</h3>
-                  <svg className="w-6 h-6 text-success-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6" style={{ color: 'var(--company-primary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                   </svg>
                 </div>
                 <p className="text-sm text-steel-gray">Save and review your favorite conversations</p>
-                <p className="text-3xl font-bold text-success-gold mt-4">{favorites.length}</p>
+                <p className="text-3xl font-bold mt-4" style={{ color: 'var(--company-primary)' }}>{favorites.length}</p>
                 <p className="text-xs text-steel-gray">Saved favorites</p>
               </div>
 
@@ -921,7 +952,7 @@ export default function CompanyDashboard() {
               <div className="bg-white rounded-lg shadow p-6 cursor-not-allowed opacity-60 border-2 border-gray-200">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-semibold text-midnight-blue">AI Roleplay</h3>
-                  <svg className="w-6 h-6 text-success-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6" style={{ color: 'var(--company-primary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
                 </div>
@@ -932,11 +963,13 @@ export default function CompanyDashboard() {
               {/* Company Training Videos Box */}
               <Link
                 href={`/c/${slug}/training`}
-                className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow border-2 border-transparent hover:border-success-gold block"
+                className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow border-2 border-transparent block"
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--company-primary)'}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}
               >
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-semibold text-midnight-blue">Company Training</h3>
-                  <svg className="w-6 h-6 text-success-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6" style={{ color: 'var(--company-primary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 </div>
@@ -946,11 +979,13 @@ export default function CompanyDashboard() {
               {/* Company Leaderboard Box */}
               <Link
                 href={`/c/${slug}/leaderboard`}
-                className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow border-2 border-transparent hover:border-success-gold block"
+                className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow border-2 border-transparent block"
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--company-primary)'}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}
               >
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-semibold text-midnight-blue">Company Leaderboard</h3>
-                  <svg className="w-6 h-6 text-success-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6" style={{ color: 'var(--company-primary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
                   </svg>
                 </div>
@@ -961,7 +996,7 @@ export default function CompanyDashboard() {
                       {companyRank === 1 && <span className="text-2xl">🥇</span>}
                       {companyRank === 2 && <span className="text-2xl">🥈</span>}
                       {companyRank === 3 && <span className="text-2xl">🥉</span>}
-                      <span className="text-3xl font-bold text-success-gold">#{companyRank}</span>
+                      <span className="text-3xl font-bold" style={{ color: 'var(--company-primary)' }}>#{companyRank}</span>
                     </div>
                     <p className="text-xs text-steel-gray">Your rank</p>
                   </div>
@@ -982,7 +1017,7 @@ export default function CompanyDashboard() {
 
             {loading ? (
               <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-success-gold"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--company-primary)' }}></div>
               </div>
             ) : transcripts.length === 0 ? (
               <div className="bg-white rounded-lg shadow p-8 text-center">
@@ -1009,7 +1044,12 @@ export default function CompanyDashboard() {
                               className="w-12 h-12 rounded-full object-cover flex-shrink-0"
                             />
                           ) : (
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-success-gold to-amber-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                            <div
+                              className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0"
+                              style={{
+                                background: `linear-gradient(to bottom right, var(--company-primary), var(--company-secondary))`
+                              }}
+                            >
                               {salespersonName.charAt(0).toUpperCase()}
                             </div>
                           )}
@@ -1018,7 +1058,13 @@ export default function CompanyDashboard() {
                           <div className="flex-1 min-w-0 text-left">
                             <div className="flex items-center gap-3 mb-1">
                               <span className="text-lg font-semibold text-midnight-blue">{salespersonName}</span>
-                              <span className="px-3 py-1 bg-success-gold/10 text-success-gold text-sm font-medium rounded-full whitespace-nowrap">
+                              <span
+                                className="px-3 py-1 text-sm font-medium rounded-full whitespace-nowrap"
+                                style={{
+                                  backgroundColor: 'color-mix(in srgb, var(--company-primary) 10%, transparent)',
+                                  color: 'var(--company-primary)'
+                                }}
+                              >
                                 {salespersonTranscripts.length} {salespersonTranscripts.length === 1 ? 'recording' : 'recordings'}
                               </span>
                             </div>
@@ -1068,7 +1114,10 @@ export default function CompanyDashboard() {
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                                       <Link
                                         href={`/user/transcripts/${transcript.id}`}
-                                        className="text-success-gold hover:text-amber-600 font-medium"
+                                        className="font-medium transition-colors"
+                                        style={{ color: 'var(--company-primary)' }}
+                                        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                                        onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                                       >
                                         View
                                       </Link>
@@ -1096,7 +1145,7 @@ export default function CompanyDashboard() {
 
             {playlistsLoading ? (
               <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-success-gold"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--company-primary)' }}></div>
               </div>
             ) : playlists.length === 0 ? (
               <div className="bg-white rounded-lg shadow p-8 text-center">
@@ -1131,7 +1180,9 @@ export default function CompanyDashboard() {
                     <Link
                       key={playlist.objectionType}
                       href={`/user/playlists/${playlist.objectionType}`}
-                      className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 border-2 border-transparent hover:border-success-gold"
+                      className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 border-2 border-transparent"
+                      onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--company-primary)'}
+                      onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}
                     >
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -1140,12 +1191,12 @@ export default function CompanyDashboard() {
                             {objectionLabels[playlist.objectionType] || playlist.objectionType}
                           </h3>
                         </div>
-                        <svg className="w-5 h-5 text-success-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5" style={{ color: 'var(--company-primary)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-3xl font-bold text-success-gold">{playlist.conversationCount}</span>
+                        <span className="text-3xl font-bold" style={{ color: 'var(--company-primary)' }}>{playlist.conversationCount}</span>
                         <span className="text-steel-gray">
                           {playlist.conversationCount === 1 ? 'conversation' : 'conversations'}
                         </span>
@@ -1166,7 +1217,7 @@ export default function CompanyDashboard() {
 
             {favoritesLoading ? (
               <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-success-gold"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--company-primary)' }}></div>
               </div>
             ) : favorites.length === 0 ? (
               <div className="bg-white rounded-lg shadow p-8 text-center">
@@ -1186,13 +1237,23 @@ export default function CompanyDashboard() {
                   }
 
                   return (
-                    <div key={favorite.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-transparent hover:border-success-gold overflow-hidden">
+                    <div
+                      key={favorite.id}
+                      className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-transparent overflow-hidden"
+                      onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--company-primary)'}
+                      onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}
+                    >
                       <div className="p-6">
                         <div className="flex items-start justify-between gap-4 mb-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-3 mb-2">
                               {/* Salesperson initial */}
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-success-gold to-amber-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                              <div
+                                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+                                style={{
+                                  background: `linear-gradient(to bottom right, var(--company-primary), var(--company-secondary))`
+                                }}
+                              >
                                 {transcript.salesperson_name?.charAt(0).toUpperCase() || '?'}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -1212,13 +1273,17 @@ export default function CompanyDashboard() {
                                     value={noteText}
                                     onChange={(e) => setNoteText(e.target.value)}
                                     placeholder="Add a note about why you saved this conversation..."
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-gold focus:border-transparent resize-none"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent resize-none"
+                                    style={{ '--tw-ring-color': 'var(--company-primary)' } as React.CSSProperties}
                                     rows={3}
                                   />
                                   <div className="flex flex-col sm:flex-row gap-2">
                                     <button
                                       onClick={() => handleSaveNote(favorite.id)}
-                                      className="px-4 py-3 sm:py-2 bg-success-gold text-white text-sm font-medium rounded-lg hover:bg-amber-500 transition-colors active:scale-95"
+                                      className="px-4 py-3 sm:py-2 text-white text-sm font-medium rounded-lg transition-colors active:scale-95"
+                                      style={{ backgroundColor: 'var(--company-primary)' }}
+                                      onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                                      onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                                     >
                                       Save Note
                                     </button>
@@ -1232,12 +1297,18 @@ export default function CompanyDashboard() {
                                 </div>
                               ) : favorite.note ? (
                                 /* Display mode with note */
-                                <div className="bg-amber-50 border-l-4 border-success-gold p-3 rounded">
+                                <div
+                                  className="bg-amber-50 border-l-4 p-3 rounded"
+                                  style={{ borderColor: 'var(--company-primary)' }}
+                                >
                                   <div className="flex items-start justify-between gap-2">
                                     <p className="text-sm text-steel-gray italic flex-1">&quot;{favorite.note}&quot;</p>
                                     <button
                                       onClick={() => handleEditNote(favorite.id, favorite.note)}
-                                      className="text-success-gold hover:text-amber-600 text-sm font-medium flex-shrink-0 px-2 py-1 -mr-2 active:scale-95 transition-transform"
+                                      className="text-sm font-medium flex-shrink-0 px-2 py-1 -mr-2 active:scale-95 transition-all"
+                                      style={{ color: 'var(--company-primary)' }}
+                                      onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                                      onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                                     >
                                       Edit
                                     </button>
@@ -1247,7 +1318,10 @@ export default function CompanyDashboard() {
                                 /* No note - show add button */
                                 <button
                                   onClick={() => handleEditNote(favorite.id, null)}
-                                  className="text-success-gold hover:text-amber-600 text-sm font-medium flex items-center gap-1 py-2 active:scale-95 transition-transform"
+                                  className="text-sm font-medium flex items-center gap-1 py-2 active:scale-95 transition-all"
+                                  style={{ color: 'var(--company-primary)' }}
+                                  onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                                  onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                                 >
                                   <svg className="w-5 h-5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1259,7 +1333,7 @@ export default function CompanyDashboard() {
                           </div>
 
                           {/* Star icon */}
-                          <svg className="w-6 h-6 text-success-gold fill-current flex-shrink-0" viewBox="0 0 24 24">
+                          <svg className="w-6 h-6 fill-current flex-shrink-0" style={{ color: 'var(--company-primary)' }} viewBox="0 0 24 24">
                             <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                           </svg>
                         </div>
@@ -1271,7 +1345,10 @@ export default function CompanyDashboard() {
                           </span>
                           <Link
                             href={`/user/transcripts/${transcript.id}`}
-                            className="text-success-gold hover:text-amber-600 font-medium text-sm flex items-center gap-1"
+                            className="font-medium text-sm flex items-center gap-1 transition-colors"
+                            style={{ color: 'var(--company-primary)' }}
+                            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                           >
                             View Conversation
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1304,7 +1381,8 @@ export default function CompanyDashboard() {
                       type="button"
                       onClick={() => setDropdownOpen(!dropdownOpen)}
                       disabled={uploadLoading}
-                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-left focus:ring-2 focus:ring-success-gold focus:border-transparent transition-all hover:border-gray-400 disabled:opacity-50"
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-left focus:ring-2 focus:border-transparent transition-all hover:border-gray-400 disabled:opacity-50"
+                      style={{ '--tw-ring-color': 'var(--company-primary)' } as React.CSSProperties}
                     >
                       <div className="flex items-center justify-between">
                         <span className={selectedSalesperson ? 'text-charcoal' : 'text-gray-400'}>
@@ -1332,8 +1410,12 @@ export default function CompanyDashboard() {
                               setDropdownOpen(false);
                             }}
                             className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors ${
-                              salespersonId === sp.id ? 'bg-amber-50 text-success-gold' : 'text-charcoal'
+                              salespersonId === sp.id ? '' : 'text-charcoal'
                             }`}
+                            style={salespersonId === sp.id ? {
+                              backgroundColor: 'color-mix(in srgb, var(--company-primary) 10%, transparent)',
+                              color: 'var(--company-primary)'
+                            } : undefined}
                           >
                             {sp.name}
                           </button>
@@ -1396,7 +1478,13 @@ export default function CompanyDashboard() {
                 <button
                   type="submit"
                   disabled={uploadLoading || !salespersonId || !file}
-                  className="w-full py-3 px-4 bg-success-gold text-white font-semibold rounded-lg hover:bg-amber-500 focus:ring-2 focus:ring-offset-2 focus:ring-success-gold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  className="w-full py-3 px-4 text-white font-semibold rounded-lg focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  style={{
+                    backgroundColor: 'var(--company-primary)',
+                    '--tw-ring-color': 'var(--company-primary)'
+                  } as React.CSSProperties}
+                  onMouseEnter={(e) => !uploadLoading && (e.currentTarget.style.opacity = '0.9')}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                 >
                   {uploadLoading ? (
                     <span className="flex items-center justify-center gap-2">

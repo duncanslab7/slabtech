@@ -117,7 +117,13 @@ export default function PlaylistDetailPage() {
     return (
       <div className="p-8">
         <p className="text-red-400">Playlist not found</p>
-        <Link href={`/c/${slug}/training`} className="text-blue-400 hover:text-blue-300 mt-4 inline-block">
+        <Link
+          href={`/c/${slug}/training`}
+          className="mt-4 inline-block transition-colors"
+          style={{ color: 'var(--company-primary)' }}
+          onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+          onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+        >
           ← Back to Training Library
         </Link>
       </div>
@@ -130,7 +136,13 @@ export default function PlaylistDetailPage() {
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
-      <Link href={`/c/${slug}/training`} className="text-blue-400 hover:text-blue-300 mb-6 inline-block">
+      <Link
+        href={`/c/${slug}/training`}
+        className="mb-6 inline-block transition-colors"
+        style={{ color: 'var(--company-primary)' }}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+      >
         ← Back to Training Library
       </Link>
 
@@ -149,8 +161,11 @@ export default function PlaylistDetailPage() {
           <div className="mt-4">
             <div className="bg-gray-700 rounded-full h-2 overflow-hidden">
               <div
-                className="bg-gradient-to-r from-blue-500 to-purple-500 h-full transition-all duration-500"
-                style={{ width: `${completionPercentage}%` }}
+                className="h-full transition-all duration-500"
+                style={{
+                  width: `${completionPercentage}%`,
+                  background: `linear-gradient(to right, var(--company-primary), var(--company-secondary))`
+                }}
               />
             </div>
           </div>
@@ -208,8 +223,11 @@ export default function PlaylistDetailPage() {
                   className={`text-sm px-4 py-2 rounded transition-colors ${
                     completed
                       ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'text-white'
                   }`}
+                  style={!completed ? { backgroundColor: 'var(--company-primary)' } : undefined}
+                  onMouseEnter={(e) => !completed && (e.currentTarget.style.opacity = '0.9')}
+                  onMouseLeave={(e) => !completed && (e.currentTarget.style.opacity = '1')}
                 >
                   {completed ? 'Mark Incomplete' : 'Mark Complete'}
                 </button>
@@ -275,8 +293,11 @@ export default function PlaylistDetailPage() {
                   className={`px-6 py-2 rounded font-medium transition-colors ${
                     isVideoCompleted(selectedVideo)
                       ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'text-white'
                   }`}
+                  style={!isVideoCompleted(selectedVideo) ? { backgroundColor: 'var(--company-primary)' } : undefined}
+                  onMouseEnter={(e) => !isVideoCompleted(selectedVideo) && (e.currentTarget.style.opacity = '0.9')}
+                  onMouseLeave={(e) => !isVideoCompleted(selectedVideo) && (e.currentTarget.style.opacity = '1')}
                 >
                   {isVideoCompleted(selectedVideo) ? '✓ Mark as Incomplete' : 'Mark as Complete'}
                 </button>
