@@ -12,8 +12,9 @@ async function verifySuperAdmin(supabase: any) {
 }
 
 // PUT /api/admin/big-five/[id] — update member + sync awards + transcript links
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const supabase = await createClient()
     const check = await verifySuperAdmin(supabase)
     if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status })
@@ -27,7 +28,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const { data: member, error: updateError } = await serviceSupabase
       .from('big_five_members')
       .update({ ...fields, updated_at: new Date().toISOString() })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single()
 
@@ -35,11 +36,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     // Sync awards if provided
     if (Array.isArray(awards)) {
-      await serviceSupabase.from('big_five_awards').delete().eq('member_id', params.id)
+      await serviceSupabase.from('big_five_awards').delete().eq('member_id', id)
       if (awards.length > 0) {
         await serviceSupabase.from('big_five_awards').insert(
           awards.map((a: { title: string; year: number }) => ({
-            member_id: params.id,
+            member_id: id,
             title: a.title,
             year: a.year,
           }))
@@ -49,11 +50,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     // Sync transcript links if provided
     if (Array.isArray(transcript_links)) {
-      await serviceSupabase.from('big_five_transcript_links').delete().eq('member_id', params.id)
+      await serviceSupabase.from('big_five_transcript_links').delete().eq('member_id', id)
       if (transcript_links.length > 0) {
         await serviceSupabase.from('big_five_transcript_links').insert(
           transcript_links.map((name: string) => ({
-            member_id: params.id,
+            member_id: id,
             salesperson_name: name,
           }))
         )
@@ -67,14 +68,15 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 }
 
 // DELETE /api/admin/big-five/[id]
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const supabase = await createClient()
     const check = await verifySuperAdmin(supabase)
     if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status })
 
     const serviceSupabase = createServiceRoleClient()
-    const { error } = await serviceSupabase.from('big_five_members').delete().eq('id', params.id)
+    const { error } = await serviceSupabase.from('big_five_members').delete().eq('id', id)
     if (error) throw error
 
     return NextResponse.json({ success: true })

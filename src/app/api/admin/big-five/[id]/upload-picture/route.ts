@@ -13,8 +13,9 @@ async function verifySuperAdmin(supabase: any) {
 
 // POST /api/admin/big-five/[id]/upload-picture
 // FormData: file (image), type ('profile' | 'background')
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const supabase = await createClient()
     const check = await verifySuperAdmin(supabase)
     if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status })
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     const serviceSupabase = createServiceRoleClient()
     const ext = file.name.split('.').pop()
-    const fileName = `big-five/${params.id}-${type}-${Date.now()}.${ext}`
+    const fileName = `big-five/${id}-${type}-${Date.now()}.${ext}`
 
     const arrayBuffer = await file.arrayBuffer()
     const { error: uploadError } = await serviceSupabase.storage
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const { error: updateError } = await serviceSupabase
       .from('big_five_members')
       .update({ [column]: publicUrl, updated_at: new Date().toISOString() })
-      .eq('id', params.id)
+      .eq('id', id)
 
     if (updateError) throw updateError
 
