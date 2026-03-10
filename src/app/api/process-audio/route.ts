@@ -1,9 +1,9 @@
-import { spawn } from 'child_process'
 import { promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
 
-import { detectPiiMatches, validatePiiRanges, PiiMatch } from '@/utils/pii'
+import { detectPiiMatches, validatePiiRanges } from '@/utils/pii'
+import { runFfmpegBleep } from '@/utils/ffmpegRedaction'
 import { createClient } from '@/utils/supabase/server'
 import { checkRateLimit } from '@/utils/rateLimit'
 import { NextRequest, NextResponse } from 'next/server'
@@ -38,162 +38,8 @@ type AssemblyAITranscript = {
   error?: string
 }
 
-// Get FFmpeg path - handle Windows vs Unix
-function getFfmpegPath(): string {
-  if (process.env.FFMPEG_PATH) {
-    return process.env.FFMPEG_PATH
-  }
-
-  try {
-    // @ts-ignore
-    const ffmpegStatic = require('ffmpeg-static')
-    let ffmpegPath = typeof ffmpegStatic === 'string' ? ffmpegStatic : ffmpegStatic.path
-    console.log('FFmpeg static path (raw):', ffmpegPath)
-
-    if (!ffmpegPath) {
-      throw new Error('ffmpeg-static did not return a path')
-    }
-
-    // Handle placeholder path (e.g., \ROOT\node_modules\...)
-    if (ffmpegPath.includes('\\ROOT\\') || ffmpegPath.includes('/ROOT/')) {
-      // Extract the relative part after ROOT
-      const parts = ffmpegPath.split(/[\\\/]ROOT[\\\/]/)
-      if (parts.length > 1) {
-        // Resolve from project root
-        const resolved = path.resolve(process.cwd(), parts[1])
-        console.log('Resolved from ROOT placeholder:', resolved)
-        return resolved
-      }
-    }
-
-    // If already absolute, use it
-    if (path.isAbsolute(ffmpegPath)) {
-      return ffmpegPath
-    }
-
-    // Otherwise resolve from cwd
-    const resolved = path.resolve(process.cwd(), ffmpegPath)
-    console.log('Resolved FFmpeg path:', resolved)
-    return resolved
-  } catch (error) {
-    console.error('Failed to load ffmpeg-static:', error)
-  }
-
-  // Fallback to system ffmpeg
-  return 'ffmpeg'
-}
-
-const ffmpegPath = getFfmpegPath()
 const DEFAULT_FETCH_TIMEOUT_MS = 600_000 // 10 minutes
 const POLLING_INTERVAL_MS = 3000 // 3 seconds
-
-function mergeRanges(ranges: PiiMatch[]): PiiMatch[] {
-  if (!ranges.length) return []
-  const sorted = [...ranges].sort((a, b) => a.start - b.start)
-  const merged: PiiMatch[] = []
-
-  // First pass: merge overlapping ranges
-  for (const r of sorted) {
-    const last = merged[merged.length - 1]
-    if (!last) {
-      merged.push({ ...r })
-      continue
-    }
-    if (r.start <= last.end) {
-      last.end = Math.max(last.end, r.end)
-    } else {
-      merged.push({ ...r })
-    }
-  }
-
-  // Second pass: if still too many ranges, only combine ranges that are very close together (within 2 seconds)
-  let coalesced = merged
-  const MAX_GAP_SECONDS = 2.0 // Only merge if ranges are within 2 seconds of each other
-
-  while (coalesced.length > 180) {
-    const next: PiiMatch[] = []
-    let i = 0
-
-    while (i < coalesced.length) {
-      const first = coalesced[i]
-      const second = coalesced[i + 1]
-
-      if (!second) {
-        next.push(first)
-        i++
-      } else {
-        // Only merge if the gap between ranges is small
-        const gap = second.start - first.end
-        if (gap <= MAX_GAP_SECONDS) {
-          next.push({
-            start: first.start,
-            end: second.end,
-            label: 'pii',
-          })
-          i += 2
-        } else {
-          // Gap too large, don't merge
-          next.push(first)
-          i++
-        }
-      }
-    }
-
-    // If we didn't reduce the count, break to avoid infinite loop
-    if (next.length === coalesced.length) {
-      break
-    }
-
-    coalesced = next
-  }
-
-  return coalesced
-}
-
-async function runFfmpegBleep(inputPath: string, outputPath: string, ranges: PiiMatch[]) {
-  if (!ranges.length) {
-    await fs.copyFile(inputPath, outputPath)
-    return
-  }
-
-  const mergedRanges = mergeRanges(ranges)
-
-  console.log('PII ranges before merge:', ranges.length)
-  console.log('PII ranges after merge:', mergedRanges.length)
-  console.log('Merged ranges:', mergedRanges.map(r => `${r.start.toFixed(2)}-${r.end.toFixed(2)}`).join(', '))
-
-  // Build a single volume filter with all PII ranges combined using logical OR
-  // This ensures audio is only muted during PII timestamps, not between them
-  const enableExpression = mergedRanges
-    .map((range) => `between(t,${range.start.toFixed(2)},${range.end.toFixed(2)})`)
-    .join('+')
-
-  const volumeFilter = `volume=enable='${enableExpression}':volume=0`
-
-  console.log('FFmpeg volume filter:', volumeFilter)
-
-  const args = ['-y', '-i', inputPath, '-af', volumeFilter, '-c:a', 'mp3', outputPath]
-
-  await new Promise<void>((resolve, reject) => {
-    const ff = spawn(ffmpegPath, args, { stdio: 'pipe' })
-    let stderr = ''
-
-    ff.stderr?.on('data', (data) => {
-      stderr += data.toString()
-    })
-
-    ff.on('error', reject)
-    ff.on('close', (code) => {
-      if (code === 0) {
-        resolve()
-      } else {
-        console.error('FFmpeg stderr:', stderr)
-        console.error('FFmpeg args:', args)
-        reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(-500)}`))
-      }
-    })
-  })
-}
 
 async function fetchWithTimeout(
   url: string,

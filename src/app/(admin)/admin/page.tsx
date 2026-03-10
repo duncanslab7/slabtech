@@ -1,5 +1,6 @@
 import { Heading, Text, Card, Container } from '@/components'
 import Link from 'next/link'
+import { ReprocessPiiButton } from '@/components/admin/ReprocessPiiButton'
 
 export default function AdminDashboard() {
   return (
@@ -224,6 +225,9 @@ export default function AdminDashboard() {
             </Text>
           </div>
         </Link>
+
+        {/* Re-Process PII Card */}
+        <ReprocessPiiButton />
 
         {/* Stats Card */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">

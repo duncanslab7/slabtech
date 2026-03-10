@@ -19,6 +19,12 @@ export default async function TranscriptDetailsPage({ params, searchParams }: Tr
   const initialTimestamp = searchParamsData.t ? parseFloat(searchParamsData.t) : undefined
   const supabase = await createClient()
 
+  // Fetch current user and profile
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: profile } = user
+    ? await supabase.from('user_profiles').select('role').eq('id', user.id).single()
+    : { data: null }
+
   // Fetch transcript details
   const { data: transcript, error } = await supabase
     .from('transcripts')
@@ -227,6 +233,7 @@ export default async function TranscriptDetailsPage({ params, searchParams }: Tr
             transcriptId={id}
             salespersonName={transcript.salesperson_name}
             initialTimestamp={initialTimestamp}
+            isSuperAdmin={profile?.role === 'super_admin'}
           />
         </div>
       </div>

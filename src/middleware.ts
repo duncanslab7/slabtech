@@ -1,7 +1,27 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Set to false to re-enable access
+const MAINTENANCE_MODE = true
+
 export async function middleware(request: NextRequest) {
+  // Block all company-facing routes during maintenance (super admin /admin routes stay open)
+  if (MAINTENANCE_MODE) {
+    const path = request.nextUrl.pathname
+    const isAdminRoute = path.startsWith('/admin') || path.startsWith('/dashboard') ||
+      path.startsWith('/users') || path.startsWith('/config') || path.startsWith('/transcripts') ||
+      path.startsWith('/companies') || path.startsWith('/usage-analytics') ||
+      path.startsWith('/purchase-inquiries') || path.startsWith('/big-five') ||
+      path.startsWith('/notifications') || path.startsWith('/upload')
+    const isMaintenancePage = path.startsWith('/maintenance')
+    const isApiRoute = path.startsWith('/api/')
+    const isStaticAsset = path.startsWith('/_next') || path.match(/\.(svg|png|jpg|jpeg|gif|webp|ico)$/)
+
+    if (!isAdminRoute && !isMaintenancePage && !isApiRoute && !isStaticAsset) {
+      return NextResponse.redirect(new URL('/maintenance', request.url))
+    }
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   try {

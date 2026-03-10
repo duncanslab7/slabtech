@@ -50,6 +50,7 @@ interface TranscriptWithConversationsProps {
   transcriptId?: string
   salespersonName?: string
   initialTimestamp?: number
+  isSuperAdmin?: boolean
 }
 
 export function TranscriptWithConversations({
@@ -63,10 +64,14 @@ export function TranscriptWithConversations({
   transcriptData,
   transcriptId,
   salespersonName,
-  initialTimestamp
+  initialTimestamp,
+  isSuperAdmin,
 }: TranscriptWithConversationsProps) {
   const [seekToTime, setSeekToTime] = useState<number | undefined>(initialTimestamp)
   const [currentConversationIndex, setCurrentConversationIndex] = useState(0)
+  const [redactMode, setRedactMode] = useState(false)
+  const [selectedWordIndices, setSelectedWordIndices] = useState<Set<number>>(new Set())
+  const [isApplyingRedaction, setIsApplyingRedaction] = useState(false)
 
   const handleConversationSelect = (conversation: Conversation) => {
     // Find the index of the selected conversation
@@ -105,6 +110,51 @@ export function TranscriptWithConversations({
     setTimeout(() => setSeekToTime(undefined), 100)
   }
 
+  const handleWordRedactToggle = (index: number) => {
+    setSelectedWordIndices(prev => {
+      const next = new Set(prev)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }
+
+  const handleToggleRedactMode = () => {
+    setRedactMode(prev => {
+      if (prev) setSelectedWordIndices(new Set())
+      return !prev
+    })
+  }
+
+  const handleApplyRedaction = async () => {
+    if (!transcriptId || selectedWordIndices.size === 0) return
+    setIsApplyingRedaction(true)
+    try {
+      const ranges = Array.from(selectedWordIndices).map(idx => ({
+        start: words[idx].start,
+        end: words[idx].end,
+        label: 'manual',
+      }))
+
+      const res = await fetch(`/api/admin/transcripts/${transcriptId}/redact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ranges }),
+      })
+
+      if (res.ok) {
+        window.location.reload()
+      } else {
+        const data = await res.json()
+        alert(`Redaction failed: ${data.error || 'Unknown error'}`)
+        setIsApplyingRedaction(false)
+      }
+    } catch (err) {
+      console.error('Redaction error:', err)
+      setIsApplyingRedaction(false)
+    }
+  }
+
   return (
     <>
       {/* Conversations Section */}
@@ -123,6 +173,44 @@ export function TranscriptWithConversations({
         </div>
       )}
 
+      {/* Super Admin Redact Controls */}
+      {isSuperAdmin && downloadUrl && words.length > 0 && (
+        <div className="mb-4 flex flex-col gap-2">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleToggleRedactMode}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                redactMode
+                  ? 'bg-red-600 text-white hover:bg-red-700'
+                  : 'bg-orange-500 text-white hover:bg-orange-600'
+              }`}
+            >
+              {redactMode ? 'Redact Mode: ON' : 'Redact Mode'}
+            </button>
+          </div>
+          {redactMode && selectedWordIndices.size > 0 && (
+            <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-md">
+              <span className="text-sm text-red-700">
+                {selectedWordIndices.size} word(s) selected for redaction
+              </span>
+              <button
+                onClick={handleApplyRedaction}
+                disabled={isApplyingRedaction}
+                className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isApplyingRedaction ? 'Applying...' : 'Apply Redaction'}
+              </button>
+              <button
+                onClick={() => setSelectedWordIndices(new Set())}
+                className="px-3 py-1.5 bg-white text-red-700 border border-red-300 text-sm rounded-md hover:bg-red-50"
+              >
+                Clear Selection
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Audio Player & Transcript */}
       {downloadUrl && words.length > 0 ? (
         <InteractiveAudioPlayer
@@ -136,6 +224,9 @@ export function TranscriptWithConversations({
           onNextConversation={handleNextConversation}
           onPreviousConversation={handlePreviousConversation}
           transcriptId={transcriptId}
+          redactMode={redactMode}
+          selectedWordIndices={selectedWordIndices}
+          onWordRedactToggle={handleWordRedactToggle}
         />
       ) : (
         <TranscriptDisplay

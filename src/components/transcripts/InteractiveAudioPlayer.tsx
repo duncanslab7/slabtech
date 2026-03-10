@@ -36,6 +36,9 @@ interface InteractiveAudioPlayerProps {
   onNextConversation?: () => void
   onPreviousConversation?: () => void
   transcriptId?: string // For logging streak activities
+  redactMode?: boolean
+  selectedWordIndices?: Set<number>
+  onWordRedactToggle?: (index: number) => void
 }
 
 const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2]
@@ -63,6 +66,9 @@ export function InteractiveAudioPlayer({
   onNextConversation,
   onPreviousConversation,
   transcriptId,
+  redactMode,
+  selectedWordIndices,
+  onWordRedactToggle,
 }: InteractiveAudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -738,6 +744,12 @@ export function InteractiveAudioPlayer({
               <div className="w-4 h-4 rounded bg-success-gold bg-opacity-30"></div>
               <span className="text-gray-700">Currently playing</span>
             </div>
+            {redactMode && (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-red-200"></div>
+                <span className="text-gray-700">Selected for redaction</span>
+              </div>
+            )}
           </div>
           {hasSpeakerLabels && (
             <div className="text-xs text-gray-500 italic">
@@ -760,18 +772,27 @@ export function InteractiveAudioPlayer({
 
               const isActive = idx === currentWordIndex
 
+              const isSelectedForRedaction = selectedWordIndices?.has(idx) ?? false
+
               return (
                 <span
                   key={idx}
                   ref={isActive ? activeWordRef : null}
-                  onClick={() => !isRedacted && handleWordClick(word)}
+                  onClick={() => {
+                    if (redactMode) {
+                      onWordRedactToggle?.(idx)
+                    } else if (!isRedacted) {
+                      handleWordClick(word)
+                    }
+                  }}
                   className={`
-                    ${color}
-                    ${isActive ? 'bg-success-gold bg-opacity-30 font-semibold' : ''}
-                    ${!isRedacted ? 'cursor-pointer hover:bg-gray-200 hover:bg-opacity-50' : ''}
+                    ${!isSelectedForRedaction ? color : ''}
+                    ${isActive && !isSelectedForRedaction ? 'bg-success-gold bg-opacity-30 font-semibold' : ''}
+                    ${isSelectedForRedaction ? 'bg-red-200 text-red-800' : ''}
+                    ${redactMode ? 'cursor-crosshair' : (!isRedacted ? 'cursor-pointer hover:bg-gray-200 hover:bg-opacity-50' : '')}
                     inline-block px-0.5 rounded transition-colors
                   `}
-                  title={!isRedacted ? `${formatTime(word.start)} - Click to play from here` : undefined}
+                  title={redactMode ? 'Click to mark for redaction' : (!isRedacted ? `${formatTime(word.start)} - Click to play from here` : undefined)}
                 >
                   {text}{' '}
                 </span>
