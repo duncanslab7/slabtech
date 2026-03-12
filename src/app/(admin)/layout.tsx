@@ -109,6 +109,12 @@ export default async function AdminLayout({
                   >
                     Big Five
                   </Link>
+                  <Link
+                    href="/notifications"
+                    className="text-midnight-blue hover:text-success-gold font-medium transition-colors"
+                  >
+                    Notifications
+                  </Link>
                 </div>
               </div>
               <div className="flex items-center gap-4">

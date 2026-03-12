@@ -79,6 +79,7 @@ export function InteractiveAudioPlayer({
   const [swapSpeakerColors, setSwapSpeakerColors] = useState(false)
   const [forceScroll, setForceScroll] = useState(0) // Increment to force scroll after seek
   const activeWordRef = useRef<HTMLSpanElement>(null)
+  const transcriptSectionRef = useRef<HTMLDivElement>(null)
   const hasLoggedStreak = useRef(false) // Track if we've logged a streak for this session
 
   // Calculate estimated duration from words if audio duration unavailable (mobile Safari large files)
@@ -556,6 +557,17 @@ export function InteractiveAudioPlayer({
                 </svg>
               </button>
             )}
+
+            {/* Scroll to Transcript */}
+            <button
+              onClick={() => transcriptSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white"
+              title="Scroll to transcript"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+              </svg>
+            </button>
           </div>
 
           {/* Time Display */}
@@ -704,7 +716,7 @@ export function InteractiveAudioPlayer({
       </div>
 
       {/* Interactive Transcript */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div ref={transcriptSectionRef} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="mb-4">
           <Text variant="emphasis" className="text-lg font-semibold text-gray-900">
             Interactive Transcript

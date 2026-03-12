@@ -74,12 +74,13 @@ export async function analyzeConversation(
         const result = await detectObjections(conversationText, anthropicApiKey, metadata)
         objections = result.objections
         objectionsWithText = result.objectionsWithText
+        console.log(`Objection detection: found ${objections.length} objections: ${objections.join(', ') || 'none'}`)
       } catch (error) {
-        console.error('Objection detection failed:', error)
+        console.error('Objection detection failed:', error instanceof Error ? error.message : error)
         analysisError = error instanceof Error ? error.message : 'Unknown error'
-        // Continue with empty objections rather than failing completely
       }
     } else {
+      console.error('ANTHROPIC_API_KEY not set — objection detection skipped')
       analysisError = 'No Anthropic API key provided'
     }
 
@@ -153,8 +154,9 @@ function categorizeConversation(
   }
 
   // Price was mentioned
-  // High PII redaction count (3+) typically means credit card was given
-  if (piiRedactionCount >= 3) {
+  // 1+ PII redaction in a price conversation means sensitive info was collected (credit card, bank, etc.)
+  // Threshold lowered from 3 to 1 because AssemblyAI merges spoken digits into single ranges
+  if (piiRedactionCount >= 1) {
     return 'sale'
   }
 
@@ -265,7 +267,7 @@ Examples:
 
   const message = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 300, // Increased for text snippets
+    max_tokens: 600,
     messages: [
       {
         role: 'user',

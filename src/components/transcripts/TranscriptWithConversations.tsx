@@ -23,6 +23,8 @@ interface Conversation {
   category: ConversationCategory
   objections: ObjectionType[]
   objection_timestamps?: ObjectionTimestamp[]
+  analysis_completed?: boolean
+  analysis_error?: string
 }
 
 interface Word {
@@ -163,6 +165,12 @@ export function TranscriptWithConversations({
           <Heading level={2} size="lg" className="mb-4 text-gray-900">
             Conversations
           </Heading>
+          {/* Analysis error warning — shown when objection detection failed */}
+          {conversations.every(c => c.analysis_completed === false) && conversations[0]?.analysis_error && (
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
+              <strong>Objection analysis incomplete:</strong> {conversations[0].analysis_error}. Conversations are saved but objections could not be detected.
+            </div>
+          )}
           <ConversationList
             conversations={conversations}
             onConversationSelect={handleConversationSelect}

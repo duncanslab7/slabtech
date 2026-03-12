@@ -96,9 +96,16 @@ export function useAudioUpload(options?: UseAudioUploadOptions) {
       setUploadProgress('Saving transcript and applying PII redaction...');
       await new Promise(resolve => setTimeout(resolve, 500));
 
+      const warningText = data.warnings?.length
+        ? `\n\nWarnings: ${data.warnings.join('; ')}`
+        : '';
+      const piiInfo = data.piiMatchCount !== undefined
+        ? ` (${data.piiMatchCount} PII items redacted)`
+        : '';
+
       const successMessage = {
         type: 'success' as const,
-        text: 'Audio processed successfully! Your transcript has been saved with speaker labels and PII redaction applied.',
+        text: `Audio processed successfully${piiInfo}! Your transcript has been saved with speaker labels and PII redaction applied.${warningText}`,
       };
 
       setMessage(successMessage);

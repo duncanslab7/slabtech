@@ -74,6 +74,49 @@ function findNumberSequences(words: WordEntry[], minLength = 3): PiiMatch[] {
   return matches
 }
 
+// Detect spelled-out emails/info (e.g. "A N G E L I Q U E dot com")
+// A sequence of 4+ single-letter words (possibly with filler words like "dot") signals spelled-out PII
+function findSpelledOutMatches(words: WordEntry[]): PiiMatch[] {
+  const matches: PiiMatch[] = []
+  const FILLER = new Set(['dot', 'at', 'underscore', 'dash', 'hyphen', 'period'])
+
+  let i = 0
+  while (i < words.length) {
+    const w = words[i].word.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const isSingleLetter = w.length === 1 && /[a-z]/.test(w)
+    const isFiller = FILLER.has(words[i].word.toLowerCase().replace(/[^a-z]/g, ''))
+    const isDotCom = ['com', 'net', 'org', 'io'].includes(w) && i > 0 &&
+      FILLER.has(words[i - 1]?.word.toLowerCase().replace(/[^a-z]/g, '') || '')
+
+    if (isSingleLetter || isFiller || isDotCom) {
+      const seqStart = i
+      let letterCount = isSingleLetter ? 1 : 0
+
+      while (i < words.length) {
+        const next = words[i].word.toLowerCase().replace(/[^a-z0-9]/g, '')
+        const isLetter = next.length === 1 && /[a-z]/.test(next)
+        const isFill = FILLER.has(words[i].word.toLowerCase().replace(/[^a-z]/g, ''))
+        const isDC = ['com', 'net', 'org', 'io'].includes(next)
+
+        if (isLetter) letterCount++
+        if (isLetter || isFill || isDC) {
+          i++
+        } else {
+          break
+        }
+      }
+
+      if (letterCount >= 4) {
+        matches.push({ start: words[seqStart].start, end: words[i - 1].end, label: 'spelled_pii' })
+      }
+    } else {
+      i++
+    }
+  }
+
+  return matches
+}
+
 // Find .com/.net/.org domains and surrounding email text (up to 8 words back)
 function findDomainMatches(words: WordEntry[]): PiiMatch[] {
   const DOMAIN_SUFFIXES = ['.com', '.net', '.org', '.io', '.co']
@@ -96,6 +139,7 @@ function findDomainMatches(words: WordEntry[]): PiiMatch[] {
 function findNewPii(words: WordEntry[], existingMatches: PiiMatch[]): PiiMatch[] {
   const candidates: PiiMatch[] = [
     ...findNumberSequences(words),
+    ...findSpelledOutMatches(words),
     ...findDomainMatches(words),
     ...detectPiiMatches(words, 'all'),
   ]

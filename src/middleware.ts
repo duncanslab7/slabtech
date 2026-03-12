@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 // Set to false to re-enable access
-const MAINTENANCE_MODE = true
+const MAINTENANCE_MODE = false
 
 export async function middleware(request: NextRequest) {
   // Block all company-facing routes during maintenance (super admin /admin routes stay open)

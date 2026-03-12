@@ -22,6 +22,8 @@ interface Conversation {
   category: ConversationCategory
   objections: ObjectionType[]
   objection_timestamps?: ObjectionTimestamp[]
+  analysis_completed?: boolean
+  analysis_error?: string
 }
 
 interface ConversationListProps {

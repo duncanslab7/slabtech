@@ -24,10 +24,10 @@ const regexes: Record<string, RegExp> = {
   credit_card: /\b(?:4\d{3}|5[1-5]\d{2}|37\d{2}|6\d{3})[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/,
   url: /\bhttps?:\/\/[^\s]+/i,
   // Stricter address: exclude year-like numbers (19xx, 20xx) to avoid false positives
-  // Matches: "123 Main Street", "456 Oak Avenue"
-  // Does NOT match: "2008 Main Street" (year reference)
+  // Matches: "123 Main Street", "456 Oak Avenue" — street type suffix is REQUIRED
+  // Does NOT match: "150 bucks", "30 year", "210 to" (no street suffix)
   address:
-    /\b(?!(?:19|20)\d{2}\b)\d{1,6}\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*(?:\s+(?:st|street|ave|avenue|blvd|boulevard|rd|road|dr|drive|ln|lane|ct|court|cir|circle|way|pkwy|parkway|terrace|ter|pl|place))?\b/i,
+    /\b(?!(?:19|20)\d{2}\b)\d{1,6}\s+[A-Za-z]+(?:\s+[A-Za-z]+)*\s+(?:st|street|ave|avenue|blvd|boulevard|rd|road|dr|drive|ln|lane|ct|court|cir|circle|way|pkwy|parkway|terrace|ter|pl|place)\b/i,
   // City, ST [ZIP]
   city_state: /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2}(?:\s+\d{5}(?:-\d{4})?)?\b/,
 }

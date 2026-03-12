@@ -88,7 +88,7 @@ export async function GET(
         .eq('id', user.id)
         .single()
 
-      hasAccess = profile?.role === 'admin'
+      hasAccess = profile?.role === 'admin' || profile?.role === 'super_admin'
     }
 
     if (!hasAccess) {

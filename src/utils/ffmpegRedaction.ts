@@ -106,7 +106,14 @@ export async function runFfmpegBleep(inputPath: string, outputPath: string, rang
   const ffmpegPath = getFfmpegPath()
 
   if (!ranges.length) {
-    await fs.copyFile(inputPath, outputPath)
+    // Still re-encode at lower bitrate to reduce file size for storage upload
+    const ffmpegPathNoRanges = getFfmpegPath()
+    const compressArgs = ['-y', '-i', inputPath, '-b:a', '64k', '-ac', '1', outputPath]
+    await new Promise<void>((resolve, reject) => {
+      const ff = spawn(ffmpegPathNoRanges, compressArgs, { stdio: 'pipe' })
+      ff.on('error', reject)
+      ff.on('close', (code) => code === 0 ? resolve() : reject(new Error(`ffmpeg compress exited ${code}`)))
+    })
     return
   }
 
@@ -124,7 +131,9 @@ export async function runFfmpegBleep(inputPath: string, outputPath: string, rang
 
   console.log('FFmpeg volume filter:', volumeFilter)
 
-  const args = ['-y', '-i', inputPath, '-af', volumeFilter, '-c:a', 'mp3', outputPath]
+  // -b:a 64k -ac 1: compress to 64kbps mono — voice audio sounds fine and keeps
+  // file size small enough for Supabase storage upload (avoids 413/gateway errors)
+  const args = ['-y', '-i', inputPath, '-af', volumeFilter, '-b:a', '64k', '-ac', '1', outputPath]
 
   await new Promise<void>((resolve, reject) => {
     const ff = spawn(ffmpegPath, args, { stdio: 'pipe' })
