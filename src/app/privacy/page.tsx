@@ -1,3 +1,10 @@
+import Link from 'next/link'
+
+export const metadata = {
+  title: 'Privacy Policy | SLAB Voice',
+  description: 'Privacy Policy for SLAB Voice — AI-powered sales call transcription and analytics.',
+}
+
 export default function PrivacyPolicy() {
   return (
     <div className="max-w-4xl mx-auto px-6 py-12 prose prose-slate">
@@ -285,6 +292,12 @@ export default function PrivacyPolicy() {
         We may update Our Privacy Policy from time to time. We will notify You of any changes by
         posting the new Privacy Policy on this page and updating the &quot;Last updated&quot; date
         at the top of this Privacy Policy.
+      </p>
+
+      <h2>Related Policies</h2>
+      <p>
+        For information about your rights and responsibilities when using SLAB Voice, please also
+        review our <Link href="/terms">Terms of Service</Link>.
       </p>
 
       <h2>Contact Us</h2>
