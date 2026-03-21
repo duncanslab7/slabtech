@@ -48,7 +48,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .getPublicUrl(fileName)
 
     // Update the appropriate column
-    const column = type === 'background' ? 'background_picture_url' : 'profile_picture_url'
+    const column = type === 'background' ? 'background_picture_url'
+      : type === 'field_logo' ? 'field_company_logo_url'
+      : 'profile_picture_url'
     const { error: updateError } = await serviceSupabase
       .from('big_five_members')
       .update({ [column]: publicUrl, updated_at: new Date().toISOString() })

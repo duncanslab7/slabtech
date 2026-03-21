@@ -12,6 +12,7 @@ interface Member {
   instagram_handle: string | null
   profile_picture_url: string | null
   background_picture_url: string | null
+  field_company_logo_url: string | null
   best_day: number
   best_summer: number
   best_week: number
@@ -58,6 +59,7 @@ export default function BigFiveAdminPage() {
   const bgInputRef = useRef<HTMLInputElement>(null)
   const [uploadingProfile, setUploadingProfile] = useState<string | null>(null)
   const [uploadingBg, setUploadingBg] = useState<string | null>(null)
+  const [uploadingFieldLogo, setUploadingFieldLogo] = useState<string | null>(null)
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
@@ -145,8 +147,8 @@ export default function BigFiveAdminPage() {
     }
   }
 
-  async function handleUploadPicture(memberId: string, type: 'profile' | 'background', file: File) {
-    const setter = type === 'profile' ? setUploadingProfile : setUploadingBg
+  async function handleUploadPicture(memberId: string, type: 'profile' | 'background' | 'field_logo', file: File) {
+    const setter = type === 'profile' ? setUploadingProfile : type === 'background' ? setUploadingBg : setUploadingFieldLogo
     setter(memberId)
     try {
       const fd = new FormData()
@@ -155,7 +157,8 @@ export default function BigFiveAdminPage() {
       const res = await fetch(`/api/admin/big-five/${memberId}/upload-picture`, { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setMessage({ type: 'success', text: `${type === 'profile' ? 'Profile' : 'Background'} picture updated.` })
+      const label = type === 'profile' ? 'Profile picture' : type === 'background' ? 'Background picture' : 'Field company logo'
+      setMessage({ type: 'success', text: `${label} updated.` })
       await fetchMembers()
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message })
@@ -266,7 +269,25 @@ export default function BigFiveAdminPage() {
                     </label>
                   </div>
                   <div className="flex-1 min-w-0 pt-10">
-                    <h2 className="text-lg font-bold text-midnight-blue truncate">{m.name}</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-bold text-midnight-blue truncate">{m.name}</h2>
+                      {/* Field company logo */}
+                      <div className="relative flex-shrink-0">
+                        <div className="w-8 h-8 rounded-full border-2 border-amber-300 overflow-hidden bg-amber-50 flex items-center justify-center">
+                          {m.field_company_logo_url
+                            ? <img src={m.field_company_logo_url} alt="Field co." className="w-full h-full object-cover" />
+                            : <span className="text-xs text-amber-400">?</span>
+                          }
+                        </div>
+                        <label className="absolute -bottom-1 -right-1 cursor-pointer bg-amber-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs hover:bg-amber-600 transition-colors shadow" title="Upload field company logo">
+                          {uploadingFieldLogo === m.id ? '…' : '+'}
+                          <input
+                            type="file" accept="image/*" className="hidden"
+                            onChange={e => e.target.files?.[0] && handleUploadPicture(m.id, 'field_logo', e.target.files[0])}
+                          />
+                        </label>
+                      </div>
+                    </div>
                     {m.instagram_handle && (
                       <p className="text-sm text-steel-gray">@{m.instagram_handle}</p>
                     )}
