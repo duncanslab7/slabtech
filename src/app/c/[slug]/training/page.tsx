@@ -37,6 +37,7 @@ export default function TrainingPage() {
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null)
+  const [videoSignedUrl, setVideoSignedUrl] = useState<string | null>(null)
   const [showQuizModal, setShowQuizModal] = useState(false)
   const [quizVideoId, setQuizVideoId] = useState<string | null>(null)
   const [quizVideoTitle, setQuizVideoTitle] = useState<string>('')
@@ -161,12 +162,19 @@ export default function TrainingPage() {
     return match ? match[1] : null
   }
 
-  const handleWatchVideo = (video: Video) => {
+  const handleWatchVideo = async (video: Video) => {
     setSelectedVideo(video)
+    if (video.video_type === 'upload' && video.storage_path) {
+      const { data } = await supabase.storage
+        .from('training-videos')
+        .createSignedUrl(video.storage_path, 3600)
+      setVideoSignedUrl(data?.signedUrl ?? null)
+    }
   }
 
   const closeVideoModal = () => {
     setSelectedVideo(null)
+    setVideoSignedUrl(null)
   }
 
   if (loading) {
@@ -364,11 +372,11 @@ export default function TrainingPage() {
                     allowFullScreen
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   />
-                ) : selectedVideo.storage_path ? (
+                ) : videoSignedUrl ? (
                   <video
                     controls
                     className="w-full h-full"
-                    src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/training-videos/${selectedVideo.storage_path}`}
+                    src={videoSignedUrl}
                   >
                     Your browser does not support the video tag.
                   </video>
