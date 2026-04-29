@@ -117,22 +117,36 @@ export default function ManageTrainingPage() {
       let thumbnailUrl = null
 
       if (videoType === 'upload') {
-        // Upload file first
-        setUploadProgress('Uploading video...')
-        const formData = new FormData()
-        formData.append('file', uploadFile!)
-
-        const uploadResponse = await fetch('/api/company/training-videos/upload', {
+        // Step 1: get a signed upload URL from the server (admin check happens here)
+        setUploadProgress('Preparing upload...')
+        const signedUrlResponse = await fetch('/api/company/training-videos/upload', {
           method: 'POST',
-          body: formData,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: uploadFile!.name,
+            fileType: uploadFile!.type,
+          }),
         })
 
-        const uploadData = await uploadResponse.json()
-        if (!uploadResponse.ok) {
-          throw new Error(uploadData.error || 'Failed to upload video')
+        const signedUrlData = await signedUrlResponse.json()
+        if (!signedUrlResponse.ok) {
+          throw new Error(signedUrlData.error || 'Failed to prepare upload')
         }
 
-        storagePath = uploadData.storage_path
+        // Step 2: upload directly to Supabase Storage from the browser
+        // (bypasses Vercel's 4.5 MB serverless request limit)
+        setUploadProgress('Uploading video...')
+        const { error: uploadError } = await supabase.storage
+          .from('training-videos')
+          .uploadToSignedUrl(signedUrlData.storagePath, signedUrlData.token, uploadFile!, {
+            contentType: uploadFile!.type,
+          })
+
+        if (uploadError) {
+          throw new Error(`Failed to upload video: ${uploadError.message}`)
+        }
+
+        storagePath = signedUrlData.storagePath
         // For uploaded videos, thumbnail will need to be generated or uploaded separately
       } else {
         // YouTube video - extract thumbnail

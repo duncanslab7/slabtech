@@ -1,7 +1,9 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
-// POST /api/company/training-videos/upload - Upload video file to storage (company admin only)
+// POST /api/company/training-videos/upload
+// Returns a signed upload URL so the client can upload directly to Supabase Storage,
+// avoiding Vercel's 4.5 MB serverless request body limit.
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -11,7 +13,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify user is company admin or super admin
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('role, company_id')
@@ -22,56 +23,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
-    // Get form data
-    const formData = await request.formData()
-    const file = formData.get('file') as File
+    const { fileName, fileType } = await request.json()
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+    if (!fileName || !fileType) {
+      return NextResponse.json({ error: 'fileName and fileType are required' }, { status: 400 })
     }
 
-    // Validate file type (video)
-    if (!file.type.startsWith('video/')) {
-      return NextResponse.json({
-        error: 'Invalid file type. Only video files are allowed.'
-      }, { status: 400 })
+    if (!fileType.startsWith('video/')) {
+      return NextResponse.json({ error: 'Only video files are allowed' }, { status: 400 })
     }
 
-    // Generate unique filename
-    const timestamp = Date.now()
-    const fileExt = file.name.split('.').pop()
+    const fileExt = fileName.split('.').pop()
     const videoId = crypto.randomUUID()
-    const fileName = `${videoId}.${fileExt}`
-    const filePath = `${profile.company_id}/${fileName}`
+    const storagePath = `${profile.company_id}/${videoId}.${fileExt}`
 
-    // Upload to Supabase Storage
-    const { error: uploadError } = await supabase.storage
+    const { data, error } = await supabase.storage
       .from('training-videos')
-      .upload(filePath, file, {
-        contentType: file.type,
-        upsert: false,
-      })
+      .createSignedUploadUrl(storagePath)
 
-    if (uploadError) {
-      console.error('Upload error:', uploadError)
-      return NextResponse.json({
-        error: `Failed to upload file: ${uploadError.message}`
-      }, { status: 500 })
+    if (error || !data) {
+      console.error('Signed URL error:', error)
+      return NextResponse.json({ error: 'Failed to create upload URL' }, { status: 500 })
     }
-
-    // Get public URL for the video (signed URL for private bucket)
-    const { data: urlData } = supabase.storage
-      .from('training-videos')
-      .getPublicUrl(filePath)
 
     return NextResponse.json({
-      success: true,
-      storage_path: filePath,
-      video_id: videoId,
-      public_url: urlData.publicUrl,
-      file_name: file.name,
-      file_size: file.size,
-      content_type: file.type,
+      signedUrl: data.signedUrl,
+      token: data.token,
+      storagePath,
+      videoId,
     })
   } catch (error: any) {
     console.error('Unexpected error:', error)
