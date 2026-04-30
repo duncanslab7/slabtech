@@ -75,7 +75,7 @@ export function useAudioUpload(options?: UseAudioUploadOptions) {
       if (!transcriptId) throw new Error('No transcript ID returned from server');
 
       // ── Step 3: poll /api/transcripts/:id/status ─────────────────────────
-      setUploadProgress('Transcribing audio (this may take 20–40 min for large files)...');
+      setUploadProgress('Transcribing audio (5–25 min depending on file size)...');
 
       for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
         await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
@@ -112,7 +112,7 @@ export function useAudioUpload(options?: UseAudioUploadOptions) {
         if (statusData.message?.includes('Applying') || statusData.message?.includes('redaction')) {
           setUploadProgress('Applying PII redaction and analyzing conversations...');
         } else if (statusData.message?.includes('Transcrib')) {
-          setUploadProgress('Transcribing audio (this may take 20–40 min for large files)...');
+          setUploadProgress('Transcribing audio (5–25 min depending on file size)...');
         }
       }
 

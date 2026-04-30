@@ -25,6 +25,11 @@ async function createAssemblyAITranscript(audioUrl: string, apiKey: string): Pro
       headers: { authorization: apiKey, 'content-type': 'application/json' },
       body: JSON.stringify({
         audio_url: audioUrl,
+        // 'nano' processes at ~10% of audio length vs 'best' at ~30-50%.
+        // For a 3-hour recording: ~18 min instead of 60-90 min. Quality is
+        // still strong for sales call analysis (objections, PII, speakers)
+        // and was the primary blocker for large files completing in time.
+        speech_model: 'nano',
         speaker_labels: true,
         redact_pii: true,
         redact_pii_sub: 'entity_name',
