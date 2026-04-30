@@ -144,6 +144,13 @@ export async function GET(
       return NextResponse.json({ status: 'error', error: msg })
     }
 
+    // AssemblyAI also generates a redacted audio file (separate job from the
+    // transcript). Wait for it to finish before processing — using its output
+    // is much faster than re-running FFmpeg ourselves.
+    if (aaiTranscript.redacted_audio && aaiTranscript.redacted_audio.status !== 'completed') {
+      return NextResponse.json({ status: 'processing', message: 'Generating redacted audio...' })
+    }
+
     // ── AssemblyAI is done — claim the work atomically ────────────────────────
 
     const { data: locked, error: lockError } = await supabase
@@ -299,6 +306,53 @@ async function produceRedactedAudio(args: {
 }): Promise<void> {
   const { sourcePath, destPath, piiMatches, totalDuration, aaiTranscript, supabase } = args
 
+  const aaiUrl = aaiTranscript.redacted_audio?.redacted_audio_url
+  const aaiReady = aaiTranscript.redacted_audio?.status === 'completed'
+
+  // PRIMARY: use AssemblyAI's pre-redacted audio. No FFmpeg, no chunking —
+  // just stream-download to a buffer and upload to Supabase. Total ~30-60s
+  // for a 169MB file, well within Vercel's 5-min limit.
+  // The audio gets passes 1a/1b PII coverage (AssemblyAI's ML detection).
+  // Transcript text still gets all 5 passes including Claude.
+  if (aaiUrl && aaiReady) {
+    console.log('[audio] using AssemblyAI redacted audio (skipping FFmpeg)')
+    const t0 = Date.now()
+    const aaiResp = await fetch(aaiUrl)
+    if (!aaiResp.ok) {
+      // AssemblyAI's URL failed — fall through to FFmpeg
+      console.warn(`[audio] AssemblyAI URL fetch failed (${aaiResp.status}), falling back to FFmpeg`)
+    } else {
+      const buffer = Buffer.from(await aaiResp.arrayBuffer())
+      console.log(`[audio] AssemblyAI download: ${(buffer.length / 1024 / 1024).toFixed(1)}MB in ${((Date.now() - t0) / 1000).toFixed(1)}s`)
+
+      const upStart = Date.now()
+      const { error: uploadError } = await supabase.storage
+        .from('call-recordings')
+        .upload(destPath, buffer, { contentType: 'audio/mpeg', upsert: true })
+      if (uploadError) {
+        throw new Error(`Failed to upload redacted audio: ${uploadError.message}`)
+      }
+      console.log(`[audio] uploaded to ${destPath} in ${((Date.now() - upStart) / 1000).toFixed(1)}s`)
+      return
+    }
+  }
+
+  // FALLBACK: AssemblyAI didn't produce redacted audio (older transcripts
+  // submitted before redact_pii_audio: true was added, or AssemblyAI URL
+  // failed). Run our own chunked FFmpeg as a backup.
+  console.log('[audio] AssemblyAI redacted audio unavailable — using chunked FFmpeg')
+  await runFfmpegFallback({ sourcePath, destPath, piiMatches, totalDuration, supabase })
+}
+
+async function runFfmpegFallback(args: {
+  sourcePath: string
+  destPath: string
+  piiMatches: PiiMatch[]
+  totalDuration: number
+  supabase: any
+}): Promise<void> {
+  const { sourcePath, destPath, piiMatches, totalDuration, supabase } = args
+
   const { data: signedUrlData, error: signedUrlError } = await supabase.storage
     .from('call-recordings')
     .createSignedUrl(sourcePath, 3600)
@@ -312,7 +366,6 @@ async function produceRedactedAudio(args: {
     const inputPath  = path.join(tmpDir, 'input.mp3')
     const outputPath = path.join(tmpDir, 'redacted.mp3')
 
-    // Stream the original to disk (avoids holding the entire file in memory)
     const dlStart = Date.now()
     const audioResp = await fetch(signedUrlData.signedUrl)
     if (!audioResp.ok || !audioResp.body) {
@@ -320,36 +373,15 @@ async function produceRedactedAudio(args: {
     }
     await pipeline(Readable.fromWeb(audioResp.body as any), createWriteStream(inputPath))
     const inputStat = await fs.stat(inputPath)
-    console.log(
-      `[audio] downloaded ${(inputStat.size / 1024 / 1024).toFixed(1)}MB in ${((Date.now() - dlStart) / 1000).toFixed(1)}s`,
-    )
+    console.log(`[audio] downloaded ${(inputStat.size / 1024 / 1024).toFixed(1)}MB in ${((Date.now() - dlStart) / 1000).toFixed(1)}s`)
 
-    let usedFallback = false
-    try {
-      const ffStart = Date.now()
-      await processAudioInChunks(inputPath, outputPath, piiMatches, totalDuration)
-      console.log(`[audio] FFmpeg done in ${((Date.now() - ffStart) / 1000).toFixed(1)}s`)
-    } catch (ffErr: any) {
-      // FFmpeg failed — fall back to the redacted audio AssemblyAI already produced.
-      // It only covers AssemblyAI's detected PII (passes 1a/1b), not our extras
-      // from passes 3-5, but it's better than no redaction at all on big files.
-      const fallbackUrl = aaiTranscript.redacted_audio?.redacted_audio_url
-      if (!fallbackUrl) {
-        throw new Error(`FFmpeg failed and no AssemblyAI fallback available: ${ffErr.message}`)
-      }
-      console.warn(`[audio] FFmpeg failed (${ffErr.message}) — falling back to AssemblyAI redacted audio`)
-      const fbResp = await fetch(fallbackUrl)
-      if (!fbResp.ok || !fbResp.body) {
-        throw new Error(`AssemblyAI fallback download failed: HTTP ${fbResp.status}`)
-      }
-      await pipeline(Readable.fromWeb(fbResp.body as any), createWriteStream(outputPath))
-      usedFallback = true
-    }
+    const ffStart = Date.now()
+    await processAudioInChunks(inputPath, outputPath, piiMatches, totalDuration)
+    console.log(`[audio] FFmpeg done in ${((Date.now() - ffStart) / 1000).toFixed(1)}s`)
 
-    // Upload final result
     const upStart = Date.now()
     const redactedBuffer = await fs.readFile(outputPath)
-    console.log(`[audio] redacted size: ${(redactedBuffer.length / 1024 / 1024).toFixed(1)}MB${usedFallback ? ' (AssemblyAI fallback)' : ''}`)
+    console.log(`[audio] redacted size: ${(redactedBuffer.length / 1024 / 1024).toFixed(1)}MB`)
 
     const { error: uploadError } = await supabase.storage
       .from('call-recordings')
