@@ -38,6 +38,11 @@ async function createAssemblyAITranscript(audioUrl: string, apiKey: string): Pro
           'email_address',
           'location',
         ],
+        // Have AssemblyAI also produce a redacted audio file as a fallback —
+        // if our chunked FFmpeg ever fails on a very large file, the status
+        // route falls back to this URL so the user still gets a redacted file.
+        redact_pii_audio: true,
+        redact_pii_audio_quality: 'mp3',
       }),
     },
     30_000,

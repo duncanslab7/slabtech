@@ -119,20 +119,25 @@ function spawnFfmpeg(ffmpegPath: string, args: string[]): Promise<void> {
 
 // Process a single time-bounded segment of the source file, applying PII
 // silencing with timestamps already adjusted to be relative to chunkStart.
+// Pass `endSeconds = null` for the last chunk so FFmpeg reads to EOF — this
+// avoids truncation when the word-derived duration is shorter than the file.
 async function runFfmpegChunk(
   inputPath: string,
   outputPath: string,
   piiRanges: PiiMatch[],
   startSeconds: number,
-  endSeconds: number,
+  endSeconds: number | null,
 ): Promise<void> {
   const ffmpegPath = getFfmpegPath()
   const args = [
     '-y',
+    '-loglevel', 'error',          // less stderr noise
     '-ss', startSeconds.toFixed(3),
-    '-to', endSeconds.toFixed(3),
-    '-i', inputPath,
   ]
+  if (endSeconds !== null) {
+    args.push('-to', endSeconds.toFixed(3))
+  }
+  args.push('-i', inputPath)
 
   if (piiRanges.length > 0) {
     const merged = mergeRanges(piiRanges)
@@ -142,7 +147,9 @@ async function runFfmpegChunk(
     args.push('-af', `volume=enable='${expr}':volume=0`)
   }
 
-  args.push('-b:a', '64k', '-ac', '1', outputPath)
+  // -compression_level 0: fastest LAME setting (~30-50% faster than default 5)
+  // -ac 1 -b:a 64k: mono voice at 64 kbps — small files, quality unchanged for speech
+  args.push('-c:a', 'libmp3lame', '-compression_level', '0', '-b:a', '64k', '-ac', '1', outputPath)
   await spawnFfmpeg(ffmpegPath, args)
 }
 
@@ -178,10 +185,16 @@ export async function processAudioInChunks(
     return runFfmpegBleep(inputPath, outputPath, piiMatches)
   }
 
-  console.log(`Processing audio in ${numChunks} chunks (${chunkSecs}s each, 4 concurrent)`)
+  // CONCURRENT=3: balance between Vercel's effective CPU (~1-2 vCPU on Pro)
+  // and chunk parallelism. Higher values mostly cause CPU contention since
+  // libmp3lame is single-threaded.
+  const CONCURRENT = 3
+  const overallStart = Date.now()
+  console.log(
+    `[chunked] starting: ${numChunks} chunks of ~${chunkSecs}s, ${CONCURRENT} concurrent, ${piiMatches.length} PII ranges`,
+  )
 
   const chunkPaths: string[] = new Array(numChunks)
-  const CONCURRENT = 4
 
   for (let i = 0; i < numChunks; i += CONCURRENT) {
     const batch = Array.from(
@@ -190,33 +203,47 @@ export async function processAudioInChunks(
     )
 
     await Promise.all(batch.map(async (ci) => {
-      const start = ci * chunkSecs
-      const end   = Math.min((ci + 1) * chunkSecs, totalDuration)
-      const out   = path.join(tmpDir, `chunk_${ci}.mp3`)
+      const isLast = ci === numChunks - 1
+      const start  = ci * chunkSecs
+      // Last chunk: omit `-to` so FFmpeg reads to EOF — handles cases where
+      // word timestamps underestimate the actual audio duration.
+      const end    = isLast ? null : (ci + 1) * chunkSecs
+      const out    = path.join(tmpDir, `chunk_${ci}.mp3`)
 
-      // Clip PII ranges to this chunk's window and make them chunk-relative
+      // Clip PII ranges to this chunk's window and make them chunk-relative.
+      // For the last chunk we don't know the exact end, so use a generous
+      // upper bound (any extra past EOF is harmless).
+      const upper = end ?? totalDuration + 600
       const chunkPii = piiMatches
-        .filter(r => r.end > start && r.start < end)
+        .filter(r => r.end > start && r.start < upper)
         .map(r => ({
           ...r,
           start: Math.max(0, r.start - start),
-          end: Math.min(end - start, r.end - start),
+          end: r.end - start,
         }))
 
+      const chunkStart = Date.now()
       await runFfmpegChunk(inputPath, out, chunkPii, start, end)
       chunkPaths[ci] = out
-      console.log(`Chunk ${ci + 1}/${numChunks} done`)
+      console.log(
+        `[chunked] chunk ${ci + 1}/${numChunks} done in ${((Date.now() - chunkStart) / 1000).toFixed(1)}s` +
+        ` (range ${start}s-${end ?? 'EOF'}, ${chunkPii.length} PII)`,
+      )
     }))
   }
 
-  // Concatenate (stream copy — no re-encode, sub-second)
+  // Concatenate with stream copy — no re-encode, sub-second
   const fileList = path.join(tmpDir, 'filelist.txt')
   await fs.writeFile(
     fileList,
     chunkPaths.map(p => `file '${p.replace(/\\/g, '/')}'`).join('\n'),
   )
+  const concatStart = Date.now()
   await runFfmpegConcat(fileList, outputPath)
-  console.log(`Chunked concat complete → ${outputPath}`)
+  console.log(
+    `[chunked] concat done in ${((Date.now() - concatStart) / 1000).toFixed(1)}s,` +
+    ` total ${((Date.now() - overallStart) / 1000).toFixed(1)}s for ${numChunks} chunks`,
+  )
 }
 
 // ─── Original single-pass function (kept for short files / admin reprocess) ──
@@ -224,53 +251,34 @@ export async function processAudioInChunks(
 export async function runFfmpegBleep(inputPath: string, outputPath: string, ranges: PiiMatch[]) {
   const ffmpegPath = getFfmpegPath()
 
+  // Encoder settings shared across both code paths.
+  // -compression_level 0: fastest LAME setting (~30-50% faster than default 5;
+  //   imperceptible quality difference at 64 kbps mono voice).
+  // -ac 1 -b:a 64k: mono voice, small file, audio sounds fine.
+  const encArgs = ['-c:a', 'libmp3lame', '-compression_level', '0', '-b:a', '64k', '-ac', '1']
+
   if (!ranges.length) {
-    // Still re-encode at lower bitrate to reduce file size for storage upload
-    const ffmpegPathNoRanges = getFfmpegPath()
-    const compressArgs = ['-y', '-i', inputPath, '-b:a', '64k', '-ac', '1', outputPath]
-    await new Promise<void>((resolve, reject) => {
-      const ff = spawn(ffmpegPathNoRanges, compressArgs, { stdio: 'pipe' })
-      ff.on('error', reject)
-      ff.on('close', (code) => code === 0 ? resolve() : reject(new Error(`ffmpeg compress exited ${code}`)))
-    })
+    const compressArgs = ['-y', '-loglevel', 'error', '-i', inputPath, ...encArgs, outputPath]
+    await spawnFfmpeg(ffmpegPath, compressArgs)
     return
   }
 
   const mergedRanges = mergeRanges(ranges)
+  console.log(`runFfmpegBleep: ${ranges.length} ranges → ${mergedRanges.length} merged`)
 
-  console.log('PII ranges before merge:', ranges.length)
-  console.log('PII ranges after merge:', mergedRanges.length)
-  console.log('Merged ranges:', mergedRanges.map(r => `${r.start.toFixed(2)}-${r.end.toFixed(2)}`).join(', '))
-
-  const enableExpression = mergedRanges
-    .map((range) => `between(t,${range.start.toFixed(2)},${range.end.toFixed(2)})`)
+  const expr = mergedRanges
+    .map(r => `between(t,${r.start.toFixed(3)},${r.end.toFixed(3)})`)
     .join('+')
 
-  const volumeFilter = `volume=enable='${enableExpression}':volume=0`
+  const args = [
+    '-y', '-loglevel', 'error',
+    '-i', inputPath,
+    '-af', `volume=enable='${expr}':volume=0`,
+    ...encArgs,
+    outputPath,
+  ]
 
-  console.log('FFmpeg volume filter:', volumeFilter)
-
-  // -b:a 64k -ac 1: compress to 64kbps mono — voice audio sounds fine and keeps
-  // file size small enough for Supabase storage upload (avoids 413/gateway errors)
-  const args = ['-y', '-i', inputPath, '-af', volumeFilter, '-b:a', '64k', '-ac', '1', outputPath]
-
-  await new Promise<void>((resolve, reject) => {
-    const ff = spawn(ffmpegPath, args, { stdio: 'pipe' })
-    let stderr = ''
-
-    ff.stderr?.on('data', (data) => {
-      stderr += data.toString()
-    })
-
-    ff.on('error', reject)
-    ff.on('close', (code) => {
-      if (code === 0) {
-        resolve()
-      } else {
-        console.error('FFmpeg stderr:', stderr)
-        console.error('FFmpeg args:', args)
-        reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(-500)}`))
-      }
-    })
-  })
+  const t0 = Date.now()
+  await spawnFfmpeg(ffmpegPath, args)
+  console.log(`runFfmpegBleep done in ${((Date.now() - t0) / 1000).toFixed(1)}s`)
 }

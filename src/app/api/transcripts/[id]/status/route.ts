@@ -29,6 +29,7 @@ type AssemblyAITranscript = {
   text: string
   words: Array<{ text: string; start: number; end: number; confidence: number; speaker?: string }>
   entities?: AssemblyAIEntity[]
+  redacted_audio?: { status: string; redacted_audio_url: string }
   error?: string
 }
 
@@ -228,9 +229,10 @@ async function runProcessingPipeline(
   }))
 
   const totalDuration = words.length > 0 ? words[words.length - 1].end : 0
-  console.log(`Transcript ${transcriptId}: ${words.length} words, ${totalDuration.toFixed(0)}s`)
+  console.log(`[pipeline] transcript ${transcriptId}: ${words.length} words, ${totalDuration.toFixed(0)}s`)
 
   // 2. Full 5-pass PII detection
+  const piiStart = Date.now()
   const anthropicKey = process.env.ANTHROPIC_API_KEY
   const piiMatches = await runFullPiiDetection(
     aaiTranscript.text,
@@ -238,50 +240,22 @@ async function runProcessingPipeline(
     aaiTranscript.entities,
     anthropicKey,
   )
-  console.log(`PII detection complete: ${piiMatches.length} ranges`)
+  console.log(`[pipeline] PII detection: ${piiMatches.length} ranges in ${((Date.now() - piiStart) / 1000).toFixed(1)}s`)
 
-  // 3. Download audio + run chunked FFmpeg
+  // 3. Audio redaction — try chunked FFmpeg, fall back to AssemblyAI's
+  //    pre-redacted audio if FFmpeg fails for any reason.
   const filePath = dbRecord.file_storage_path as string
   const redactedFilePath = `redacted/${filePath}`
 
-  const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-    .from('call-recordings')
-    .createSignedUrl(filePath, 3600)
-
-  if (signedUrlError || !signedUrlData) {
-    throw new Error('Failed to generate signed URL for audio download')
-  }
-
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'slab-redact-'))
-  try {
-    const inputPath  = path.join(tmpDir, 'input.mp3')
-    const outputPath = path.join(tmpDir, 'redacted.mp3')
-
-    // Stream audio to disk to avoid loading 169MB into memory
-    const audioResp = await fetch(signedUrlData.signedUrl)
-    if (!audioResp.ok || !audioResp.body) {
-      throw new Error(`Failed to download audio: HTTP ${audioResp.status}`)
-    }
-    await pipeline(Readable.fromWeb(audioResp.body as any), createWriteStream(inputPath))
-    console.log(`Audio downloaded: ${inputPath}`)
-
-    // Chunked FFmpeg — parallel chunks keep total time well under 5 min
-    await processAudioInChunks(inputPath, outputPath, piiMatches, totalDuration)
-    const redactedBuffer = await fs.readFile(outputPath)
-    console.log(`Redacted audio: ${(redactedBuffer.length / 1024 / 1024).toFixed(1)}MB`)
-
-    // 4. Upload redacted audio
-    const { error: uploadError } = await supabase.storage
-      .from('call-recordings')
-      .upload(redactedFilePath, redactedBuffer, { contentType: 'audio/mpeg', upsert: true })
-
-    if (uploadError) {
-      throw new Error(`Failed to upload redacted audio: ${uploadError.message}`)
-    }
-    console.log(`Redacted audio uploaded: ${redactedFilePath}`)
-  } finally {
-    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
-  }
+  await produceRedactedAudio({
+    transcriptId,
+    sourcePath: filePath,
+    destPath: redactedFilePath,
+    piiMatches,
+    totalDuration,
+    aaiTranscript,
+    supabase,
+  })
 
   // 5. Save transcript data to DB
   const { error: updateError } = await supabase
@@ -310,6 +284,84 @@ async function runProcessingPipeline(
   }
 
   return piiMatches.length
+}
+
+// ─── Audio redaction with FFmpeg + AssemblyAI fallback ───────────────────────
+
+async function produceRedactedAudio(args: {
+  transcriptId: string
+  sourcePath: string
+  destPath: string
+  piiMatches: PiiMatch[]
+  totalDuration: number
+  aaiTranscript: AssemblyAITranscript
+  supabase: any
+}): Promise<void> {
+  const { sourcePath, destPath, piiMatches, totalDuration, aaiTranscript, supabase } = args
+
+  const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+    .from('call-recordings')
+    .createSignedUrl(sourcePath, 3600)
+
+  if (signedUrlError || !signedUrlData) {
+    throw new Error('Failed to generate signed URL for audio download')
+  }
+
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'slab-redact-'))
+  try {
+    const inputPath  = path.join(tmpDir, 'input.mp3')
+    const outputPath = path.join(tmpDir, 'redacted.mp3')
+
+    // Stream the original to disk (avoids holding the entire file in memory)
+    const dlStart = Date.now()
+    const audioResp = await fetch(signedUrlData.signedUrl)
+    if (!audioResp.ok || !audioResp.body) {
+      throw new Error(`Failed to download audio: HTTP ${audioResp.status}`)
+    }
+    await pipeline(Readable.fromWeb(audioResp.body as any), createWriteStream(inputPath))
+    const inputStat = await fs.stat(inputPath)
+    console.log(
+      `[audio] downloaded ${(inputStat.size / 1024 / 1024).toFixed(1)}MB in ${((Date.now() - dlStart) / 1000).toFixed(1)}s`,
+    )
+
+    let usedFallback = false
+    try {
+      const ffStart = Date.now()
+      await processAudioInChunks(inputPath, outputPath, piiMatches, totalDuration)
+      console.log(`[audio] FFmpeg done in ${((Date.now() - ffStart) / 1000).toFixed(1)}s`)
+    } catch (ffErr: any) {
+      // FFmpeg failed — fall back to the redacted audio AssemblyAI already produced.
+      // It only covers AssemblyAI's detected PII (passes 1a/1b), not our extras
+      // from passes 3-5, but it's better than no redaction at all on big files.
+      const fallbackUrl = aaiTranscript.redacted_audio?.redacted_audio_url
+      if (!fallbackUrl) {
+        throw new Error(`FFmpeg failed and no AssemblyAI fallback available: ${ffErr.message}`)
+      }
+      console.warn(`[audio] FFmpeg failed (${ffErr.message}) — falling back to AssemblyAI redacted audio`)
+      const fbResp = await fetch(fallbackUrl)
+      if (!fbResp.ok || !fbResp.body) {
+        throw new Error(`AssemblyAI fallback download failed: HTTP ${fbResp.status}`)
+      }
+      await pipeline(Readable.fromWeb(fbResp.body as any), createWriteStream(outputPath))
+      usedFallback = true
+    }
+
+    // Upload final result
+    const upStart = Date.now()
+    const redactedBuffer = await fs.readFile(outputPath)
+    console.log(`[audio] redacted size: ${(redactedBuffer.length / 1024 / 1024).toFixed(1)}MB${usedFallback ? ' (AssemblyAI fallback)' : ''}`)
+
+    const { error: uploadError } = await supabase.storage
+      .from('call-recordings')
+      .upload(destPath, redactedBuffer, { contentType: 'audio/mpeg', upsert: true })
+
+    if (uploadError) {
+      throw new Error(`Failed to upload redacted audio: ${uploadError.message}`)
+    }
+    console.log(`[audio] uploaded to ${destPath} in ${((Date.now() - upStart) / 1000).toFixed(1)}s`)
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+  }
 }
 
 // ─── Conversation analysis ────────────────────────────────────────────────────
