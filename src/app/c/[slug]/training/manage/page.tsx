@@ -92,6 +92,69 @@ export default function ManageTrainingPage() {
     return null
   }
 
+  const extractVideoFrame = (file: File): Promise<Blob | null> =>
+    new Promise((resolve) => {
+      const video = document.createElement('video')
+      video.preload = 'metadata'
+      video.muted = true
+      video.playsInline = true
+      video.crossOrigin = 'anonymous'
+
+      const url = URL.createObjectURL(file)
+      video.src = url
+
+      const cleanup = () => {
+        URL.revokeObjectURL(url)
+        video.remove()
+      }
+
+      const timeout = setTimeout(() => {
+        cleanup()
+        resolve(null)
+      }, 15000)
+
+      video.onloadedmetadata = () => {
+        const target = Math.min(1, Math.max(0, video.duration * 0.1))
+        video.currentTime = target
+      }
+
+      video.onseeked = () => {
+        clearTimeout(timeout)
+        try {
+          const canvas = document.createElement('canvas')
+          const maxWidth = 640
+          const scale = Math.min(1, maxWidth / video.videoWidth)
+          canvas.width = Math.round(video.videoWidth * scale)
+          canvas.height = Math.round(video.videoHeight * scale)
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            cleanup()
+            resolve(null)
+            return
+          }
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+          canvas.toBlob(
+            (blob) => {
+              cleanup()
+              resolve(blob)
+            },
+            'image/jpeg',
+            0.85
+          )
+        } catch (err) {
+          console.error('Thumbnail extraction error:', err)
+          cleanup()
+          resolve(null)
+        }
+      }
+
+      video.onerror = () => {
+        clearTimeout(timeout)
+        cleanup()
+        resolve(null)
+      }
+    })
+
   const handleCreateVideo = async () => {
     if (!videoTitle) {
       setMessage({ type: 'error', text: 'Video title is required' })
@@ -133,7 +196,11 @@ export default function ManageTrainingPage() {
           throw new Error(signedUrlData.error || 'Failed to prepare upload')
         }
 
-        // Step 2: upload directly to Supabase Storage from the browser
+        // Step 2: extract a thumbnail frame from the video while still in memory
+        setUploadProgress('Generating thumbnail...')
+        const thumbnailBlob = await extractVideoFrame(uploadFile!)
+
+        // Step 3: upload directly to Supabase Storage from the browser
         // (bypasses Vercel's 4.5 MB serverless request limit)
         setUploadProgress('Uploading video...')
         const { error: uploadError } = await supabase.storage
@@ -147,7 +214,24 @@ export default function ManageTrainingPage() {
         }
 
         storagePath = signedUrlData.storagePath
-        // For uploaded videos, thumbnail will need to be generated or uploaded separately
+
+        // Step 4: upload the thumbnail (best-effort — video already saved)
+        if (thumbnailBlob && signedUrlData.thumbnailSignedUrl && signedUrlData.thumbnailToken) {
+          setUploadProgress('Uploading thumbnail...')
+          const { error: thumbUploadError } = await supabase.storage
+            .from('training-thumbnails')
+            .uploadToSignedUrl(
+              signedUrlData.thumbnailPath,
+              signedUrlData.thumbnailToken,
+              thumbnailBlob,
+              { contentType: 'image/jpeg' }
+            )
+          if (thumbUploadError) {
+            console.warn('Thumbnail upload failed:', thumbUploadError.message)
+          } else {
+            thumbnailUrl = signedUrlData.thumbnailPublicUrl
+          }
+        }
       } else {
         // YouTube video - extract thumbnail
         thumbnailUrl = extractYouTubeThumbnail(youtubeUrl)

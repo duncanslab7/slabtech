@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
     const fileExt = fileName.split('.').pop()
     const videoId = crypto.randomUUID()
     const storagePath = `${profile.company_id}/${videoId}.${fileExt}`
+    const thumbnailPath = `${profile.company_id}/${videoId}.jpg`
 
     const { data, error } = await supabase.storage
       .from('training-videos')
@@ -46,11 +47,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create upload URL' }, { status: 500 })
     }
 
+    const { data: thumbData, error: thumbError } = await supabase.storage
+      .from('training-thumbnails')
+      .createSignedUploadUrl(thumbnailPath)
+
+    if (thumbError) {
+      console.warn('Thumbnail signed URL error (continuing without thumbnail):', thumbError)
+    }
+
+    const { data: thumbPublic } = supabase.storage
+      .from('training-thumbnails')
+      .getPublicUrl(thumbnailPath)
+
     return NextResponse.json({
       signedUrl: data.signedUrl,
       token: data.token,
       storagePath,
       videoId,
+      thumbnailSignedUrl: thumbData?.signedUrl ?? null,
+      thumbnailToken: thumbData?.token ?? null,
+      thumbnailPath,
+      thumbnailPublicUrl: thumbPublic?.publicUrl ?? null,
     })
   } catch (error: any) {
     console.error('Unexpected error:', error)
