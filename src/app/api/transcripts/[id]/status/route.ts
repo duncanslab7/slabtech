@@ -33,7 +33,10 @@ type AssemblyAITranscript = {
   error?: string
 }
 
-const FINALIZING_TIMEOUT_MS = 8 * 60 * 1000 // 8 minutes
+// Long enough that a slow pipeline (saving a large transcript JSONB +
+// segmenting many conversations) can't be interrupted by a recovery poll.
+// Only Vercel-killed (~5 min) jobs really need recovery.
+const FINALIZING_TIMEOUT_MS = 15 * 60 * 1000 // 15 minutes
 
 async function fetchWithTimeout(url: string, options: RequestInit, ms = 30_000) {
   const ctrl = new AbortController()
@@ -132,7 +135,12 @@ export async function GET(
     const aaiTranscript: AssemblyAITranscript = await aaiResp.json()
 
     if (aaiTranscript.status === 'queued' || aaiTranscript.status === 'processing') {
-      return NextResponse.json({ status: 'processing', message: 'Transcribing audio...' })
+      return NextResponse.json({
+        status: 'processing',
+        phase: 'transcribing',
+        assemblyaiStatus: aaiTranscript.status,
+        message: `Transcribing audio (AssemblyAI: ${aaiTranscript.status})`,
+      })
     }
 
     if (aaiTranscript.status === 'error' || aaiTranscript.status === 'terminated') {
@@ -220,6 +228,9 @@ async function runProcessingPipeline(
   aaiTranscript: AssemblyAITranscript,
   supabase: any,
 ): Promise<number> {
+  const tStart = Date.now()
+  console.log(`[pipeline] >>> START transcript ${transcriptId}`)
+
   // 1. Convert words to seconds
   const words: WordEntry[] = aaiTranscript.words.map(w => ({
     word: w.text,
@@ -229,7 +240,7 @@ async function runProcessingPipeline(
   }))
 
   const totalDuration = words.length > 0 ? words[words.length - 1].end : 0
-  console.log(`[pipeline] transcript ${transcriptId}: ${words.length} words, ${totalDuration.toFixed(0)}s`)
+  console.log(`[pipeline] words: ${words.length}, duration: ${totalDuration.toFixed(0)}s, conversations to expect: roughly ${Math.ceil(totalDuration / 60)}+`)
 
   // 2. PII detection. Pass 5 (Claude secondary) is intentionally skipped
   //    here — the prompt is the FULL transcript text, which for 3-hour
@@ -257,6 +268,7 @@ async function runProcessingPipeline(
   const redactedFilePath = '' // empty → player falls back to file_storage_path
 
   // 5. Save transcript data to DB
+  const dbStart = Date.now()
   const { error: updateError } = await supabase
     .from('transcripts')
     .update({
@@ -274,14 +286,20 @@ async function runProcessingPipeline(
   if (updateError) {
     throw new Error(`Failed to update transcript DB record: ${updateError.message}`)
   }
+  console.log(`[pipeline] transcript saved in ${((Date.now() - dbStart) / 1000).toFixed(1)}s, status=completed`)
 
-  // 6. Conversation segmentation + parallelised analysis
+  // 6. Conversation segmentation + analysis (rule-based only for now —
+  //    Claude objection detection is skipped so the pipeline never stalls
+  //    on rate limits or large parallel batches).
   try {
+    const convStart = Date.now()
     await processConversations(transcriptId, dbRecord, words, piiMatches, supabase)
+    console.log(`[pipeline] conversations done in ${((Date.now() - convStart) / 1000).toFixed(1)}s`)
   } catch (convErr) {
-    console.error('Conversation processing error (non-fatal):', convErr)
+    console.error('[pipeline] Conversation processing error (non-fatal):', convErr)
   }
 
+  console.log(`[pipeline] <<< COMPLETE in ${((Date.now() - tStart) / 1000).toFixed(1)}s`)
   return piiMatches.length
 }
 
@@ -398,10 +416,14 @@ async function processConversations(
   supabase: any,
 ) {
   const conversations = segmentConversationsHybrid(words, 'A', 30)
-  console.log(`Segmented ${conversations.length} conversations`)
+  console.log(`[conversations] segmented ${conversations.length} conversations`)
   if (!conversations.length) return
 
-  const anthropicKey = process.env.ANTHROPIC_API_KEY
+  // Claude objection detection skipped for now — for files with 100+
+  // conversations the parallel batches can stall the pipeline. Conversations
+  // still get saved with rule-based category + price detection. Re-enable
+  // when the analysis is moved to a separate background phase.
+  const anthropicKey = undefined as string | undefined
 
   const metadata: UploadMetadata = {
     actualSalesCount:      dbRecord.actual_sales_count      ?? undefined,
