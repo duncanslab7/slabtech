@@ -67,9 +67,17 @@ export function useAudioUpload(options?: UseAudioUploadOptions) {
       await new Promise(resolve => setTimeout(resolve, 500));
 
       setUploadProgress('Transcribing audio with speaker detection...');
+
+      // Get the current access token so the API route can authenticate even if
+      // the session cookie has expired during a long file upload.
+      const { data: { session } } = await supabase.auth.getSession()
+
       const response = await fetch('/api/process-audio', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({
           filePath: filePath,
           originalFilename: file.name,
