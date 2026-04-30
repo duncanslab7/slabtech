@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { Heading, Text, Card, Container } from '@/components'
 import { TranscriptWithConversations } from '@/components/transcripts/TranscriptWithConversations'
+import { TranscriptProcessingStatus } from '@/components/transcripts/TranscriptProcessingStatus'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
@@ -105,6 +106,11 @@ export default async function TranscriptDetailsPage({ params, searchParams }: Tr
   const words = (transcript.transcript_redacted as any)?.words || []
   const piiMatches = (transcript.transcript_redacted as any)?.pii_matches || []
 
+  // Detect transcripts that are still processing or errored out
+  const isStillProcessing =
+    !transcript.transcript_redacted &&
+    (transcript.status === 'processing' || transcript.status === 'finalizing' || transcript.status === 'error')
+
   return (
     <Container maxWidth="xl" padding="lg">
       <div className="mb-8">
@@ -118,6 +124,14 @@ export default async function TranscriptDetailsPage({ params, searchParams }: Tr
           Transcript Details
         </Heading>
       </div>
+
+      {isStillProcessing && (
+        <TranscriptProcessingStatus
+          transcriptId={id}
+          initialStatus={transcript.status}
+          initialError={transcript.processing_error}
+        />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Metadata Column */}

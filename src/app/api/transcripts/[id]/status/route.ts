@@ -145,13 +145,32 @@ export async function GET(
 
     // ── AssemblyAI is done — claim the work atomically ────────────────────────
 
-    const { data: locked } = await supabase
+    const { data: locked, error: lockError } = await supabase
       .from('transcripts')
       .update({ status: 'finalizing', processing_started_at: new Date().toISOString() })
       .eq('id', id)
       .eq('status', 'processing') // Only one caller wins this race
       .select('id')
       .single()
+
+    if (lockError) {
+      // PGRST116 = "no rows returned" — that's fine, it just means someone else got the lock
+      const isNoRows = lockError.code === 'PGRST116'
+      if (!isNoRows) {
+        // Real error — most likely the 'finalizing' status check constraint hasn't been applied
+        console.error('Failed to claim finalizing lock:', lockError)
+        const isConstraintError = lockError.message?.includes('check constraint') ||
+                                  lockError.message?.includes('violates')
+        const userMessage = isConstraintError
+          ? "Database migration not applied. Run async-processing-v2-migration.sql in your Supabase SQL editor."
+          : `Failed to start processing: ${lockError.message}`
+        await supabase
+          .from('transcripts')
+          .update({ status: 'error', processing_error: userMessage, processing_completed_at: new Date().toISOString() })
+          .eq('id', id)
+        return NextResponse.json({ status: 'error', error: userMessage })
+      }
+    }
 
     if (!locked) {
       // Another request already claimed it

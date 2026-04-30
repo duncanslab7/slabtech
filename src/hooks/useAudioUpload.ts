@@ -15,7 +15,7 @@ interface UploadMetadata {
 }
 
 const POLL_INTERVAL_MS = 15_000;
-const MAX_POLL_ATTEMPTS = 120; // 30 minutes max
+const MAX_POLL_ATTEMPTS = 360; // 90 minutes max — covers AssemblyAI processing for ~3-hour recordings
 
 export function useAudioUpload(options?: UseAudioUploadOptions) {
   const [loading, setLoading] = useState(false);
@@ -116,7 +116,7 @@ export function useAudioUpload(options?: UseAudioUploadOptions) {
         }
       }
 
-      throw new Error('Processing timed out after 30 minutes. Please check the dashboard — it may have completed.');
+      throw new Error('Polling timed out after 90 minutes. Open the transcript from the dashboard and click "Check Status / Retry" to resume processing.');
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'An error occurred' });
       setUploadProgress('');
