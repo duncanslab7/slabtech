@@ -27,8 +27,7 @@ async function createAssemblyAITranscript(audioUrl: string, apiKey: string): Pro
         audio_url: audioUrl,
         // 'nano' processes at ~10% of audio length vs 'best' at ~30-50%.
         // For a 3-hour recording: ~18 min instead of 60-90 min. Quality is
-        // still strong for sales call analysis (objections, PII, speakers)
-        // and was the primary blocker for large files completing in time.
+        // still strong for sales call analysis (objections, PII, speakers).
         speech_model: 'nano',
         speaker_labels: true,
         redact_pii: true,
@@ -43,11 +42,10 @@ async function createAssemblyAITranscript(audioUrl: string, apiKey: string): Pro
           'email_address',
           'location',
         ],
-        // Have AssemblyAI also produce a redacted audio file as a fallback —
-        // if our chunked FFmpeg ever fails on a very large file, the status
-        // route falls back to this URL so the user still gets a redacted file.
-        redact_pii_audio: true,
-        redact_pii_audio_quality: 'mp3',
+        // NOTE: redact_pii_audio is intentionally NOT set. AssemblyAI's audio
+        // redaction is a separate job that runs after the transcript and
+        // takes 30-60+ minutes for 3-hour files, blocking the entire pipeline.
+        // Audio redaction can be added later as a separate background phase.
       }),
     },
     30_000,

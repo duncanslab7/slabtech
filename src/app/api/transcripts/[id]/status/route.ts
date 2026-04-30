@@ -144,13 +144,6 @@ export async function GET(
       return NextResponse.json({ status: 'error', error: msg })
     }
 
-    // AssemblyAI also generates a redacted audio file (separate job from the
-    // transcript). Wait for it to finish before processing — using its output
-    // is much faster than re-running FFmpeg ourselves.
-    if (aaiTranscript.redacted_audio && aaiTranscript.redacted_audio.status !== 'completed') {
-      return NextResponse.json({ status: 'processing', message: 'Generating redacted audio...' })
-    }
-
     // ── AssemblyAI is done — claim the work atomically ────────────────────────
 
     const { data: locked, error: lockError } = await supabase
@@ -249,20 +242,14 @@ async function runProcessingPipeline(
   )
   console.log(`[pipeline] PII detection: ${piiMatches.length} ranges in ${((Date.now() - piiStart) / 1000).toFixed(1)}s`)
 
-  // 3. Audio redaction — try chunked FFmpeg, fall back to AssemblyAI's
-  //    pre-redacted audio if FFmpeg fails for any reason.
+  // 3. Audio redaction is intentionally skipped for now — it pushes the total
+  //    pipeline time over Vercel's 5-min serverless limit. The transcript
+  //    text still has full PII redaction (5 passes including Claude). Audio
+  //    file points to the original; the player handles redaction visually
+  //    using the pii_matches we save below. Server-side audio redaction can
+  //    be added back later as a separate background phase.
   const filePath = dbRecord.file_storage_path as string
-  const redactedFilePath = `redacted/${filePath}`
-
-  await produceRedactedAudio({
-    transcriptId,
-    sourcePath: filePath,
-    destPath: redactedFilePath,
-    piiMatches,
-    totalDuration,
-    aaiTranscript,
-    supabase,
-  })
+  const redactedFilePath = '' // empty → player falls back to file_storage_path
 
   // 5. Save transcript data to DB
   const { error: updateError } = await supabase
