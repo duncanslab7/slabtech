@@ -7,6 +7,7 @@ import path from 'path'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
+import { createServiceRoleClient } from '@/utils/supabase/service-role'
 import { runFullPiiDetection } from '@/utils/piiDetectionPasses'
 import type { WordEntry, AssemblyAIEntity } from '@/utils/piiDetectionPasses'
 import { processAudioInChunks } from '@/utils/ffmpegRedaction'
@@ -101,7 +102,8 @@ export async function GET(
 
       if (Date.now() - startedAt > FINALIZING_TIMEOUT_MS) {
         // Previous attempt timed out — reset so the next poll retries
-        await supabase
+        const sr = createServiceRoleClient()
+        await sr
           .from('transcripts')
           .update({ status: 'processing' })
           .eq('id', id)
@@ -143,9 +145,16 @@ export async function GET(
       })
     }
 
+    // Use the service-role client for state mutations on the transcript so
+    // RLS policies can never silently filter out our UPDATE. We've seen this
+    // exact failure mode: SELECT works (user sees their transcript) but
+    // UPDATE matches 0 rows because the policy on UPDATE is more restrictive,
+    // returning PGRST116 and looking like 'no rows matched the WHERE clause'.
+    const sr = createServiceRoleClient()
+
     if (aaiTranscript.status === 'error' || aaiTranscript.status === 'terminated') {
       const msg = aaiTranscript.error || 'AssemblyAI transcription failed'
-      await supabase
+      await sr
         .from('transcripts')
         .update({ status: 'error', processing_error: msg, processing_completed_at: new Date().toISOString() })
         .eq('id', id)
@@ -154,7 +163,8 @@ export async function GET(
 
     // ── AssemblyAI is done — claim the work atomically ────────────────────────
 
-    const { data: locked, error: lockError } = await supabase
+    console.log(`[lock] attempting for ${id} (current DB status: ${transcript.status}, AAI status: ${aaiTranscript.status})`)
+    const { data: locked, error: lockError } = await sr
       .from('transcripts')
       .update({ status: 'finalizing', processing_started_at: new Date().toISOString() })
       .eq('id', id)
@@ -163,28 +173,30 @@ export async function GET(
       .single()
 
     if (lockError) {
-      // PGRST116 = "no rows returned" — that's fine, it just means someone else got the lock
       const isNoRows = lockError.code === 'PGRST116'
       if (!isNoRows) {
         // Real error — most likely the 'finalizing' status check constraint hasn't been applied
-        console.error('Failed to claim finalizing lock:', lockError)
+        console.error(`[lock] error for ${id}: code=${lockError.code} message=${lockError.message}`)
         const isConstraintError = lockError.message?.includes('check constraint') ||
                                   lockError.message?.includes('violates')
         const userMessage = isConstraintError
           ? "Database migration not applied. Run async-processing-v2-migration.sql in your Supabase SQL editor."
           : `Failed to start processing: ${lockError.message}`
-        await supabase
+        await sr
           .from('transcripts')
           .update({ status: 'error', processing_error: userMessage, processing_completed_at: new Date().toISOString() })
           .eq('id', id)
         return NextResponse.json({ status: 'error', error: userMessage })
       }
+      console.warn(`[lock] no rows matched (PGRST116) — another invocation likely got the lock first`)
     }
 
     if (!locked) {
       // Another request already claimed it
       return NextResponse.json({ status: 'processing', message: 'Applying PII redaction...' })
     }
+
+    console.log(`[lock] acquired for ${id}`)
 
     // ── Full processing pipeline ──────────────────────────────────────────────
 
@@ -193,7 +205,7 @@ export async function GET(
         id,
         transcript,
         aaiTranscript,
-        supabase,
+        sr, // pass service-role client for all subsequent writes
       )
 
       return NextResponse.json({
@@ -204,7 +216,7 @@ export async function GET(
       })
     } catch (pipelineErr: any) {
       console.error(`Processing pipeline failed for ${id}:`, pipelineErr)
-      await supabase
+      await sr
         .from('transcripts')
         .update({
           status: 'error',

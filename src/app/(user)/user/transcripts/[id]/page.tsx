@@ -111,18 +111,29 @@ export default function UserTranscriptPage({ params }: { params: Promise<{ id: s
         return;
       }
 
-      // Check if user has access to this transcript (via assignment OR subscription)
-      // 1. Check for direct assignment
-      const { data: assignment } = await supabase
-        .from('transcript_assignments')
-        .select('id')
-        .eq('transcript_id', id)
-        .eq('user_id', user?.id)
+      // Check if user has access to this transcript (via role, assignment, or subscription)
+      // 1. Admins bypass all checks
+      const { data: userProfile } = await supabase
+        .from('user_profiles')
+        .select('role')
+        .eq('id', user?.id)
         .single();
 
-      let hasAccess = !!assignment;
+      let hasAccess = userProfile?.role === 'super_admin' || userProfile?.role === 'admin' || userProfile?.role === 'company_admin';
 
-      // 2. If not directly assigned, check if subscribed to this salesperson
+      // 2. Check for direct assignment
+      if (!hasAccess) {
+        const { data: assignment } = await supabase
+          .from('transcript_assignments')
+          .select('id')
+          .eq('transcript_id', id)
+          .eq('user_id', user?.id)
+          .single();
+
+        hasAccess = !!assignment;
+      }
+
+      // 3. Check if subscribed to this salesperson
       if (!hasAccess) {
         const { data: subscription } = await supabase
           .from('salesperson_subscriptions')
