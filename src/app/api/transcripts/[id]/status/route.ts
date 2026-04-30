@@ -1,308 +1,406 @@
+import { promises as fs } from 'fs'
+import { createWriteStream } from 'fs'
+import { pipeline } from 'stream/promises'
+import { Readable } from 'stream'
+import os from 'os'
+import path from 'path'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
-import { detectPiiMatches, PiiMatch } from '@/utils/pii'
+import { runFullPiiDetection } from '@/utils/piiDetectionPasses'
+import type { WordEntry, AssemblyAIEntity } from '@/utils/piiDetectionPasses'
+import { processAudioInChunks } from '@/utils/ffmpegRedaction'
 import {
   segmentConversationsHybrid,
   getConversationText,
   countPiiInConversation,
-  findTextTimestamp
+  findTextTimestamp,
 } from '@/utils/conversationSegmentation'
 import { analyzeConversation } from '@/utils/conversationAnalysis'
+import type { UploadMetadata } from '@/utils/conversationAnalysis'
+import type { PiiMatch } from '@/utils/pii'
 
-type AssemblyAIWord = {
-  text: string
-  start: number
-  end: number
-  confidence: number
-  speaker?: string
-}
+export const maxDuration = 300
+export const dynamic = 'force-dynamic'
 
 type AssemblyAITranscript = {
   id: string
   status: 'queued' | 'processing' | 'completed' | 'error' | 'terminated'
   text: string
-  words: AssemblyAIWord[]
-  redacted_audio?: {
-    status: string
-    redacted_audio_url: string
-  }
+  words: Array<{ text: string; start: number; end: number; confidence: number; speaker?: string }>
+  entities?: AssemblyAIEntity[]
   error?: string
 }
 
-const DEFAULT_FETCH_TIMEOUT_MS = 30_000
+const FINALIZING_TIMEOUT_MS = 8 * 60 * 1000 // 8 minutes
 
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit,
-  timeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS
-) {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
+async function fetchWithTimeout(url: string, options: RequestInit, ms = 30_000) {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), ms)
   try {
-    const resp = await fetch(url, { ...options, signal: controller.signal })
-    return resp
+    return await fetch(url, { ...options, signal: ctrl.signal })
   } finally {
     clearTimeout(timer)
   }
 }
 
+// ─── Main GET handler ─────────────────────────────────────────────────────────
+
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params
     const supabase = await createClient()
 
-    // Check authentication
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Auth — prefer Bearer token for the same reason as process-audio
+    const authHeader = request.headers.get('Authorization')
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+    const { data: { user } } = bearerToken
+      ? await supabase.auth.getUser(bearerToken)
+      : await supabase.auth.getUser()
 
-    // Get transcript record
-    const { data: transcript, error: transcriptError } = await supabase
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const { data: transcript, error: fetchError } = await supabase
       .from('transcripts')
       .select('*')
       .eq('id', id)
       .single()
 
-    if (transcriptError || !transcript) {
+    if (fetchError || !transcript) {
       return NextResponse.json({ error: 'Transcript not found' }, { status: 404 })
     }
 
-    // If already completed or error, return current status
+    // ── Fast-path: already done ──────────────────────────────────────────────
+
     if (transcript.status === 'completed') {
       return NextResponse.json({
         status: 'completed',
         transcriptId: transcript.id,
-        message: 'Transcription completed successfully',
+        piiMatchCount: transcript.transcript_redacted?.pii_matches?.length ?? 0,
+        message: 'Processing complete',
       })
     }
 
     if (transcript.status === 'error') {
-      return NextResponse.json({
-        status: 'error',
-        error: transcript.processing_error || 'Processing failed',
-      })
+      return NextResponse.json({ status: 'error', error: transcript.processing_error || 'Processing failed' })
     }
 
-    // Check AssemblyAI status
+    // ── 'finalizing' guard: detect stuck jobs and allow retry ────────────────
+
+    if (transcript.status === 'finalizing') {
+      const startedAt = transcript.processing_started_at
+        ? new Date(transcript.processing_started_at).getTime()
+        : Date.now()
+
+      if (Date.now() - startedAt > FINALIZING_TIMEOUT_MS) {
+        // Previous attempt timed out — reset so the next poll retries
+        await supabase
+          .from('transcripts')
+          .update({ status: 'processing' })
+          .eq('id', id)
+        console.warn(`Transcript ${id} was stuck in 'finalizing' — reset to 'processing'`)
+        return NextResponse.json({ status: 'processing', message: 'Retrying after timeout...' })
+      }
+
+      return NextResponse.json({ status: 'processing', message: 'Applying PII redaction...' })
+    }
+
+    // ── Check AssemblyAI ─────────────────────────────────────────────────────
+
+    if (!transcript.assemblyai_transcript_id) {
+      return NextResponse.json({ status: 'error', error: 'No AssemblyAI job ID on this transcript' })
+    }
+
     const assemblyaiKey = process.env.ASSEMBLYAI_API_KEY
     if (!assemblyaiKey) {
       return NextResponse.json({ error: 'ASSEMBLYAI_API_KEY not configured' }, { status: 500 })
     }
 
-    const response = await fetchWithTimeout(
+    const aaiResp = await fetchWithTimeout(
       `https://api.assemblyai.com/v2/transcript/${transcript.assemblyai_transcript_id}`,
-      {
-        method: 'GET',
-        headers: {
-          authorization: assemblyaiKey,
-        },
-      }
+      { headers: { authorization: assemblyaiKey } },
     )
 
-    if (!response.ok) {
-      throw new Error('Failed to check AssemblyAI status')
+    if (!aaiResp.ok) {
+      return NextResponse.json({ status: 'processing', message: 'Checking transcription status...' })
     }
 
-    const assemblyaiTranscript: AssemblyAITranscript = await response.json()
+    const aaiTranscript: AssemblyAITranscript = await aaiResp.json()
 
-    // If still processing, return processing status
-    if (assemblyaiTranscript.status === 'queued' || assemblyaiTranscript.status === 'processing') {
+    if (aaiTranscript.status === 'queued' || aaiTranscript.status === 'processing') {
+      return NextResponse.json({ status: 'processing', message: 'Transcribing audio...' })
+    }
+
+    if (aaiTranscript.status === 'error' || aaiTranscript.status === 'terminated') {
+      const msg = aaiTranscript.error || 'AssemblyAI transcription failed'
+      await supabase
+        .from('transcripts')
+        .update({ status: 'error', processing_error: msg, processing_completed_at: new Date().toISOString() })
+        .eq('id', id)
+      return NextResponse.json({ status: 'error', error: msg })
+    }
+
+    // ── AssemblyAI is done — claim the work atomically ────────────────────────
+
+    const { data: locked } = await supabase
+      .from('transcripts')
+      .update({ status: 'finalizing', processing_started_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('status', 'processing') // Only one caller wins this race
+      .select('id')
+      .single()
+
+    if (!locked) {
+      // Another request already claimed it
+      return NextResponse.json({ status: 'processing', message: 'Applying PII redaction...' })
+    }
+
+    // ── Full processing pipeline ──────────────────────────────────────────────
+
+    try {
+      const piiMatchCount = await runProcessingPipeline(
+        id,
+        transcript,
+        aaiTranscript,
+        supabase,
+      )
+
       return NextResponse.json({
-        status: 'processing',
-        message: 'Transcription in progress...',
+        status: 'completed',
+        transcriptId: id,
+        piiMatchCount,
+        message: 'Processing complete',
       })
-    }
-
-    // If error, update database and return error
-    if (assemblyaiTranscript.status === 'error' || assemblyaiTranscript.status === 'terminated') {
-      const errorMsg = assemblyaiTranscript.error || 'Transcription failed'
-
+    } catch (pipelineErr: any) {
+      console.error(`Processing pipeline failed for ${id}:`, pipelineErr)
       await supabase
         .from('transcripts')
         .update({
           status: 'error',
-          processing_error: errorMsg,
+          processing_error: pipelineErr.message || 'Processing failed',
           processing_completed_at: new Date().toISOString(),
         })
         .eq('id', id)
-
-      return NextResponse.json({
-        status: 'error',
-        error: errorMsg,
-      })
+      return NextResponse.json({ status: 'error', error: pipelineErr.message || 'Processing failed' })
     }
-
-    // If completed, process the results
-    if (assemblyaiTranscript.status === 'completed') {
-      console.log('AssemblyAI transcription completed, processing results...')
-
-      // Convert words
-      const words = assemblyaiTranscript.words.map((w) => ({
-        word: w.text,
-        start: w.start / 1000,
-        end: w.end / 1000,
-        speaker: w.speaker,
-      }))
-
-      // PII detection
-      const piiFields = transcript.redaction_config_used || 'all'
-      const piiMatches = detectPiiMatches(words, piiFields)
-
-      // Download redacted audio
-      let redactedFilePath = ''
-      console.log('Checking for redacted audio:', !!assemblyaiTranscript.redacted_audio)
-      console.log('AssemblyAI response keys:', Object.keys(assemblyaiTranscript))
-
-      if (assemblyaiTranscript.redacted_audio) {
-        console.log('Redacted audio object:', assemblyaiTranscript.redacted_audio)
-      }
-
-      const redactedAudioUrl = assemblyaiTranscript.redacted_audio?.redacted_audio_url
-
-      if (redactedAudioUrl) {
-        console.log('Downloading redacted audio from:', redactedAudioUrl)
-        const redactedAudioResp = await fetch(redactedAudioUrl)
-        console.log('Redacted audio fetch status:', redactedAudioResp.status)
-
-        if (redactedAudioResp.ok) {
-          const redactedBuffer = Buffer.from(await redactedAudioResp.arrayBuffer())
-          console.log('Redacted audio buffer size:', redactedBuffer.length)
-
-          redactedFilePath = `redacted/${transcript.file_storage_path}`
-          const { error: redactedUploadError } = await supabase.storage
-            .from('call-recordings')
-            .upload(redactedFilePath, redactedBuffer, {
-              contentType: 'audio/mpeg',
-              upsert: true,
-            })
-
-          if (redactedUploadError) {
-            console.error('Redacted audio upload error:', redactedUploadError)
-          } else {
-            console.log('Redacted audio uploaded successfully to:', redactedFilePath)
-          }
-        } else {
-          console.error('Failed to download redacted audio, status:', redactedAudioResp.status)
-        }
-      } else {
-        console.warn('No redacted_audio_url in AssemblyAI response - audio redaction may not be enabled or available')
-      }
-
-      // Update transcript with results
-      const { error: updateError } = await supabase
-        .from('transcripts')
-        .update({
-          status: 'completed',
-          transcript_redacted: {
-            text: assemblyaiTranscript.text,
-            words,
-            pii_matches: piiMatches,
-            redacted_file_storage_path: redactedFilePath,
-          },
-          processing_completed_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-
-      if (updateError) {
-        console.error('Failed to update transcript:', updateError)
-      }
-
-      // Process conversations and wait for completion
-      try {
-        await processConversations(id, words, piiMatches)
-        console.log('Conversation processing completed successfully')
-      } catch (error) {
-        console.error('Conversation processing error:', error)
-        // Continue anyway - transcript is still valid
-      }
-
-      return NextResponse.json({
-        status: 'completed',
-        transcriptId: transcript.id,
-        message: 'Transcription completed successfully',
-      })
-    }
-
-    return NextResponse.json({
-      status: 'processing',
-      message: 'Status unknown',
-    })
   } catch (error: any) {
-    console.error('Status check error:', error)
-    return NextResponse.json(
-      { error: error.message || 'Failed to check status' },
-      { status: 500 }
-    )
+    console.error('Status route error:', error)
+    return NextResponse.json({ error: error.message || 'Failed to check status' }, { status: 500 })
   }
 }
 
-// Process conversations asynchronously
+// ─── Processing pipeline (runs once per transcript) ───────────────────────────
+
+async function runProcessingPipeline(
+  transcriptId: string,
+  dbRecord: any,
+  aaiTranscript: AssemblyAITranscript,
+  supabase: any,
+): Promise<number> {
+  // 1. Convert words to seconds
+  const words: WordEntry[] = aaiTranscript.words.map(w => ({
+    word: w.text,
+    start: w.start / 1000,
+    end: w.end / 1000,
+    speaker: w.speaker,
+  }))
+
+  const totalDuration = words.length > 0 ? words[words.length - 1].end : 0
+  console.log(`Transcript ${transcriptId}: ${words.length} words, ${totalDuration.toFixed(0)}s`)
+
+  // 2. Full 5-pass PII detection
+  const anthropicKey = process.env.ANTHROPIC_API_KEY
+  const piiMatches = await runFullPiiDetection(
+    aaiTranscript.text,
+    words,
+    aaiTranscript.entities,
+    anthropicKey,
+  )
+  console.log(`PII detection complete: ${piiMatches.length} ranges`)
+
+  // 3. Download audio + run chunked FFmpeg
+  const filePath = dbRecord.file_storage_path as string
+  const redactedFilePath = `redacted/${filePath}`
+
+  const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+    .from('call-recordings')
+    .createSignedUrl(filePath, 3600)
+
+  if (signedUrlError || !signedUrlData) {
+    throw new Error('Failed to generate signed URL for audio download')
+  }
+
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'slab-redact-'))
+  try {
+    const inputPath  = path.join(tmpDir, 'input.mp3')
+    const outputPath = path.join(tmpDir, 'redacted.mp3')
+
+    // Stream audio to disk to avoid loading 169MB into memory
+    const audioResp = await fetch(signedUrlData.signedUrl)
+    if (!audioResp.ok || !audioResp.body) {
+      throw new Error(`Failed to download audio: HTTP ${audioResp.status}`)
+    }
+    await pipeline(Readable.fromWeb(audioResp.body as any), createWriteStream(inputPath))
+    console.log(`Audio downloaded: ${inputPath}`)
+
+    // Chunked FFmpeg — parallel chunks keep total time well under 5 min
+    await processAudioInChunks(inputPath, outputPath, piiMatches, totalDuration)
+    const redactedBuffer = await fs.readFile(outputPath)
+    console.log(`Redacted audio: ${(redactedBuffer.length / 1024 / 1024).toFixed(1)}MB`)
+
+    // 4. Upload redacted audio
+    const { error: uploadError } = await supabase.storage
+      .from('call-recordings')
+      .upload(redactedFilePath, redactedBuffer, { contentType: 'audio/mpeg', upsert: true })
+
+    if (uploadError) {
+      throw new Error(`Failed to upload redacted audio: ${uploadError.message}`)
+    }
+    console.log(`Redacted audio uploaded: ${redactedFilePath}`)
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+  }
+
+  // 5. Save transcript data to DB
+  const { error: updateError } = await supabase
+    .from('transcripts')
+    .update({
+      transcript_redacted: {
+        text: aaiTranscript.text,
+        words,
+        pii_matches: piiMatches,
+        redacted_file_storage_path: redactedFilePath,
+      },
+      status: 'completed',
+      processing_completed_at: new Date().toISOString(),
+    })
+    .eq('id', transcriptId)
+
+  if (updateError) {
+    throw new Error(`Failed to update transcript DB record: ${updateError.message}`)
+  }
+
+  // 6. Conversation segmentation + parallelised analysis
+  try {
+    await processConversations(transcriptId, dbRecord, words, piiMatches, supabase)
+  } catch (convErr) {
+    console.error('Conversation processing error (non-fatal):', convErr)
+  }
+
+  return piiMatches.length
+}
+
+// ─── Conversation analysis ────────────────────────────────────────────────────
+
 async function processConversations(
   transcriptId: string,
-  words: any[],
-  piiMatches: PiiMatch[]
+  dbRecord: any,
+  words: WordEntry[],
+  piiMatches: PiiMatch[],
+  supabase: any,
 ) {
-  const supabase = await createClient()
+  const conversations = segmentConversationsHybrid(words, 'A', 30)
+  console.log(`Segmented ${conversations.length} conversations`)
+  if (!conversations.length) return
 
-  try {
-    console.log('Segmenting conversations...')
-    const conversations = segmentConversationsHybrid(words, 'A', 30)
-    console.log(`Found ${conversations.length} conversations`)
+  const anthropicKey = process.env.ANTHROPIC_API_KEY
 
-    const anthropicKey = process.env.ANTHROPIC_API_KEY
+  const metadata: UploadMetadata = {
+    actualSalesCount:      dbRecord.actual_sales_count      ?? undefined,
+    expectedCustomerCount: dbRecord.expected_customer_count ?? undefined,
+    areaType:              dbRecord.area_type               ?? undefined,
+    estimatedDurationHours:dbRecord.estimated_duration_hours?? undefined,
+    uploadNotes:           dbRecord.upload_notes            ?? undefined,
+  }
 
-    for (const conversation of conversations) {
-      const conversationText = getConversationText(conversation)
-      const piiCount = countPiiInConversation(piiMatches, conversation)
+  // Analyse all conversations in parallel batches (5 concurrent Claude calls)
+  const BATCH = 5
+  const analysed: Array<{ conversation: any; analysis: any; piiCount: number }> = []
 
-      const analysis = await analyzeConversation(
-        conversationText,
-        piiCount,
-        anthropicKey
-      )
+  for (let i = 0; i < conversations.length; i += BATCH) {
+    const batch = conversations.slice(i, i + BATCH)
+    const results = await Promise.allSettled(
+      batch.map(async (conv) => {
+        const text     = getConversationText(conv)
+        const piiCount = countPiiInConversation(piiMatches, conv)
+        const analysis = await analyzeConversation(text, piiCount, anthropicKey, metadata)
+        return { conversation: conv, analysis, piiCount }
+      }),
+    )
+    for (const r of results) {
+      if (r.status === 'fulfilled') analysed.push(r.value)
+      else console.error('Conversation analysis failed:', r.reason)
+    }
+  }
 
-      const objectionTimestamps = analysis.objectionsWithText.map(objection => {
-        const timestamp = findTextTimestamp(objection.text, conversation.words)
-        return {
-          type: objection.type,
-          text: objection.text,
-          timestamp: timestamp !== null ? timestamp : conversation.startTime
-        }
-      })
+  // Sales calibration: apply actualSalesCount override
+  let finalAnalysed = analysed
+  if (metadata.actualSalesCount !== undefined && metadata.actualSalesCount > 0) {
+    console.log(`Calibrating to ${metadata.actualSalesCount} reported sales`)
 
-      const hasMeaningfulContent = analysis.objections.length > 0 || analysis.category === 'sale'
+    const priceConvs = analysed
+      .filter(c => c.analysis.hasPriceMention)
+      .sort((a, b) => b.piiCount - a.piiCount)
 
-      if (!hasMeaningfulContent) {
-        console.log(`Skipping conversation ${conversation.conversationNumber}`)
-        continue
-      }
-
-      await supabase.from('conversations').insert({
-        transcript_id: transcriptId,
-        conversation_number: conversation.conversationNumber,
-        start_time: conversation.startTime,
-        end_time: conversation.endTime,
-        speakers: conversation.speakers,
-        sales_rep_speaker: 'A',
-        word_count: conversation.wordCount,
-        duration_seconds: conversation.durationSeconds,
-        category: analysis.category,
-        objections: analysis.objections,
-        objections_with_text: analysis.objectionsWithText,
-        objection_timestamps: objectionTimestamps,
-        has_price_mention: analysis.hasPriceMention,
-        pii_redaction_count: analysis.piiRedactionCount,
-        analysis_completed: analysis.analysisCompleted,
-        analysis_error: analysis.analysisError
-      })
+    let salesPool = [...priceConvs]
+    if (salesPool.length < metadata.actualSalesCount) {
+      const piiOnly = analysed
+        .filter(c => c.piiCount > 0 && !c.analysis.hasPriceMention)
+        .sort((a, b) => b.piiCount - a.piiCount)
+      salesPool = [...salesPool, ...piiOnly]
+    }
+    if (salesPool.length < metadata.actualSalesCount) {
+      const remaining = analysed
+        .filter(c => !salesPool.includes(c))
+        .sort((a, b) => b.conversation.durationSeconds - a.conversation.durationSeconds)
+      salesPool = [...salesPool, ...remaining]
     }
 
-    console.log('Conversation processing completed')
-  } catch (error) {
-    console.error('Conversation processing error:', error)
+    const saleNumbers = new Set(
+      salesPool.slice(0, metadata.actualSalesCount).map(c => c.conversation.conversationNumber),
+    )
+
+    finalAnalysed = analysed.map(item => {
+      let category = item.analysis.category
+      if (saleNumbers.has(item.conversation.conversationNumber)) category = 'sale'
+      else if (item.analysis.hasPriceMention) category = 'pitch'
+      else category = 'interaction'
+      return { ...item, analysis: { ...item.analysis, category } }
+    })
   }
+
+  // Persist conversations
+  for (const { conversation, analysis } of finalAnalysed) {
+    if (conversation.wordCount < 10) continue
+
+    const objectionTimestamps = analysis.objectionsWithText.map((obj: any) => ({
+      type: obj.type,
+      text: obj.text,
+      timestamp: findTextTimestamp(obj.text, conversation.words) ?? conversation.startTime,
+    }))
+
+    await supabase.from('conversations').insert({
+      transcript_id: transcriptId,
+      conversation_number: conversation.conversationNumber,
+      start_time: conversation.startTime,
+      end_time: conversation.endTime,
+      speakers: conversation.speakers,
+      sales_rep_speaker: 'A',
+      word_count: conversation.wordCount,
+      duration_seconds: conversation.durationSeconds,
+      category: analysis.category,
+      objections: analysis.objections,
+      objections_with_text: analysis.objectionsWithText,
+      objection_timestamps: objectionTimestamps,
+      has_price_mention: analysis.hasPriceMention,
+      pii_redaction_count: analysis.piiRedactionCount,
+      analysis_completed: analysis.analysisCompleted,
+      analysis_error: analysis.analysisError,
+    })
+  }
+
+  console.log(`Inserted ${finalAnalysed.filter(c => c.conversation.wordCount >= 10).length} conversations`)
 }

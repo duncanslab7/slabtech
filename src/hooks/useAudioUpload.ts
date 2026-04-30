@@ -6,12 +6,6 @@ interface UseAudioUploadOptions {
   onError?: (error: string) => void;
 }
 
-interface UploadState {
-  loading: boolean;
-  uploadProgress: string;
-  message: { type: 'success' | 'error'; text: string } | null;
-}
-
 interface UploadMetadata {
   actualSalesCount?: number;
   expectedCustomerCount?: number;
@@ -19,6 +13,9 @@ interface UploadMetadata {
   estimatedDurationHours?: number;
   uploadNotes?: string;
 }
+
+const POLL_INTERVAL_MS = 15_000;
+const MAX_POLL_ATTEMPTS = 120; // 30 minutes max
 
 export function useAudioUpload(options?: UseAudioUploadOptions) {
   const [loading, setLoading] = useState(false);
@@ -31,112 +28,99 @@ export function useAudioUpload(options?: UseAudioUploadOptions) {
     setUploadProgress('');
 
     try {
-      if (!file) {
-        throw new Error('Please select a file');
-      }
+      if (!file)          throw new Error('Please select a file');
+      if (!salespersonId) throw new Error('Please select a salesperson');
 
-      if (!salespersonId) {
-        throw new Error('Please select a salesperson');
-      }
+      const maxSizeBytes = 400 * 1024 * 1024;
+      if (file.size > maxSizeBytes) throw new Error('File size too large. Must be less than 400MB.');
 
-      const maxSizeMB = 400;
-      const maxSizeBytes = maxSizeMB * 1024 * 1024;
-      if (file.size > maxSizeBytes) {
-        throw new Error(`File size too large. Must be less than ${maxSizeMB}MB.`);
-      }
-
+      // ── Step 1: upload file to Supabase storage ──────────────────────────
       setUploadProgress('Uploading file to storage...');
       const supabase = createClient();
 
-      const timestamp = Date.now();
-      const fileName = `${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-      const filePath = fileName;
-
+      const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
       const { error: uploadError } = await supabase.storage
         .from('call-recordings')
-        .upload(filePath, file, {
-          contentType: file.type,
-          upsert: false,
-        });
+        .upload(fileName, file, { contentType: file.type, upsert: false });
 
-      if (uploadError) {
-        throw new Error(`Failed to upload file: ${uploadError.message}`);
-      }
+      if (uploadError) throw new Error(`Failed to upload file: ${uploadError.message}`);
 
-      setUploadProgress('Preparing audio for transcription...');
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // ── Step 2: submit to AssemblyAI and get transcript ID ───────────────
+      setUploadProgress('Submitting to transcription service...');
 
-      setUploadProgress('Transcribing audio with speaker detection...');
+      const { data: { session } } = await supabase.auth.getSession();
 
-      // Get the current access token so the API route can authenticate even if
-      // the session cookie has expired during a long file upload.
-      const { data: { session } } = await supabase.auth.getSession()
-
-      const response = await fetch('/api/process-audio', {
+      const submitResp = await fetch('/api/process-audio', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
         },
         body: JSON.stringify({
-          filePath: filePath,
+          filePath: fileName,
           originalFilename: file.name,
-          salespersonId: salespersonId,
-          metadata: metadata,
+          salespersonId,
+          metadata,
         }),
       });
 
-      // Get response as text first, then try to parse as JSON
-      const responseText = await response.text();
+      const submitText = await submitResp.text();
+      let submitData: any;
+      try { submitData = JSON.parse(submitText); }
+      catch { throw new Error(`Server error: ${submitText.substring(0, 200)}`); }
 
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        // If JSON parsing fails, show the raw text
-        throw new Error(`Server error (non-JSON response): ${responseText.substring(0, 200)}`);
+      if (!submitResp.ok) throw new Error(submitData.error || 'Failed to submit audio');
+
+      const { transcriptId } = submitData;
+      if (!transcriptId) throw new Error('No transcript ID returned from server');
+
+      // ── Step 3: poll /api/transcripts/:id/status ─────────────────────────
+      setUploadProgress('Transcribing audio (this may take 20–40 min for large files)...');
+
+      for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+
+        // Refresh session token before each poll so it never expires mid-wait
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+        const statusResp = await fetch(`/api/transcripts/${transcriptId}/status`, {
+          headers: currentSession?.access_token
+            ? { 'Authorization': `Bearer ${currentSession.access_token}` }
+            : {},
+        });
+
+        const statusData = await statusResp.json();
+
+        if (statusData.status === 'completed') {
+          const piiInfo = statusData.piiMatchCount !== undefined
+            ? ` (${statusData.piiMatchCount} PII items redacted)`
+            : '';
+          setMessage({
+            type: 'success',
+            text: `Audio processed successfully${piiInfo}! Your transcript has been saved with speaker labels and PII redaction applied.`,
+          });
+          setUploadProgress('');
+          options?.onSuccess?.();
+          return { success: true };
+        }
+
+        if (statusData.status === 'error') {
+          throw new Error(statusData.error || 'Processing failed');
+        }
+
+        // Update progress message based on what the server reports
+        if (statusData.message?.includes('Applying') || statusData.message?.includes('redaction')) {
+          setUploadProgress('Applying PII redaction and analyzing conversations...');
+        } else if (statusData.message?.includes('Transcrib')) {
+          setUploadProgress('Transcribing audio (this may take 20–40 min for large files)...');
+        }
       }
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to process audio');
-      }
-
-      setUploadProgress('Saving transcript and applying PII redaction...');
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      const warningText = data.warnings?.length
-        ? `\n\nWarnings: ${data.warnings.join('; ')}`
-        : '';
-      const piiInfo = data.piiMatchCount !== undefined
-        ? ` (${data.piiMatchCount} PII items redacted)`
-        : '';
-
-      const successMessage = {
-        type: 'success' as const,
-        text: `Audio processed successfully${piiInfo}! Your transcript has been saved with speaker labels and PII redaction applied.${warningText}`,
-      };
-
-      setMessage(successMessage);
-      setUploadProgress('');
-
-      if (options?.onSuccess) {
-        options.onSuccess();
-      }
-
-      return { success: true };
+      throw new Error('Processing timed out after 30 minutes. Please check the dashboard — it may have completed.');
     } catch (error: any) {
-      const errorMessage = {
-        type: 'error' as const,
-        text: error.message || 'An error occurred',
-      };
-
-      setMessage(errorMessage);
+      setMessage({ type: 'error', text: error.message || 'An error occurred' });
       setUploadProgress('');
-
-      if (options?.onError) {
-        options.onError(error.message);
-      }
-
+      options?.onError?.(error.message);
       return { success: false, error: error.message };
     } finally {
       setLoading(false);
@@ -145,11 +129,5 @@ export function useAudioUpload(options?: UseAudioUploadOptions) {
 
   const clearMessage = () => setMessage(null);
 
-  return {
-    loading,
-    uploadProgress,
-    message,
-    uploadAudio,
-    clearMessage,
-  };
+  return { loading, uploadProgress, message, uploadAudio, clearMessage };
 }
