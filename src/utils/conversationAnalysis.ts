@@ -173,8 +173,13 @@ async function detectObjections(
   anthropicApiKey: string,
   metadata?: UploadMetadata
 ): Promise<{ objections: ObjectionType[], objectionsWithText: ObjectionWithText[] }> {
+  // Hard timeout + minimal retries — per-conversation calls happen in
+  // parallel batches and we can't afford any one of them stalling the
+  // pipeline past Vercel's 5-min limit.
   const anthropic = new Anthropic({
-    apiKey: anthropicApiKey
+    apiKey: anthropicApiKey,
+    timeout: 20 * 1000,
+    maxRetries: 1,
   })
 
   // Build context string from metadata

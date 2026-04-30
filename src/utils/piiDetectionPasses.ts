@@ -142,7 +142,13 @@ export async function claudeSecondaryPiiCheck(
   words: WordEntry[],
   anthropicApiKey: string
 ): Promise<PiiMatch[]> {
-  const anthropic = new Anthropic({ apiKey: anthropicApiKey })
+  // Hard timeout + no retries: must never stall the pipeline. For very long
+  // transcripts (3+ hours) this single call can hit token limits and stall.
+  const anthropic = new Anthropic({
+    apiKey: anthropicApiKey,
+    timeout: 45 * 1000,
+    maxRetries: 0,
+  })
 
   const prompt = `You are a privacy compliance reviewer for a door-to-door sales call transcript. AssemblyAI already redacted obvious PII (shown as [ENTITY_TYPE] markers). Your job is to find anything else that slipped through.
 

@@ -231,14 +231,19 @@ async function runProcessingPipeline(
   const totalDuration = words.length > 0 ? words[words.length - 1].end : 0
   console.log(`[pipeline] transcript ${transcriptId}: ${words.length} words, ${totalDuration.toFixed(0)}s`)
 
-  // 2. Full 5-pass PII detection
+  // 2. PII detection. Pass 5 (Claude secondary) is intentionally skipped
+  //    here — the prompt is the FULL transcript text, which for 3-hour
+  //    recordings runs 100K+ tokens. Combined with the SDK's built-in retries
+  //    that single call can stall the entire pipeline past Vercel's 5-min
+  //    limit, leaving the DB stuck in 'finalizing'. Passes 1a/1b (AssemblyAI
+  //    entities + word labels), regex, number sequences, and spelled-out
+  //    cover the dominant cases. Re-enable Claude once the call is chunked.
   const piiStart = Date.now()
-  const anthropicKey = process.env.ANTHROPIC_API_KEY
   const piiMatches = await runFullPiiDetection(
     aaiTranscript.text,
     words,
     aaiTranscript.entities,
-    anthropicKey,
+    undefined, // skip Claude pass 5 for now
   )
   console.log(`[pipeline] PII detection: ${piiMatches.length} ranges in ${((Date.now() - piiStart) / 1000).toFixed(1)}s`)
 
