@@ -40,6 +40,7 @@ export interface UploadMetadata {
   areaType?: string
   estimatedDurationHours?: number
   uploadNotes?: string
+  recordingType?: 'continuous' | 'edited_clips'
 }
 
 /**

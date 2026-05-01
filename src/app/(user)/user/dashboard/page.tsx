@@ -65,6 +65,7 @@ export default function UserDashboard() {
   const [areaType, setAreaType] = useState<string>('');
   const [estimatedDurationHours, setEstimatedDurationHours] = useState<string>('');
   const [uploadNotes, setUploadNotes] = useState<string>('');
+  const [recordingType, setRecordingType] = useState<'continuous' | 'edited_clips'>('continuous');
 
   const { loading: uploadLoading, uploadProgress, message, uploadAudio } = useAudioUpload({
     onSuccess: () => {
@@ -75,6 +76,7 @@ export default function UserDashboard() {
       setAreaType('');
       setEstimatedDurationHours('');
       setUploadNotes('');
+      setRecordingType('continuous');
       const fileInput = document.getElementById('file-upload') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
     },
@@ -342,6 +344,7 @@ export default function UserDashboard() {
       areaType: areaType || undefined,
       estimatedDurationHours: estimatedDurationHours ? parseFloat(estimatedDurationHours) : undefined,
       uploadNotes: uploadNotes || undefined,
+      recordingType,
     };
 
     await uploadAudio(file, salespersonId, metadata);
@@ -1047,6 +1050,44 @@ export default function UserDashboard() {
                   <h3 className="text-sm font-semibold text-midnight-blue mb-4">
                     Recording Details (Optional - helps improve AI accuracy)
                   </h3>
+
+                  {/* Recording Type Toggle */}
+                  <div>
+                    <label className="block text-sm font-medium text-midnight-blue mb-2">
+                      Recording Type
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setRecordingType('continuous')}
+                        disabled={uploadLoading}
+                        className={`px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all text-left ${
+                          recordingType === 'continuous'
+                            ? 'border-success-gold bg-amber-50 text-charcoal'
+                            : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                        }`}
+                      >
+                        <div className="font-semibold">Continuous Recording</div>
+                        <div className="text-xs mt-1 opacity-80">Standard 8-hr field recording with walking gaps</div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRecordingType('edited_clips')}
+                        disabled={uploadLoading}
+                        className={`px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all text-left ${
+                          recordingType === 'edited_clips'
+                            ? 'border-success-gold bg-amber-50 text-charcoal'
+                            : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                        }`}
+                      >
+                        <div className="font-semibold">Pre-edited Clips</div>
+                        <div className="text-xs mt-1 opacity-80">Concatenated clips with only seconds between conversations</div>
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Pre-edited mode uses greeting detection (e.g. &ldquo;hi&rdquo;, &ldquo;how are you&rdquo;, &ldquo;my name is&rdquo;) to find conversation boundaries when there&apos;s no walking gap.
+                    </p>
+                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Actual Sales Count */}

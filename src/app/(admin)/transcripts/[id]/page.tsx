@@ -3,6 +3,7 @@ import { Heading, Text, Card, Container } from '@/components'
 import { TranscriptWithConversations } from '@/components/transcripts/TranscriptWithConversations'
 import { TranscriptProcessingStatus } from '@/components/transcripts/TranscriptProcessingStatus'
 import { AudioRedactionStatus } from '@/components/transcripts/AudioRedactionStatus'
+import { ReSegmentControl } from '@/components/transcripts/ReSegmentControl'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
@@ -142,6 +143,13 @@ export default async function TranscriptDetailsPage({ params, searchParams }: Tr
 
       {needsAudioRedaction && (
         <AudioRedactionStatus transcriptId={id} />
+      )}
+
+      {(profile?.role === 'admin' || profile?.role === 'super_admin') && transcript.transcript_redacted && (
+        <ReSegmentControl
+          transcriptId={id}
+          currentRecordingType={transcript.recording_type === 'edited_clips' ? 'edited_clips' : 'continuous'}
+        />
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

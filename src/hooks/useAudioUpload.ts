@@ -12,6 +12,7 @@ interface UploadMetadata {
   areaType?: string;
   estimatedDurationHours?: number;
   uploadNotes?: string;
+  recordingType?: 'continuous' | 'edited_clips';
 }
 
 const POLL_INTERVAL_MS = 15_000;

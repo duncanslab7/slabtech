@@ -195,8 +195,17 @@ export function segmentConversationsBySilence(
 export function segmentConversationsHybrid(
   words: Word[],
   salesRepSpeaker: string = 'A',
-  silenceThresholdSeconds: number = 30
+  silenceThresholdSeconds: number = 30,
+  options?: SegmentationOptions
 ): ConversationSegment[] {
+  // edited_clips mode: skip speaker-based segmentation entirely.
+  // AssemblyAI's diarization fails on tightly concatenated clips (different
+  // customers get clustered into 2-3 speaker labels), so speaker changes are
+  // unreliable. Instead use gap+greeting detection.
+  if (options?.recordingType === 'edited_clips') {
+    return segmentConversationsByGreetings(words, salesRepSpeaker, options)
+  }
+
   // First, try speaker-based segmentation
   const hasSpeakerLabels = words.some(w => w.speaker !== undefined)
 
@@ -211,6 +220,170 @@ export function segmentConversationsHybrid(
 
   // Fallback to silence-based segmentation
   return segmentConversationsBySilence(words, silenceThresholdSeconds)
+}
+
+/**
+ * Options for segmentation. Used when the rep tags the upload as
+ * 'edited_clips' (pre-cut clips concatenated with tiny gaps).
+ */
+export interface SegmentationOptions {
+  recordingType?: 'continuous' | 'edited_clips'
+  // Sanity-check / calibration hints from the upload form. We use these
+  // mostly for logging right now (so Duncan can spot when segmentation is
+  // off), but `expectedCustomerCount` also drives a fallback that loosens
+  // the greeting requirement if we're way under target.
+  expectedCustomerCount?: number
+  actualSalesCount?: number
+}
+
+// Words that strongly indicate the start of a new door interaction.
+// Kept aggressive — false positives just make smaller conversations, false
+// negatives merge separate conversations (much worse).
+const GREETING_TOKENS = new Set([
+  'hi', 'hey', 'hello', 'howdy', 'morning', 'afternoon', 'evening',
+  'sir', "ma'am", 'maam', 'folks', 'neighbor',
+])
+
+// Bigram intro phrases (normalized lowercase, punctuation stripped).
+const INTRO_PHRASES: string[][] = [
+  ['good', 'morning'],
+  ['good', 'afternoon'],
+  ['good', 'evening'],
+  ['how', 'are'],         // "how are you / yall / things"
+  ['how', "you're"],      // "how you're doing"
+  ['how', 'you'],         // "how you doing"
+  ['how', 'is'],          // "how is it going"
+  ['how', 'goes'],        // "how goes it"
+  ['my', 'name'],         // sales rep intro: "my name is"
+  ["i'm", 'with'],        // "I'm with [company]"
+  ['im', 'with'],
+  ["i'm", 'from'],
+  ['im', 'from'],
+  ['quick', 'question'],
+  ['just', 'wanted'],
+  ['real', 'quick'],
+  ['can', 'i'],           // "can i ask you / get a minute"
+  ['do', 'you'],          // "do you have a minute / live here"
+  ['are', 'you'],         // "are you the homeowner / the owner"
+  ['is', 'this'],         // "is this your house"
+  ['sorry', 'to'],        // "sorry to bother"
+]
+
+function normToken(w: string): string {
+  return w.toLowerCase().replace(/[^a-z']/g, '')
+}
+
+/**
+ * Look ahead from index `start` and decide whether the next few words
+ * look like a fresh door greeting / sales intro. Window is short (8 words)
+ * because a real greeting almost always comes in the first phrase.
+ */
+function looksLikeGreeting(words: Word[], start: number, windowSize = 8): boolean {
+  const window = words.slice(start, start + windowSize).map(w => normToken(w.word))
+
+  for (const tok of window) {
+    if (GREETING_TOKENS.has(tok)) return true
+  }
+
+  for (let i = 0; i < window.length - 1; i++) {
+    for (const phrase of INTRO_PHRASES) {
+      if (window[i] === phrase[0] && window[i + 1] === phrase[1]) return true
+    }
+  }
+
+  return false
+}
+
+/**
+ * Segmentation tuned for edited / concatenated clips with very small dead
+ * time between conversations. Splits when:
+ *   - There's at least a 2s gap, AND
+ *   - The next words look like a greeting/intro
+ *
+ * If the resulting count is way below `expectedCustomerCount`, we relax the
+ * greeting requirement and re-run with gap-only splits as a fallback. That
+ * way the rep's reported customer count actually informs the result.
+ */
+export function segmentConversationsByGreetings(
+  words: Word[],
+  salesRepSpeaker: string = 'A',
+  options?: SegmentationOptions
+): ConversationSegment[] {
+  if (!words || words.length === 0) return []
+
+  const GAP_SECONDS = 2.0
+  const MIN_DURATION = 10 // shorter floor — pre-edited clips can be brief
+  const MIN_WORDS = 8
+
+  const splitIndices: number[] = [0]
+
+  for (let i = 1; i < words.length; i++) {
+    const gap = words[i].start - words[i - 1].end
+    if (gap >= GAP_SECONDS && looksLikeGreeting(words, i)) {
+      splitIndices.push(i)
+    }
+  }
+
+  let segments = buildSegmentsFromSplits(words, splitIndices, MIN_DURATION, MIN_WORDS)
+
+  // Calibration: if we found way fewer than expected, fall back to gap-only
+  // (skip the greeting check). Threshold: <60% of expected.
+  const expected = options?.expectedCustomerCount
+  if (expected && expected > 0 && segments.length < Math.floor(expected * 0.6)) {
+    console.log(
+      `[segmenter:edited_clips] only ${segments.length} segments vs expected ${expected} — relaxing to gap-only`
+    )
+    const relaxed: number[] = [0]
+    for (let i = 1; i < words.length; i++) {
+      const gap = words[i].start - words[i - 1].end
+      if (gap >= GAP_SECONDS) relaxed.push(i)
+    }
+    segments = buildSegmentsFromSplits(words, relaxed, MIN_DURATION, MIN_WORDS)
+  }
+
+  console.log(
+    `[segmenter:edited_clips] ${segments.length} segments` +
+    (expected ? ` (expected ~${expected})` : '') +
+    (options?.actualSalesCount !== undefined ? ` (reported sales: ${options.actualSalesCount})` : '')
+  )
+
+  return segments
+}
+
+function buildSegmentsFromSplits(
+  words: Word[],
+  splitIndices: number[],
+  minDurationSeconds: number,
+  minWords: number,
+): ConversationSegment[] {
+  const result: ConversationSegment[] = []
+  let conversationNumber = 0
+
+  for (let s = 0; s < splitIndices.length; s++) {
+    const start = splitIndices[s]
+    const end = s + 1 < splitIndices.length ? splitIndices[s + 1] : words.length
+    const slice = words.slice(start, end)
+    if (slice.length < minWords) continue
+
+    const duration = slice[slice.length - 1].end - slice[0].start
+    if (duration < minDurationSeconds) continue
+
+    conversationNumber++
+    const speakers = new Set<string>()
+    slice.forEach(w => { if (w.speaker) speakers.add(w.speaker) })
+
+    result.push({
+      conversationNumber,
+      startTime: slice[0].start,
+      endTime: slice[slice.length - 1].end,
+      speakers: Array.from(speakers),
+      words: slice,
+      wordCount: slice.length,
+      durationSeconds: parseFloat(duration.toFixed(2)),
+    })
+  }
+
+  return result.map((c, i) => ({ ...c, conversationNumber: i + 1 }))
 }
 
 /**

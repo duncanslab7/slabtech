@@ -147,6 +147,7 @@ export async function POST(request: NextRequest) {
         area_type: metadata?.areaType,
         estimated_duration_hours: metadata?.estimatedDurationHours,
         upload_notes: metadata?.uploadNotes,
+        recording_type: metadata?.recordingType || 'continuous',
       })
       .select('id')
       .single()
