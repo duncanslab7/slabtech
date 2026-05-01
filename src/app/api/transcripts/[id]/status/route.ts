@@ -253,6 +253,7 @@ async function runProcessingPipeline(
 
   const totalDuration = words.length > 0 ? words[words.length - 1].end : 0
   console.log(`[pipeline] words: ${words.length}, duration: ${totalDuration.toFixed(0)}s, conversations to expect: roughly ${Math.ceil(totalDuration / 60)}+`)
+  console.log(`[pipeline] transcript text length: ${aaiTranscript.text?.length ?? 0} chars`)
 
   // 2. PII detection. Pass 5 (Claude secondary) is intentionally skipped
   //    here — the prompt is the FULL transcript text, which for 3-hour
@@ -300,9 +301,10 @@ async function runProcessingPipeline(
   }
   console.log(`[pipeline] transcript saved in ${((Date.now() - dbStart) / 1000).toFixed(1)}s, status=completed`)
 
-  // 6. Conversation segmentation + analysis (rule-based only for now —
-  //    Claude objection detection is skipped so the pipeline never stalls
-  //    on rate limits or large parallel batches).
+  // 6. Conversation segmentation + analysis. Claude per-conversation
+  //    objection detection runs here with hard timeouts (20s/call, 1 retry).
+  //    Wrapped in try/catch so a slow Claude can't take down the whole
+  //    pipeline — transcript is already saved as 'completed' above.
   try {
     const convStart = Date.now()
     await processConversations(transcriptId, dbRecord, words, piiMatches, supabase)
@@ -431,11 +433,11 @@ async function processConversations(
   console.log(`[conversations] segmented ${conversations.length} conversations`)
   if (!conversations.length) return
 
-  // Claude objection detection skipped for now — for files with 100+
-  // conversations the parallel batches can stall the pipeline. Conversations
-  // still get saved with rule-based category + price detection. Re-enable
-  // when the analysis is moved to a separate background phase.
-  const anthropicKey = undefined as string | undefined
+  // Claude objection detection per conversation. Each call has a hard 20s
+  // timeout + 1 retry (set in conversationAnalysis.ts), so even 100+
+  // conversations can't stall the pipeline past ~5 min worst case. Within
+  // the 15-min auto-recovery window with margin to spare.
+  const anthropicKey = process.env.ANTHROPIC_API_KEY
 
   const metadata: UploadMetadata = {
     actualSalesCount:      dbRecord.actual_sales_count      ?? undefined,
