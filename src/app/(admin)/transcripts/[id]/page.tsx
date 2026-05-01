@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { Heading, Text, Card, Container } from '@/components'
 import { TranscriptWithConversations } from '@/components/transcripts/TranscriptWithConversations'
 import { TranscriptProcessingStatus } from '@/components/transcripts/TranscriptProcessingStatus'
+import { AudioRedactionStatus } from '@/components/transcripts/AudioRedactionStatus'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
@@ -111,6 +112,12 @@ export default async function TranscriptDetailsPage({ params, searchParams }: Tr
     !transcript.transcript_redacted &&
     (transcript.status === 'processing' || transcript.status === 'finalizing' || transcript.status === 'error')
 
+  // Transcript is done but audio was never redacted (empty string = skipped)
+  const needsAudioRedaction =
+    transcript.status === 'completed' &&
+    transcript.transcript_redacted &&
+    !redactedFilePath
+
   return (
     <Container maxWidth="xl" padding="lg">
       <div className="mb-8">
@@ -131,6 +138,10 @@ export default async function TranscriptDetailsPage({ params, searchParams }: Tr
           initialStatus={transcript.status}
           initialError={transcript.processing_error}
         />
+      )}
+
+      {needsAudioRedaction && (
+        <AudioRedactionStatus transcriptId={id} />
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

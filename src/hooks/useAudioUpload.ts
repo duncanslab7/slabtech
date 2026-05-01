@@ -92,6 +92,25 @@ export function useAudioUpload(options?: UseAudioUploadOptions) {
         const statusData = await statusResp.json();
 
         if (statusData.status === 'completed') {
+          // Transcript text is done — now redact the audio file in a separate call
+          setUploadProgress('Redacting audio file (this may take a few minutes for large recordings)...');
+
+          try {
+            const { data: { session: redactSession } } = await supabase.auth.getSession();
+            const redactResp = await fetch(`/api/transcripts/${transcriptId}/redact-audio`, {
+              method: 'POST',
+              headers: redactSession?.access_token
+                ? { 'Authorization': `Bearer ${redactSession.access_token}` }
+                : {},
+            });
+            if (!redactResp.ok) {
+              const redactErr = await redactResp.json().catch(() => ({}));
+              console.error('Audio redaction failed (non-fatal):', redactErr.error);
+            }
+          } catch (redactErr: any) {
+            console.error('Audio redaction request failed (non-fatal):', redactErr.message);
+          }
+
           const piiInfo = statusData.piiMatchCount !== undefined
             ? ` (${statusData.piiMatchCount} PII items redacted)`
             : '';
