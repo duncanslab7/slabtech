@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/utils/supabase/client';
 import { useAudioUpload } from '@/hooks/useAudioUpload';
+import { parseTimestampInput, formatSeconds } from '@/utils/timestampParsing';
 
 interface Transcript {
   id: string;
@@ -65,7 +66,13 @@ export default function UserDashboard() {
   const [areaType, setAreaType] = useState<string>('');
   const [estimatedDurationHours, setEstimatedDurationHours] = useState<string>('');
   const [uploadNotes, setUploadNotes] = useState<string>('');
-  const [recordingType, setRecordingType] = useState<'continuous' | 'edited_clips'>('continuous');
+  const [recordingType, setRecordingType] = useState<'continuous' | 'edited_clips' | 'manual_timestamps'>('continuous');
+  const [manualTimestampInput, setManualTimestampInput] = useState<string>('');
+
+  const timestampParse = useMemo(
+    () => recordingType === 'manual_timestamps' ? parseTimestampInput(manualTimestampInput) : null,
+    [recordingType, manualTimestampInput]
+  );
 
   const { loading: uploadLoading, uploadProgress, message, uploadAudio } = useAudioUpload({
     onSuccess: () => {
@@ -77,6 +84,7 @@ export default function UserDashboard() {
       setEstimatedDurationHours('');
       setUploadNotes('');
       setRecordingType('continuous');
+      setManualTimestampInput('');
       const fileInput = document.getElementById('file-upload') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
     },
@@ -345,10 +353,15 @@ export default function UserDashboard() {
       estimatedDurationHours: estimatedDurationHours ? parseFloat(estimatedDurationHours) : undefined,
       uploadNotes: uploadNotes || undefined,
       recordingType,
+      manualTimestamps: recordingType === 'manual_timestamps' ? timestampParse?.ranges : undefined,
     };
 
     await uploadAudio(file, salespersonId, metadata);
   };
+
+  const manualTimestampsInvalid =
+    recordingType === 'manual_timestamps' &&
+    (!timestampParse || timestampParse.ranges.length === 0 || timestampParse.errors.length > 0);
 
   const handleEditNote = (favoriteId: string, currentNote: string | null) => {
     setEditingNoteId(favoriteId);
@@ -1056,7 +1069,7 @@ export default function UserDashboard() {
                     <label className="block text-sm font-medium text-midnight-blue mb-2">
                       Recording Type
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                       <button
                         type="button"
                         onClick={() => setRecordingType('continuous')}
@@ -1068,7 +1081,7 @@ export default function UserDashboard() {
                         }`}
                       >
                         <div className="font-semibold">Continuous Recording</div>
-                        <div className="text-xs mt-1 opacity-80">Standard 8-hr field recording with walking gaps</div>
+                        <div className="text-xs mt-1 opacity-80">Standard field recording with walking gaps</div>
                       </button>
                       <button
                         type="button"
@@ -1081,13 +1094,65 @@ export default function UserDashboard() {
                         }`}
                       >
                         <div className="font-semibold">Pre-edited Clips</div>
-                        <div className="text-xs mt-1 opacity-80">Concatenated clips with only seconds between conversations</div>
+                        <div className="text-xs mt-1 opacity-80">Greeting detection on concatenated clips</div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRecordingType('manual_timestamps')}
+                        disabled={uploadLoading}
+                        className={`px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all text-left ${
+                          recordingType === 'manual_timestamps'
+                            ? 'border-success-gold bg-amber-50 text-charcoal'
+                            : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                        }`}
+                      >
+                        <div className="font-semibold">Manual Timestamps</div>
+                        <div className="text-xs mt-1 opacity-80">Paste exact start/end ranges for each conversation</div>
                       </button>
                     </div>
                     <p className="text-xs text-gray-500 mt-2">
-                      Pre-edited mode uses greeting detection (e.g. &ldquo;hi&rdquo;, &ldquo;how are you&rdquo;, &ldquo;my name is&rdquo;) to find conversation boundaries when there&apos;s no walking gap.
+                      Continuous = walking gaps between doors. Pre-edited = clips concatenated with no walking gap. Manual = you provide exact timestamps for 100% accuracy.
                     </p>
                   </div>
+
+                  {/* Manual Timestamps Input */}
+                  {recordingType === 'manual_timestamps' && (
+                    <div>
+                      <label className="block text-sm font-medium text-midnight-blue mb-2">
+                        Conversation Timestamps <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        value={manualTimestampInput}
+                        onChange={(e) => setManualTimestampInput(e.target.value)}
+                        placeholder={`One range per line (start - end). Examples:\n00:00 - 02:30\n02:35 - 04:50\n05:00 - 06:30\n\nAccepts MM:SS, HH:MM:SS, or plain seconds. Lines starting with # are ignored.`}
+                        rows={8}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-gold focus:border-transparent font-mono text-sm"
+                        disabled={uploadLoading}
+                      />
+                      {timestampParse && (
+                        <div className="mt-2 space-y-1">
+                          {timestampParse.ranges.length > 0 && (
+                            <p className="text-xs text-green-700">
+                              ✓ Parsed {timestampParse.ranges.length} conversation{timestampParse.ranges.length === 1 ? '' : 's'}
+                              {timestampParse.ranges.length > 0 && (
+                                <> (first: {formatSeconds(timestampParse.ranges[0].start)}–{formatSeconds(timestampParse.ranges[0].end)}, last: {formatSeconds(timestampParse.ranges[timestampParse.ranges.length - 1].start)}–{formatSeconds(timestampParse.ranges[timestampParse.ranges.length - 1].end)})</>
+                              )}
+                            </p>
+                          )}
+                          {timestampParse.errors.length > 0 && (
+                            <div className="text-xs text-red-700 space-y-0.5">
+                              {timestampParse.errors.map((err, i) => (
+                                <div key={i}>Line {err.line}: {err.reason} — &ldquo;{err.raw}&rdquo;</div>
+                              ))}
+                            </div>
+                          )}
+                          {manualTimestampInput.trim() === '' && (
+                            <p className="text-xs text-gray-500">Paste your timestamps above to continue.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Actual Sales Count */}
@@ -1198,7 +1263,7 @@ export default function UserDashboard() {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={uploadLoading || !salespersonId || !file}
+                  disabled={uploadLoading || !salespersonId || !file || manualTimestampsInvalid}
                   className="w-full py-3 px-4 bg-success-gold text-white font-semibold rounded-lg hover:bg-amber-500 focus:ring-2 focus:ring-offset-2 focus:ring-success-gold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   {uploadLoading ? (

@@ -148,6 +148,9 @@ export async function POST(request: NextRequest) {
         estimated_duration_hours: metadata?.estimatedDurationHours,
         upload_notes: metadata?.uploadNotes,
         recording_type: metadata?.recordingType || 'continuous',
+        manual_timestamps: metadata?.recordingType === 'manual_timestamps' && metadata?.manualTimestamps?.length
+          ? metadata.manualTimestamps
+          : null,
       })
       .select('id')
       .single()

@@ -429,13 +429,16 @@ async function processConversations(
   piiMatches: PiiMatch[],
   supabase: any,
 ) {
-  const recordingType: 'continuous' | 'edited_clips' =
-    dbRecord.recording_type === 'edited_clips' ? 'edited_clips' : 'continuous'
+  const recordingType: 'continuous' | 'edited_clips' | 'manual_timestamps' =
+    dbRecord.recording_type === 'edited_clips' ? 'edited_clips'
+    : dbRecord.recording_type === 'manual_timestamps' ? 'manual_timestamps'
+    : 'continuous'
 
   const conversations = segmentConversationsHybrid(words, 'A', 30, {
     recordingType,
     expectedCustomerCount: dbRecord.expected_customer_count ?? undefined,
     actualSalesCount: dbRecord.actual_sales_count ?? undefined,
+    manualTimestamps: dbRecord.manual_timestamps ?? undefined,
   })
   console.log(`[conversations] segmented ${conversations.length} conversations (recordingType=${recordingType})`)
   if (!conversations.length) return

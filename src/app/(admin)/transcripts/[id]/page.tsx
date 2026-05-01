@@ -148,7 +148,11 @@ export default async function TranscriptDetailsPage({ params, searchParams }: Tr
       {(profile?.role === 'admin' || profile?.role === 'super_admin') && transcript.transcript_redacted && (
         <ReSegmentControl
           transcriptId={id}
-          currentRecordingType={transcript.recording_type === 'edited_clips' ? 'edited_clips' : 'continuous'}
+          currentRecordingType={
+            transcript.recording_type === 'edited_clips' ? 'edited_clips'
+            : transcript.recording_type === 'manual_timestamps' ? 'manual_timestamps'
+            : 'continuous'
+          }
         />
       )}
 

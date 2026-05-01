@@ -198,6 +198,12 @@ export function segmentConversationsHybrid(
   silenceThresholdSeconds: number = 30,
   options?: SegmentationOptions
 ): ConversationSegment[] {
+  // manual_timestamps mode: rep provided exact start/end ranges. No detection,
+  // no greeting heuristic — just slice the words by the given boundaries.
+  if (options?.recordingType === 'manual_timestamps' && options.manualTimestamps?.length) {
+    return segmentByManualTimestamps(words, options.manualTimestamps)
+  }
+
   // edited_clips mode: skip speaker-based segmentation entirely.
   // AssemblyAI's diarization fails on tightly concatenated clips (different
   // customers get clustered into 2-3 speaker labels), so speaker changes are
@@ -227,13 +233,76 @@ export function segmentConversationsHybrid(
  * 'edited_clips' (pre-cut clips concatenated with tiny gaps).
  */
 export interface SegmentationOptions {
-  recordingType?: 'continuous' | 'edited_clips'
+  recordingType?: 'continuous' | 'edited_clips' | 'manual_timestamps'
   // Sanity-check / calibration hints from the upload form. We use these
   // mostly for logging right now (so Duncan can spot when segmentation is
   // off), but `expectedCustomerCount` also drives a fallback that loosens
   // the greeting requirement if we're way under target.
   expectedCustomerCount?: number
   actualSalesCount?: number
+  // For 'manual_timestamps' mode: explicit conversation boundaries in seconds.
+  manualTimestamps?: Array<{ start: number; end: number }>
+}
+
+/**
+ * Build conversation segments directly from explicit start/end ranges
+ * (rep-provided timestamps). Words whose midpoint falls inside a range are
+ * assigned to that conversation. Words outside all ranges are dropped.
+ */
+export function segmentByManualTimestamps(
+  words: Word[],
+  ranges: Array<{ start: number; end: number }>,
+): ConversationSegment[] {
+  if (!words || !words.length || !ranges.length) return []
+
+  // Sort ranges by start time (parser already does this, but be defensive)
+  const sorted = [...ranges].sort((a, b) => a.start - b.start)
+  const buckets: Word[][] = sorted.map(() => [])
+
+  // Two-pointer walk: words and ranges are both ordered, so this is O(n+m).
+  let ri = 0
+  for (const w of words) {
+    const mid = (w.start + w.end) / 2
+
+    // Advance to the first range whose end is past `mid`
+    while (ri < sorted.length && sorted[ri].end < mid) ri++
+    if (ri >= sorted.length) break
+
+    if (mid >= sorted[ri].start && mid <= sorted[ri].end) {
+      buckets[ri].push(w)
+    }
+    // otherwise word is in the gap between ranges — drop it
+  }
+
+  const result: ConversationSegment[] = []
+  for (let i = 0; i < buckets.length; i++) {
+    const slice = buckets[i]
+    const range = sorted[i]
+    if (slice.length < 3) {
+      console.warn(
+        `[segmenter:manual] range ${i + 1} (${range.start.toFixed(1)}s-${range.end.toFixed(1)}s) has only ${slice.length} words — keeping anyway`
+      )
+    }
+
+    const speakers = new Set<string>()
+    slice.forEach(w => { if (w.speaker) speakers.add(w.speaker) })
+
+    const startTime = slice.length ? slice[0].start : range.start
+    const endTime   = slice.length ? slice[slice.length - 1].end : range.end
+
+    result.push({
+      conversationNumber: i + 1,
+      startTime,
+      endTime,
+      speakers: Array.from(speakers),
+      words: slice,
+      wordCount: slice.length,
+      durationSeconds: parseFloat((endTime - startTime).toFixed(2)),
+    })
+  }
+
+  console.log(`[segmenter:manual] built ${result.length} conversations from rep-provided timestamps`)
+  return result
 }
 
 // Words that strongly indicate the start of a new door interaction.

@@ -46,14 +46,17 @@ export async function POST(
     const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin'
     if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    let body: { recordingType?: 'continuous' | 'edited_clips' } = {}
+    let body: {
+      recordingType?: 'continuous' | 'edited_clips' | 'manual_timestamps'
+      manualTimestamps?: Array<{ start: number; end: number }>
+    } = {}
     try { body = await request.json() } catch {}
 
     const sr = createServiceRoleClient()
 
     const { data: transcript, error: fetchError } = await sr
       .from('transcripts')
-      .select('id, transcript_redacted, recording_type, expected_customer_count, actual_sales_count, area_type, estimated_duration_hours, upload_notes')
+      .select('id, transcript_redacted, recording_type, manual_timestamps, expected_customer_count, actual_sales_count, area_type, estimated_duration_hours, upload_notes')
       .eq('id', id)
       .single()
 
@@ -71,15 +74,25 @@ export async function POST(
 
     // Allow caller to override recording_type. If they do, persist it on the
     // transcript so future operations (and the UI) reflect the new mode.
-    const recordingType: 'continuous' | 'edited_clips' =
+    const recordingType: 'continuous' | 'edited_clips' | 'manual_timestamps' =
       body.recordingType
-        ?? (transcript.recording_type === 'edited_clips' ? 'edited_clips' : 'continuous')
+        ?? (transcript.recording_type === 'edited_clips' ? 'edited_clips'
+          : transcript.recording_type === 'manual_timestamps' ? 'manual_timestamps'
+          : 'continuous')
+
+    const manualTimestamps = body.manualTimestamps?.length
+      ? body.manualTimestamps
+      : (transcript.manual_timestamps as Array<{ start: number; end: number }> | null) ?? undefined
 
     if (body.recordingType && body.recordingType !== transcript.recording_type) {
-      await sr
-        .from('transcripts')
-        .update({ recording_type: body.recordingType })
-        .eq('id', id)
+      const updates: any = { recording_type: body.recordingType }
+      if (body.recordingType === 'manual_timestamps' && body.manualTimestamps?.length) {
+        updates.manual_timestamps = body.manualTimestamps
+      }
+      await sr.from('transcripts').update(updates).eq('id', id)
+    } else if (body.manualTimestamps?.length) {
+      // Same mode but new ranges supplied — persist them
+      await sr.from('transcripts').update({ manual_timestamps: body.manualTimestamps }).eq('id', id)
     }
 
     // Wipe existing conversations
@@ -95,6 +108,7 @@ export async function POST(
       recordingType,
       expectedCustomerCount: transcript.expected_customer_count ?? undefined,
       actualSalesCount: transcript.actual_sales_count ?? undefined,
+      manualTimestamps,
     })
 
     console.log(`[re-segment] ${conversations.length} conversations (recordingType=${recordingType})`)

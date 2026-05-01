@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Heading, Text, Container } from '@/components';
 import { useAudioUpload } from '@/hooks/useAudioUpload';
+import { parseTimestampInput, formatSeconds } from '@/utils/timestampParsing';
 
 interface Salesperson {
   id: string;
@@ -22,7 +23,13 @@ export default function AdminUploadPage() {
   const [areaType, setAreaType] = useState<string>('');
   const [estimatedDurationHours, setEstimatedDurationHours] = useState<string>('');
   const [uploadNotes, setUploadNotes] = useState<string>('');
-  const [recordingType, setRecordingType] = useState<'continuous' | 'edited_clips'>('continuous');
+  const [recordingType, setRecordingType] = useState<'continuous' | 'edited_clips' | 'manual_timestamps'>('continuous');
+  const [manualTimestampInput, setManualTimestampInput] = useState<string>('');
+
+  const timestampParse = useMemo(
+    () => recordingType === 'manual_timestamps' ? parseTimestampInput(manualTimestampInput) : null,
+    [recordingType, manualTimestampInput]
+  );
 
   const { loading, uploadProgress, message, uploadAudio } = useAudioUpload({
     onSuccess: () => {
@@ -34,6 +41,7 @@ export default function AdminUploadPage() {
       setEstimatedDurationHours('');
       setUploadNotes('');
       setRecordingType('continuous');
+      setManualTimestampInput('');
       const fileInput = document.getElementById('file-upload') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
     },
@@ -63,10 +71,16 @@ export default function AdminUploadPage() {
       estimatedDurationHours: estimatedDurationHours ? parseFloat(estimatedDurationHours) : undefined,
       uploadNotes: uploadNotes || undefined,
       recordingType,
+      manualTimestamps: recordingType === 'manual_timestamps' ? timestampParse?.ranges : undefined,
     };
 
     await uploadAudio(file, salespersonId, metadata);
   };
+
+  // Block submit when manual_timestamps is selected but the input has parse errors or is empty
+  const manualTimestampsInvalid =
+    recordingType === 'manual_timestamps' &&
+    (!timestampParse || timestampParse.ranges.length === 0 || timestampParse.errors.length > 0);
 
   return (
     <Container maxWidth="xl" padding="lg">
@@ -181,7 +195,7 @@ export default function AdminUploadPage() {
                 <label className="block text-sm font-medium text-midnight-blue mb-2">
                   Recording Type
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setRecordingType('continuous')}
@@ -193,7 +207,7 @@ export default function AdminUploadPage() {
                     }`}
                   >
                     <div className="font-semibold">Continuous Recording</div>
-                    <div className="text-xs mt-1 opacity-80">Standard 8-hr field recording with walking gaps</div>
+                    <div className="text-xs mt-1 opacity-80">Standard field recording with walking gaps</div>
                   </button>
                   <button
                     type="button"
@@ -206,13 +220,65 @@ export default function AdminUploadPage() {
                     }`}
                   >
                     <div className="font-semibold">Pre-edited Clips</div>
-                    <div className="text-xs mt-1 opacity-80">Concatenated clips with only seconds between conversations</div>
+                    <div className="text-xs mt-1 opacity-80">Greeting detection on concatenated clips</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRecordingType('manual_timestamps')}
+                    disabled={loading}
+                    className={`px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all text-left ${
+                      recordingType === 'manual_timestamps'
+                        ? 'border-blue-600 bg-blue-50 text-blue-900'
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="font-semibold">Manual Timestamps</div>
+                    <div className="text-xs mt-1 opacity-80">Paste exact start/end ranges for each conversation</div>
                   </button>
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  Pre-edited mode uses greeting detection (e.g. &ldquo;hi&rdquo;, &ldquo;how are you&rdquo;, &ldquo;my name is&rdquo;) to find conversation boundaries when there&apos;s no walking gap.
+                  Continuous = walking gaps between doors. Pre-edited = clips concatenated with no walking gap (greetings used to detect boundaries). Manual = you provide exact timestamps for 100% accuracy.
                 </p>
               </div>
+
+              {/* Manual Timestamps Input */}
+              {recordingType === 'manual_timestamps' && (
+                <div>
+                  <label className="block text-sm font-medium text-midnight-blue mb-2">
+                    Conversation Timestamps <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={manualTimestampInput}
+                    onChange={(e) => setManualTimestampInput(e.target.value)}
+                    placeholder={`One range per line (start - end). Examples:\n00:00 - 02:30\n02:35 - 04:50\n05:00 - 06:30\n\nAccepts MM:SS, HH:MM:SS, or plain seconds. Lines starting with # are ignored.`}
+                    rows={8}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                    disabled={loading}
+                  />
+                  {timestampParse && (
+                    <div className="mt-2 space-y-1">
+                      {timestampParse.ranges.length > 0 && (
+                        <p className="text-xs text-green-700">
+                          ✓ Parsed {timestampParse.ranges.length} conversation{timestampParse.ranges.length === 1 ? '' : 's'}
+                          {timestampParse.ranges.length > 0 && (
+                            <> (first: {formatSeconds(timestampParse.ranges[0].start)}–{formatSeconds(timestampParse.ranges[0].end)}, last: {formatSeconds(timestampParse.ranges[timestampParse.ranges.length - 1].start)}–{formatSeconds(timestampParse.ranges[timestampParse.ranges.length - 1].end)})</>
+                          )}
+                        </p>
+                      )}
+                      {timestampParse.errors.length > 0 && (
+                        <div className="text-xs text-red-700 space-y-0.5">
+                          {timestampParse.errors.map((err, i) => (
+                            <div key={i}>Line {err.line}: {err.reason} — &ldquo;{err.raw}&rdquo;</div>
+                          ))}
+                        </div>
+                      )}
+                      {manualTimestampInput.trim() === '' && (
+                        <p className="text-xs text-gray-500">Paste your timestamps above to continue.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Actual Sales Count */}
@@ -360,7 +426,7 @@ export default function AdminUploadPage() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || !salespersonId || !file}
+              disabled={loading || !salespersonId || !file || manualTimestampsInvalid}
               className="w-full py-3 px-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {loading ? (
