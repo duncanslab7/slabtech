@@ -14,6 +14,8 @@ interface UploadMetadata {
   uploadNotes?: string;
   recordingType?: 'continuous' | 'edited_clips' | 'manual_timestamps';
   manualTimestamps?: Array<{ start: number; end: number }>;
+  recordingDate?: string;
+  redactTimestamps?: Array<{ start: number; end: number }>;
 }
 
 const POLL_INTERVAL_MS = 15_000;

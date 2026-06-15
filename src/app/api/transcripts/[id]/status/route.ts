@@ -10,12 +10,13 @@ import { createClient } from '@/utils/supabase/server'
 import { createServiceRoleClient } from '@/utils/supabase/service-role'
 import { runFullPiiDetection } from '@/utils/piiDetectionPasses'
 import type { WordEntry, AssemblyAIEntity } from '@/utils/piiDetectionPasses'
-import { processAudioInChunks } from '@/utils/ffmpegRedaction'
+import { processAudioInChunks, mergeRanges } from '@/utils/ffmpegRedaction'
 import {
   segmentConversationsHybrid,
   getConversationText,
   countPiiInConversation,
   findTextTimestamp,
+  filterRedactedWords,
 } from '@/utils/conversationSegmentation'
 import { analyzeConversation } from '@/utils/conversationAnalysis'
 import type { UploadMetadata } from '@/utils/conversationAnalysis'
@@ -244,16 +245,32 @@ async function runProcessingPipeline(
   console.log(`[pipeline] >>> START transcript ${transcriptId}`)
 
   // 1. Convert words to seconds
-  const words: WordEntry[] = aaiTranscript.words.map(w => ({
+  let words: WordEntry[] = aaiTranscript.words.map(w => ({
     word: w.text,
     start: w.start / 1000,
     end: w.end / 1000,
     speaker: w.speaker,
   }))
 
+  // 1b. Drop words inside rep-flagged "redact timestamps" (sensitive/non-sales
+  // calls) before anything else sees them — keeps them out of PII detection,
+  // segmentation, and the stored transcript text.
+  const redactTimestamps: Array<{ start: number; end: number }> = dbRecord.redact_timestamps ?? []
+  if (redactTimestamps.length) {
+    const before = words.length
+    words = filterRedactedWords(words, redactTimestamps)
+    console.log(`[pipeline] redact_timestamps: dropped ${before - words.length} words across ${redactTimestamps.length} range(s)`)
+  }
+
   const totalDuration = words.length > 0 ? words[words.length - 1].end : 0
   console.log(`[pipeline] words: ${words.length}, duration: ${totalDuration.toFixed(0)}s, conversations to expect: roughly ${Math.ceil(totalDuration / 60)}+`)
   console.log(`[pipeline] transcript text length: ${aaiTranscript.text?.length ?? 0} chars`)
+
+  // Rebuild transcript text from the (possibly filtered) words so that
+  // anything dropped by redact_timestamps doesn't linger in the stored text.
+  const transcriptText = redactTimestamps.length
+    ? words.map(w => w.word).join(' ')
+    : aaiTranscript.text
 
   // 2. PII detection. Pass 5 (Claude secondary) is intentionally skipped
   //    here — the prompt is the FULL transcript text, which for 3-hour
@@ -264,12 +281,18 @@ async function runProcessingPipeline(
   //    cover the dominant cases. Re-enable Claude once the call is chunked.
   const piiStart = Date.now()
   const piiMatches = await runFullPiiDetection(
-    aaiTranscript.text,
+    transcriptText,
     words,
     aaiTranscript.entities,
     undefined, // skip Claude pass 5 for now
   )
   console.log(`[pipeline] PII detection: ${piiMatches.length} ranges in ${((Date.now() - piiStart) / 1000).toFixed(1)}s`)
+
+  // 2b. Merge rep-flagged redact_timestamps into the muted ranges so the
+  // separate /redact-audio pass silences these segments along with PII.
+  const allMutedRanges = redactTimestamps.length
+    ? mergeRanges([...piiMatches, ...redactTimestamps.map(r => ({ ...r, label: 'redacted_segment' }))])
+    : piiMatches
 
   // 3. Audio redaction is intentionally skipped for now — it pushes the total
   //    pipeline time over Vercel's 5-min serverless limit. The transcript
@@ -286,9 +309,9 @@ async function runProcessingPipeline(
     .from('transcripts')
     .update({
       transcript_redacted: {
-        text: aaiTranscript.text,
+        text: transcriptText,
         words,
-        pii_matches: piiMatches,
+        pii_matches: allMutedRanges,
         redacted_file_storage_path: redactedFilePath,
       },
       status: 'completed',

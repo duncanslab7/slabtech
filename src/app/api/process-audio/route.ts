@@ -151,6 +151,8 @@ export async function POST(request: NextRequest) {
         manual_timestamps: metadata?.recordingType === 'manual_timestamps' && metadata?.manualTimestamps?.length
           ? metadata.manualTimestamps
           : null,
+        recording_date: metadata?.recordingDate || null,
+        redact_timestamps: metadata?.redactTimestamps?.length ? metadata.redactTimestamps : null,
       })
       .select('id')
       .single()

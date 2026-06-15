@@ -25,10 +25,20 @@ export default function AdminUploadPage() {
   const [uploadNotes, setUploadNotes] = useState<string>('');
   const [recordingType, setRecordingType] = useState<'continuous' | 'edited_clips' | 'manual_timestamps'>('continuous');
   const [manualTimestampInput, setManualTimestampInput] = useState<string>('');
+  const [recordingDate, setRecordingDate] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
+  const [redactTimestampInput, setRedactTimestampInput] = useState<string>('');
 
   const timestampParse = useMemo(
     () => recordingType === 'manual_timestamps' ? parseTimestampInput(manualTimestampInput) : null,
     [recordingType, manualTimestampInput]
+  );
+
+  const redactTimestampParse = useMemo(
+    () => redactTimestampInput.trim() ? parseTimestampInput(redactTimestampInput) : null,
+    [redactTimestampInput]
   );
 
   const { loading, uploadProgress, message, uploadAudio } = useAudioUpload({
@@ -42,6 +52,9 @@ export default function AdminUploadPage() {
       setUploadNotes('');
       setRecordingType('continuous');
       setManualTimestampInput('');
+      setRedactTimestampInput('');
+      const d = new Date();
+      setRecordingDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
       const fileInput = document.getElementById('file-upload') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
     },
@@ -72,6 +85,8 @@ export default function AdminUploadPage() {
       uploadNotes: uploadNotes || undefined,
       recordingType,
       manualTimestamps: recordingType === 'manual_timestamps' ? timestampParse?.ranges : undefined,
+      recordingDate: recordingDate || undefined,
+      redactTimestamps: redactTimestampParse?.ranges?.length ? redactTimestampParse.ranges : undefined,
     };
 
     await uploadAudio(file, salespersonId, metadata);
@@ -81,6 +96,9 @@ export default function AdminUploadPage() {
   const manualTimestampsInvalid =
     recordingType === 'manual_timestamps' &&
     (!timestampParse || timestampParse.ranges.length === 0 || timestampParse.errors.length > 0);
+
+  // Block submit when redact timestamps are entered but have parse errors
+  const redactTimestampsInvalid = !!redactTimestampParse && redactTimestampParse.errors.length > 0;
 
   return (
     <Container maxWidth="xl" padding="lg">
@@ -184,6 +202,24 @@ export default function AdminUploadPage() {
               </div>
             </div>
 
+            {/* Recording Date */}
+            <div>
+              <label className="block text-sm font-medium text-midnight-blue mb-2">
+                Recording Date <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={recordingDate}
+                onChange={(e) => setRecordingDate(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={loading}
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                The date this audio was actually recorded (not today&apos;s upload date). Used for the sales heatmap/calendar.
+              </p>
+            </div>
+
             {/* Metadata Fields */}
             <div className="border-t border-gray-200 pt-6 space-y-4">
               <h3 className="text-sm font-semibold text-midnight-blue mb-4">
@@ -279,6 +315,40 @@ export default function AdminUploadPage() {
                   )}
                 </div>
               )}
+
+              {/* Redact Timestamps (sensitive / non-sales segments) */}
+              <div>
+                <label className="block text-sm font-medium text-midnight-blue mb-2">
+                  Redact Timestamps (optional)
+                </label>
+                <textarea
+                  value={redactTimestampInput}
+                  onChange={(e) => setRedactTimestampInput(e.target.value)}
+                  placeholder={`One range per line (start - end). Examples:\n12:00 - 14:30\n1:02:00 - 1:05:00\n\nUse this for personal/sensitive calls picked up mid-recording. These segments are muted in the saved audio and completely excluded from AI analysis.`}
+                  rows={4}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                  disabled={loading}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Mark any non-sales / private portions of this recording. These ranges will be muted in the audio and never sent to the AI for pitch/objection analysis.
+                </p>
+                {redactTimestampParse && (
+                  <div className="mt-2 space-y-1">
+                    {redactTimestampParse.ranges.length > 0 && (
+                      <p className="text-xs text-green-700">
+                        ✓ Will redact {redactTimestampParse.ranges.length} segment{redactTimestampParse.ranges.length === 1 ? '' : 's'}: {redactTimestampParse.ranges.map(r => `${formatSeconds(r.start)}–${formatSeconds(r.end)}`).join(', ')}
+                      </p>
+                    )}
+                    {redactTimestampParse.errors.length > 0 && (
+                      <div className="text-xs text-red-700 space-y-0.5">
+                        {redactTimestampParse.errors.map((err, i) => (
+                          <div key={i}>Line {err.line}: {err.reason} — &ldquo;{err.raw}&rdquo;</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Actual Sales Count */}
@@ -426,7 +496,7 @@ export default function AdminUploadPage() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || !salespersonId || !file || manualTimestampsInvalid}
+              disabled={loading || !salespersonId || !file || !recordingDate || manualTimestampsInvalid || redactTimestampsInvalid}
               className="w-full py-3 px-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {loading ? (

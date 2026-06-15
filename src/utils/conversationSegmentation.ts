@@ -245,6 +245,22 @@ export interface SegmentationOptions {
 }
 
 /**
+ * Drop words whose midpoint falls inside any of the given ranges. Used to
+ * remove sensitive/non-sales segments (rep-flagged "redact timestamps")
+ * before segmentation and analysis ever see them.
+ */
+export function filterRedactedWords<T extends { start: number; end: number }>(
+  words: T[],
+  ranges?: Array<{ start: number; end: number }> | null,
+): T[] {
+  if (!ranges || !ranges.length) return words
+  return words.filter(w => {
+    const mid = (w.start + w.end) / 2
+    return !ranges.some(r => mid >= r.start && mid <= r.end)
+  })
+}
+
+/**
  * Build conversation segments directly from explicit start/end ranges
  * (rep-provided timestamps). Words whose midpoint falls inside a range are
  * assigned to that conversation. Words outside all ranges are dropped.
