@@ -25,7 +25,7 @@ async function createAssemblyAITranscript(audioUrl: string, apiKey: string): Pro
       headers: { authorization: apiKey, 'content-type': 'application/json' },
       body: JSON.stringify({
         audio_url: audioUrl,
-        speech_model: 'universal-2',
+        speech_models: ['universal-2'],
         speaker_labels: true,
         redact_pii: true,
         redact_pii_sub: 'entity_name',
