@@ -19,15 +19,26 @@ import '@/app/home-v2.css';
 
 /**
  * The tape list. Drop an mp3/m4a into /public/v2/tapes and point `src` at it —
- * the row becomes playable automatically and its run time is read off the file.
- * Leave `src` empty and the row stays in the list as a locked preview.
+ * the row becomes playable automatically. Leave `src` empty and the row stays
+ * in the list as a locked preview.
+ *
+ * `seconds` is the run time shown before the file loads. The real duration is
+ * read off the audio once metadata arrives and replaces this, so a stale value
+ * self-corrects — but printing it up front means the list never sits on a
+ * placeholder if the browser is slow to fetch metadata (or declines to, which
+ * it does for background tabs and on some mobile data savers).
  */
 const TAPES = [
-  { id: 'intro', title: 'THE INTRO', blurb: 'the first six seconds at the door', src: '' },
-  { id: 'switchover', title: 'THE SWITCHOVER', blurb: 'turning "we already have a guy" into a yes', src: '' },
-  { id: 'value', title: 'BUILDING VALUE', blurb: 'making the price feel obvious before you say it', src: '' },
-  { id: 'close', title: 'THE CLOSE', blurb: 'asking for it like you mean it', src: '' },
+  { id: 'intro', title: 'THE INTRO', blurb: 'the first six seconds at the door', src: '/v2/tapes/intro.mp3', seconds: 19.7 },
+  { id: 'switchover', title: 'THE SWITCHOVER', blurb: 'turning "we already have a guy" into a yes', src: '/v2/tapes/switchover.mp3', seconds: 58.9 },
+  { id: 'value', title: 'BUILDING VALUE', blurb: 'making the price feel obvious before you say it', src: '/v2/tapes/building-value.mp3', seconds: 88.1 },
+  { id: 'close', title: 'THE CLOSE', blurb: 'asking for it like you mean it', src: '/v2/tapes/close.mp3', seconds: 25.8 },
 ];
+
+/** Run times to show immediately, before any metadata comes back. */
+const INITIAL_DURATIONS: Record<string, number> = Object.fromEntries(
+  TAPES.filter((t) => t.src && t.seconds).map((t) => [t.id, t.seconds]),
+);
 
 const SPECIMENS = [
   { src: '/v2/poster-doberman.jpg', alt: 'SLAB doberman poster', name: 'HOLD THE LINE' },
@@ -59,7 +70,7 @@ export default function HomeV2() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
-  const [durations, setDurations] = useState<Record<string, number>>({});
+  const [durations, setDurations] = useState<Record<string, number>>(INITIAL_DURATIONS);
 
   // ---- apply form ---------------------------------------------------------
   const [role, setRole] = useState<Role>('rep');
@@ -222,6 +233,16 @@ export default function HomeV2() {
     return () => { cancelled = true; clearTimeout(introKill); cleanup(); };
   }, []);
 
+  /**
+   * Which row the audio element is currently committed to. The <audio> events
+   * are the source of truth for the highlight — switching src on a playing
+   * element fires its own 'pause', so deriving state from a play() promise
+   * instead would race with that and could leave audio playing with no row lit.
+   * This also keeps the UI honest when playback is driven from outside the page
+   * (OS media keys, the headphone button, a notification-shade control).
+   */
+  const pendingIdRef = useRef<string | null>(null);
+
   const toggleTape = (id: string, src: string) => {
     const audio = audioRef.current;
     if (!src || !audio) {
@@ -230,17 +251,21 @@ export default function HomeV2() {
       return;
     }
     if (playingId === id) {
-      audio.pause();
-      setPlayingId(null);
+      audio.pause(); // 'pause' clears the highlight
       return;
     }
-    audio.src = src;
-    audio.currentTime = 0;
+    pendingIdRef.current = id;
     setProgress(0);
-    audio.play().then(
-      () => setPlayingId(id),
-      () => setPlayingId(null),
-    );
+    // A fresh src already starts at zero — setting currentTime before metadata
+    // has arrived is what throws InvalidStateError on some browsers.
+    audio.src = src;
+    audio.play().catch(() => {
+      // autoplay refused, decode failed, file missing — don't light the row
+      if (pendingIdRef.current === id) {
+        pendingIdRef.current = null;
+        setPlayingId(null);
+      }
+    });
   };
 
   const handleApply = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -445,12 +470,20 @@ export default function HomeV2() {
           <audio
             ref={audioRef}
             preload="none"
+            onPlay={() => setPlayingId(pendingIdRef.current)}
             onTimeUpdate={(e) => {
               const a = e.currentTarget;
               setProgress(a.duration ? a.currentTime / a.duration : 0);
             }}
-            onEnded={() => { setPlayingId(null); setProgress(0); }}
+            onLoadedMetadata={(e) => {
+              // the playing file is the most accurate duration we'll get
+              const id = pendingIdRef.current;
+              const d = e.currentTarget.duration;
+              if (id && Number.isFinite(d)) setDurations((prev) => ({ ...prev, [id]: d }));
+            }}
+            onEnded={() => { pendingIdRef.current = null; setPlayingId(null); setProgress(0); }}
             onPause={() => setPlayingId(null)}
+            onError={() => { pendingIdRef.current = null; setPlayingId(null); }}
           />
           <p className="sr-only" role="status">
             {playingId ? `Playing ${TAPES.find((t) => t.id === playingId)?.title}` : ''}
