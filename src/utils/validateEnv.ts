@@ -47,6 +47,22 @@ const ENV_VARS: EnvVar[] = [
     description: 'Path to FFmpeg executable (optional if using ffmpeg-static)',
     required: false,
   },
+  {
+    key: 'RESEND_API_KEY',
+    description: 'Resend API key for inquiry notification emails',
+    required: false, // Optional - inquiries still save, they just arrive silently
+    pattern: /^re_[A-Za-z0-9_-]+$/,
+  },
+  {
+    key: 'INQUIRY_NOTIFY_TO',
+    description: 'Comma-separated recipients for new inquiry emails',
+    required: false,
+  },
+  {
+    key: 'RESEND_FROM',
+    description: 'From header for notification emails (domain must be verified in Resend)',
+    required: false,
+  },
 ]
 
 interface ValidationError {

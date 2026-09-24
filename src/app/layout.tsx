@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { VT323 } from 'next/font/google';
-import Link from 'next/link';
+import GlobalFooter from '@/components/layout/GlobalFooter';
 
 const vt323 = VT323({
   weight: '400',
@@ -26,12 +26,7 @@ export default function RootLayout({
     <html lang="en" className={vt323.variable}>
       <body className="antialiased">
         {children}
-        <footer className="border-t border-gray-200 py-4 text-center text-sm text-gray-400">
-          <span>© {new Date().getFullYear()} SLAB Training. </span>
-          <Link href="/privacy" className="hover:text-gray-600 transition-colors">Privacy Policy</Link>
-          <span className="mx-2">·</span>
-          <Link href="/terms" className="hover:text-gray-600 transition-colors">Terms of Service</Link>
-        </footer>
+        <GlobalFooter />
       </body>
     </html>
   );

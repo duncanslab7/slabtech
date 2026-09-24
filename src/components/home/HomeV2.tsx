@@ -1,0 +1,658 @@
+'use client';
+
+/**
+ * SLAB marketing home page (v2 design).
+ *
+ * Structure and styling come from the static v5 design; everything that was a
+ * TODO in that file is wired here:
+ *   - the apply form posts to /api/purchase-inquiry
+ *   - the tape rows drive a real <audio> element (see TAPES below)
+ *   - header links reach the actual app (rep login / admin login)
+ *
+ * GSAP choreography is optional — if it fails to load or the visitor prefers
+ * reduced motion, the page renders fully and just doesn't animate.
+ */
+
+import { Fragment, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import '@/app/home-v2.css';
+
+/**
+ * The tape list. Drop an mp3/m4a into /public/v2/tapes and point `src` at it —
+ * the row becomes playable automatically and its run time is read off the file.
+ * Leave `src` empty and the row stays in the list as a locked preview.
+ */
+const TAPES = [
+  { id: 'intro', title: 'THE INTRO', blurb: 'the first six seconds at the door', src: '' },
+  { id: 'switchover', title: 'THE SWITCHOVER', blurb: 'turning "we already have a guy" into a yes', src: '' },
+  { id: 'value', title: 'BUILDING VALUE', blurb: 'making the price feel obvious before you say it', src: '' },
+  { id: 'close', title: 'THE CLOSE', blurb: 'asking for it like you mean it', src: '' },
+];
+
+const SPECIMENS = [
+  { src: '/v2/poster-doberman.jpg', alt: 'SLAB doberman poster', name: 'HOLD THE LINE' },
+  { src: '/v2/poster-skeleton-yellow.jpg', alt: 'SLAB halftone skeleton poster', name: 'DEAD TRAINING' },
+  { src: '/v2/poster-hand-fire.jpg', alt: 'SLAB burning logo above open hand', name: 'THE OFFER' },
+  { src: '/v2/poster-fire-ring.jpg', alt: 'SLAB badge ringed in fire', name: 'FORGED' },
+  { src: '/v2/poster-gasmask.jpg', alt: 'SLAB gas mask halftone poster', name: 'DOOR IN SIGHT' },
+  { src: '/v2/poster-field-fire.jpg', alt: 'SLAB logo over burning field', name: 'FIELD WORK' },
+  { src: '/v2/poster-vhs.jpg', alt: 'SLAB VHS glow logo', name: 'THE TAPES' },
+  { src: '/v2/poster-skeleton-rays.jpg', alt: 'SLAB skeleton hand poster', name: 'REACH' },
+  { src: '/v2/poster-cowboy.jpg', alt: 'SLAB western poster', name: 'OUT WEST' },
+  { src: '/v2/poster-viper.jpg', alt: 'SLAB logo over a red sports car above the city', name: 'NIGHT SHIFT' },
+];
+
+const fmt = (s: number) =>
+  Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '—:—';
+
+type Role = 'rep' | 'owner' | 'other';
+
+export default function HomeV2() {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const railRef = useRef<HTMLDivElement>(null);
+  const recordRef = useRef<HTMLDivElement>(null);
+  const waveRef = useRef<HTMLDivElement>(null);
+  const introRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+
+  // ---- tape playback ------------------------------------------------------
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [durations, setDurations] = useState<Record<string, number>>({});
+
+  // ---- apply form ---------------------------------------------------------
+  const [role, setRole] = useState<Role>('rep');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  /* The v2 palette is a full-bleed black page; tag html/body so the scroll
+     chrome matches and the app's default light styling doesn't show through. */
+  useEffect(() => {
+    document.documentElement.classList.add('slab-v2-html');
+    document.body.classList.add('slab-v2-body');
+    return () => {
+      document.documentElement.classList.remove('slab-v2-html');
+      document.body.classList.remove('slab-v2-body');
+    };
+  }, []);
+
+  /* Read each tape's real run time off the file so the list never lies. */
+  useEffect(() => {
+    TAPES.filter((t) => t.src).forEach((t) => {
+      const probe = new Audio();
+      probe.preload = 'metadata';
+      probe.src = t.src;
+      probe.addEventListener('loadedmetadata', () => {
+        setDurations((d) => ({ ...d, [t.id]: probe.duration }));
+      });
+    });
+  }, []);
+
+  /* Sticky header goes solid once you leave the hero. */
+  useEffect(() => {
+    const onScroll = () => {
+      headerRef.current?.classList.toggle('solid', window.scrollY > window.innerHeight * 0.75);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  /* Waveform bars — random heights, built once on the client. */
+  useEffect(() => {
+    const wave = waveRef.current;
+    if (!wave || wave.childElementCount) return;
+    for (let i = 0; i < 46; i++) {
+      const b = document.createElement('i');
+      b.style.setProperty('--hi', 20 + Math.random() * 80 + '%');
+      b.style.setProperty('--lo', 6 + Math.random() * 14 + '%');
+      b.style.animationDelay = Math.random() * 1.1 + 's';
+      wave.appendChild(b);
+    }
+  }, []);
+
+  /* GSAP choreography. Loaded dynamically so a failure here can never take the
+     page down with it — reveals are un-clipped and the wall falls back to a
+     plain swipe strip. */
+  useEffect(() => {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const root = rootRef.current;
+    if (!root) return;
+
+    const showEverything = () => {
+      root.querySelectorAll<HTMLElement>('.reveal').forEach((el) => (el.style.clipPath = 'none'));
+      introRef.current?.remove();
+      railRef.current?.classList.add('no-pin');
+    };
+
+    if (reduce) {
+      showEverything();
+      return;
+    }
+
+    /* Hard failsafe: the intro is a full-screen overlay, so it must never be
+       able to trap the page — if the wipe hasn't run in 4s, drop it. */
+    const introKill = window.setTimeout(() => introRef.current?.remove(), 4000);
+
+    let cleanup = () => {};
+    let cancelled = false;
+
+    (async () => {
+      let gsap: typeof import('gsap').gsap;
+      let ScrollTrigger: typeof import('gsap/ScrollTrigger').ScrollTrigger;
+      try {
+        gsap = (await import('gsap')).gsap;
+        ScrollTrigger = (await import('gsap/ScrollTrigger')).ScrollTrigger;
+      } catch {
+        showEverything();
+        return;
+      }
+      if (cancelled) return;
+
+      gsap.registerPlugin(ScrollTrigger);
+      const ctx = gsap.context(() => {
+        // intro: flicker then hard wipe
+        const intro = introRef.current;
+        if (intro) {
+          const tl = gsap.timeline({ onComplete: () => intro.remove() });
+          tl.fromTo('#intro img', { opacity: 0 }, { opacity: 1, duration: 0.06, repeat: 5, yoyo: true, ease: 'none' })
+            .to('#intro img', { opacity: 1, duration: 0.35 })
+            .fromTo('#intro .tag', { opacity: 0 }, { opacity: 1, duration: 0.2 }, '<')
+            .to('#intro', { yPercent: -100, duration: 0.55, ease: 'power4.inOut', delay: 0.35 });
+        }
+        // hero rows snap up after the intro
+        gsap.from('.hero h1 .row span', { yPercent: 110, duration: 0.6, ease: 'power4.out', stagger: 0.08, delay: 1.35 });
+        gsap.from('.specter', { opacity: 0, scale: 1.06, duration: 1.4, ease: 'power2.out', delay: 1.15 });
+
+        // headline reveals: hard clip wipes
+        gsap.utils.toArray<HTMLElement>('.reveal').forEach((el) => {
+          gsap.to(el, {
+            clipPath: 'inset(0 0 0% 0)', duration: 0.6, ease: 'power4.inOut',
+            scrollTrigger: { trigger: el, start: 'top 82%' },
+          });
+        });
+        gsap.from('.theory-col', {
+          y: 36, opacity: 0, duration: 0.45, ease: 'power3.out', stagger: 0.12,
+          scrollTrigger: { trigger: '.theory-grid', start: 'top 78%' },
+        });
+        gsap.from('.track', {
+          x: -24, opacity: 0, duration: 0.35, ease: 'power3.out', stagger: 0.07,
+          scrollTrigger: { trigger: '.tracklist', start: 'top 80%' },
+        });
+        gsap.from('.sys-cell', {
+          y: 40, opacity: 0, duration: 0.45, ease: 'power3.out', stagger: 0.1,
+          scrollTrigger: { trigger: '.sys-grid', start: 'top 80%' },
+        });
+
+        // the wall: scrolling down pins it and scrubs you sideways
+        const rail = railRef.current;
+        if (rail) {
+          gsap.to(rail, {
+            x: () => -(rail.scrollWidth - window.innerWidth + 24),
+            ease: 'none',
+            scrollTrigger: {
+              trigger: '.gallery', start: 'top top',
+              end: () => '+=' + (rail.scrollWidth - window.innerWidth + 400),
+              pin: true, scrub: 1, invalidateOnRefresh: true, anticipatePin: 1,
+            },
+          });
+        }
+
+        // the record: hard odometer roll into 1,730
+        const rf = recordRef.current;
+        if (rf) {
+          ScrollTrigger.create({
+            trigger: rf, start: 'top 85%', once: true,
+            onEnter: () => {
+              const o = { v: 0 };
+              gsap.to(o, {
+                v: 1730, duration: 1.4, ease: 'power3.out',
+                onUpdate: () => { rf.textContent = Math.round(o.v).toLocaleString(); },
+              });
+            },
+          });
+        }
+      }, root);
+
+      cleanup = () => ctx.revert();
+    })();
+
+    return () => { cancelled = true; clearTimeout(introKill); cleanup(); };
+  }, []);
+
+  const toggleTape = (id: string, src: string) => {
+    const audio = audioRef.current;
+    if (!src || !audio) {
+      // No file wired up yet — flash the row so the UI still reads as alive.
+      setPlayingId((p) => (p === id ? null : id));
+      return;
+    }
+    if (playingId === id) {
+      audio.pause();
+      setPlayingId(null);
+      return;
+    }
+    audio.src = src;
+    audio.currentTime = 0;
+    setProgress(0);
+    audio.play().then(
+      () => setPlayingId(id),
+      () => setPlayingId(null),
+    );
+  };
+
+  const handleApply = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setFormError(null);
+    setSending(true);
+    const fd = new FormData(e.currentTarget);
+    try {
+      const res = await fetch('/api/purchase-inquiry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          // purchase_inquiries only accepts these three product types; an owner
+          // is a company lead, everyone else is an individual lead.
+          productType: role === 'owner' ? 'company' : 'individual',
+          name: fd.get('name'),
+          email: fd.get('email'),
+          phone: fd.get('phone'),
+          message: fd.get('message'),
+          customData: {
+            source: 'home-apply',
+            role,
+            company: fd.get('company') || null,
+          },
+        }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setSent(true);
+    } catch {
+      setFormError('send-failed');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="slab-v2" ref={rootRef}>
+      <div className="grain" aria-hidden="true" />
+
+      <div id="intro" aria-hidden="true" ref={introRef}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/v2/logo-dark.png" alt="" />
+        <div className="tag">SALES LAB</div>
+      </div>
+
+      <header className="site-head" ref={headerRef}>
+        <a href="#top">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="mark" src="/v2/logo-dark.png" alt="SLAB" />
+        </a>
+        <nav>
+          <a href="#theory">THE THEORY</a>
+          <a href="#tapes">THE SOURCE MATERIAL</a>
+          <a href="#system">THE SYSTEM</a>
+          <a href="#work">THE WALL</a>
+        </nav>
+        <div className="head-right">
+          <Link className="login-link" href="/user/login">LOG IN</Link>
+          <a className="apply-pill" href="#knock">APPLY</a>
+        </div>
+      </header>
+
+      <main id="top">
+        <section className="hero">
+          <div className="specter" aria-hidden="true">
+            <span className="hum" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/v2/specter.png" alt="" />
+          </div>
+          <div className="hero-scrim" aria-hidden="true" />
+          <div className="hero-text">
+            <h1>
+              <span className="row"><span>Training</span></span>
+              <span className="row"><span>D2D reps</span></span>
+              <span className="row"><span className="actually">actually</span></span>
+              <span className="row"><span>wanna use.</span></span>
+            </h1>
+            <p className="hero-sub">
+              <b>SLAB</b> (or <b>Sales Lab</b>) is a <b>gamified training lab</b> for door-to-door
+              sales teams. No binders. No dead PowerPoints. Built in the field,{' '}
+              <b>trained off the best of the best.</b>
+            </p>
+            <div className="hero-ctas">
+              <a href="#knock" className="btn primary">[ APPLY TO JOIN ]</a>
+              <a href="#theory" className="btn ghost">[ THE THEORY ]</a>
+            </div>
+          </div>
+        </section>
+
+        <div className="ticker" aria-hidden="true">
+          <div className="ticker-inner">
+            REAL AUDIO &nbsp;★&nbsp; REAL DOORS &nbsp;★&nbsp; REAL CLOSES &nbsp;★&nbsp; THE SAUCE &nbsp;★&nbsp; NO BABYSITTING &nbsp;★&nbsp; TRAINED OFF THE BEST &nbsp;★&nbsp;
+            REAL AUDIO &nbsp;★&nbsp; REAL DOORS &nbsp;★&nbsp; REAL CLOSES &nbsp;★&nbsp; THE SAUCE &nbsp;★&nbsp; NO BABYSITTING &nbsp;★&nbsp; TRAINED OFF THE BEST &nbsp;★&nbsp;
+          </div>
+        </div>
+
+        <section className="theory pad" id="theory">
+          <span className="kicker">THE THEORY</span>
+          <h2 className="h2 reveal">Every team has the same disease.</h2>
+          <p className="theory-punch">
+            Training that&apos;s <b>weak</b> — or training <b>nobody touches</b> unless a manager is
+            standing over their shoulder. SLAB was built on one observation:
+          </p>
+          <div className="theory-grid">
+            <div className="theory-col">
+              <h3>Owners want <em>a system.</em></h3>
+              <div className="who">{'// STRUCTURE. VISIBILITY. REPEATABILITY.'}</div>
+              <ul>
+                <li>A pattern every rookie follows</li>
+                <li>Video series: the pitch, the objections, the close</li>
+                <li>Proof of who&apos;s actually training</li>
+                <li>Ramp that doesn&apos;t depend on one good trainer</li>
+              </ul>
+            </div>
+            <div className="theory-col">
+              <h3>Reps want <em>the sauce.</em></h3>
+              <div className="who">{'// RAW. FAST. FROM THE FIELD.'}</div>
+              <ul>
+                <li>Pure audio from real doorsteps</li>
+                <li>What the killers actually say, word for word</li>
+                <li>A game, not a homework packet</li>
+                <li>Something worth opening between doors</li>
+              </ul>
+            </div>
+          </div>
+          <p className="theory-punch" style={{ marginTop: 48 }}>
+            SLAB gives both sides what they want in one machine. <b>That&apos;s the whole trick.</b>
+          </p>
+        </section>
+
+        <section className="tapes pad" id="tapes">
+          <span className="kicker">THE SOURCE MATERIAL</span>
+          <div className="tapes-grid">
+            <figure className="mug">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/v2/marshall.jpg" alt="Marshall Hawkes" />
+              <figcaption>MARSHALL HAWKES · THE RECORD</figcaption>
+            </figure>
+            <div className="tapes-right">
+              <div className="tapes-copy">
+                <h2 className="h2 reveal">We mic&apos;d up <em>Marshall Hawkes.</em></h2>
+                <p className="tapes-sub">
+                  Instead of some soulless AI chatbot or semi-decent salesman, we wanted{' '}
+                  <b>the cream of the crop</b>. So we took <b>the previous record holder</b>, wired
+                  him up, and recorded every opener, every objection, every close to get the best
+                  possible training and models.
+                </p>
+                <div className="wave" aria-hidden="true" ref={waveRef} />
+                <span className="stamp">RAW. UNCUT. FROM THE DOORSTEP.</span>
+              </div>
+              <div className="record-stack">
+                <div className="figure" ref={recordRef}>1,730</div>
+                <div className="rlabel">Accounts sold in a single summer</div>
+                <div className="rmeta">$1,523,680 · 2024 · <b>THE RECORD</b></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="tracks-head">
+            <h3>The tapes</h3>
+            <span>{'// PRESS PLAY'}</span>
+          </div>
+          <div className="tracks-row">
+            <div className="record-rail" aria-hidden="true">
+              <b>1,730</b>&nbsp;ACCOUNTS&nbsp;·&nbsp;ONE&nbsp;SUMMER
+            </div>
+            <div className="tracklist">
+              {TAPES.map((tape) => {
+                const isPlaying = playingId === tape.id;
+                return (
+                  <div
+                    key={tape.id}
+                    className={`track${isPlaying ? ' is-playing' : ''}${tape.src ? '' : ' is-locked'}`}
+                  >
+                    <button
+                      className="play"
+                      onClick={() => toggleTape(tape.id, tape.src)}
+                      aria-label={`${isPlaying ? 'Pause' : 'Play'}: ${tape.title}`}
+                    >
+                      <svg className="ico-play" viewBox="0 0 16 16"><path d="M3 1.5v13l11-6.5z" /></svg>
+                      <svg className="ico-pause" viewBox="0 0 16 16"><path d="M3 2h4v12H3zM9 2h4v12H9z" /></svg>
+                    </button>
+                    <div>
+                      <div className="t">{tape.title}</div>
+                      <div className="d">{tape.blurb}</div>
+                    </div>
+                    <div className="eq" aria-hidden="true">
+                      <i /><i /><i /><i /><i /><i />
+                    </div>
+                    <div className="len">{tape.src ? fmt(durations[tape.id]) : '—:—'}</div>
+                    {isPlaying && tape.src && (
+                      <span className="progress" style={{ transform: `scaleX(${progress})` }} aria-hidden="true" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div className="track-note">
+            {'// pulled straight off the tape — raw, uncut, nothing rewritten'}
+          </div>
+          <audio
+            ref={audioRef}
+            preload="none"
+            onTimeUpdate={(e) => {
+              const a = e.currentTarget;
+              setProgress(a.duration ? a.currentTime / a.duration : 0);
+            }}
+            onEnded={() => { setPlayingId(null); setProgress(0); }}
+            onPause={() => setPlayingId(null)}
+          />
+          <p className="sr-only" role="status">
+            {playingId ? `Playing ${TAPES.find((t) => t.id === playingId)?.title}` : ''}
+          </p>
+        </section>
+
+        <section className="system pad" id="system">
+          <span className="kicker">THE SYSTEM</span>
+          <h2 className="h2 reveal">A lab, not a lecture.</h2>
+          <div className="sys-grid">
+            <div className="sys-cell">
+              <h3>It&apos;s a game</h3>
+              <p>
+                Streaks, ranks, and reps competing against reps <b>for incentives and rewards</b>.
+                The leaderboard does the nagging so managers don&apos;t have to.
+              </p>
+              <div className="prize">
+                <span className="prize-tag">THIS MONTH&apos;S BOUNTY</span>
+                <span className="shadow" aria-hidden="true" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img className="float-obj glasses" src="/v2/meta-glasses.png" alt="Smart glasses offered as a training reward" />
+              </div>
+              <div className="tagline">{'// THEY OPEN IT ON THEIR OWN'}</div>
+            </div>
+
+            <div className="sys-cell">
+              <h3>It&apos;s the real pitch</h3>
+              <p>
+                Interactive drills built off field tape from top producers — not a script written in
+                a conference room.
+              </p>
+              <div className="prize" style={{ '--d': '.7s' } as React.CSSProperties}>
+                <span className="prize-tag">GOLDEN DOOR AWARD</span>
+                <span className="shadow" aria-hidden="true" />
+                <svg className="float-obj award" viewBox="0 0 120 164" role="img" aria-label="Golden Door Award — gold eagle and door knocker on a wood plaque">
+                  <defs>
+                    <radialGradient id="woodg" cx="42%" cy="36%" r="80%">
+                      <stop offset="0%" stopColor="#8A5D36" /><stop offset="55%" stopColor="#634023" /><stop offset="100%" stopColor="#3A2413" />
+                    </radialGradient>
+                    <linearGradient id="goldg" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#F9E08A" /><stop offset="45%" stopColor="#DCA93F" /><stop offset="100%" stopColor="#A0741F" />
+                    </linearGradient>
+                    <linearGradient id="goldg2" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#F3CD6B" /><stop offset="100%" stopColor="#8F6516" />
+                    </linearGradient>
+                  </defs>
+                  <ellipse cx="60" cy="100" rx="50" ry="62" fill="url(#woodg)" stroke="#241407" strokeWidth="3" />
+                  <ellipse cx="60" cy="100" rx="43" ry="55" fill="none" stroke="#9a7a48" strokeWidth="1.6" opacity=".5" />
+                  <ellipse cx="60" cy="100" rx="36" ry="48" fill="none" stroke="#2e1c0e" strokeWidth="1" opacity=".35" />
+                  <g fill="url(#goldg)" stroke="#7c5a12" strokeWidth="1" strokeLinejoin="round">
+                    <path d="M58 44 C47 42 38 37 33 28 C31 22 31 14 32 7 L38 14 L42 9 L47 16 L50 11 L54 19 C56 26 57 35 58 44 Z" />
+                    <path d="M62 44 C73 42 82 37 87 28 C89 22 89 14 88 7 L82 14 L78 9 L73 16 L70 11 L66 19 C64 26 63 35 62 44 Z" />
+                    <path d="M60 16 C63 16 65 18 65 21 C65 23 64 24 63 25 C66 28 67 33 66 38 C65 44 63 48 60 51 C57 48 55 44 54 38 C53 33 54 28 57 25 C56 24 55 23 55 21 C55 18 57 16 60 16 Z" />
+                    <path d="M55 49 L57 58 L60 52 L63 58 L65 49 Z" />
+                  </g>
+                  <path d="M64 19.5 l6 1.8 -6 2.4 z" fill="#8F6516" stroke="#7c5a12" strokeWidth=".5" />
+                  <circle cx="60" cy="84" r="9" fill="url(#goldg2)" stroke="#6e4f0e" strokeWidth="1.2" />
+                  <circle cx="60" cy="84" r="3.4" fill="#6e4f0e" />
+                  <circle cx="60" cy="104" r="16" fill="none" stroke="url(#goldg)" strokeWidth="6.6" />
+                  <rect x="40" y="132" width="40" height="15" rx="2" fill="#17171A" stroke="url(#goldg2)" strokeWidth="1.4" />
+                  <path d="M46 139 h28" stroke="#c9a24a" strokeWidth="1.1" opacity=".65" />
+                </svg>
+              </div>
+              <div className="tagline">{'// TRAINED OFF THE BEST'}</div>
+            </div>
+
+            <div className="sys-cell">
+              <h3>It sorts itself</h3>
+              <p>
+                Owners see who&apos;s grinding and who&apos;s stuck — by block, by rep, by week —
+                without standing over anyone&apos;s shoulder.
+              </p>
+              <div className="prize" style={{ '--d': '1.4s' } as React.CSSProperties}>
+                <span className="prize-tag">THE PAPER TRAIL</span>
+                <span className="shadow" aria-hidden="true" />
+                <svg className="float-obj folder" viewBox="0 0 210 150" role="img" aria-label="Black folder of rep reports">
+                  <defs>
+                    <linearGradient id="fgrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#2E2E33" /><stop offset="100%" stopColor="#0B0B0D" />
+                    </linearGradient>
+                  </defs>
+                  <path d="M14 40 a8 8 0 0 1 8 -8 h42 c4 0 7 1 10 4 l8 8 c2 2 5 3 8 3 h94 a8 8 0 0 1 8 8 v79 a8 8 0 0 1 -8 8 h-162 a8 8 0 0 1 -8 -8 z" fill="#131316" />
+                  <rect x="30" y="22" width="150" height="88" rx="3" fill="#EDEAE2" stroke="#C7C4BA" />
+                  <path d="M44 36 h96 M44 48 h110 M44 60 h84" stroke="#9a978e" strokeWidth="4" strokeLinecap="round" />
+                  <path d="M6 66 a8 8 0 0 1 8 -8 h182 a8 8 0 0 1 8 8 v68 a8 8 0 0 1 -8 8 h-182 a8 8 0 0 1 -8 -8 z" fill="url(#fgrad)" />
+                  <path d="M14 66 h182" stroke="#43434B" strokeWidth="2.5" />
+                </svg>
+              </div>
+              <div className="tagline">{'// VISIBILITY WITHOUT BABYSITTING'}</div>
+            </div>
+          </div>
+        </section>
+
+        <section className="gallery" id="work">
+          <div className="gallery-head">
+            <span className="kicker">THE WALL</span>
+            <h2 className="h2 reveal">Specimens from the lab.</h2>
+          </div>
+          <div className="rail" ref={railRef}>
+            {SPECIMENS.map((s, i) => (
+              <figure className="piece" key={s.src}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={s.src} alt={s.alt} />
+                <figcaption>
+                  <b>SPECIMEN {String(i + 1).padStart(2, '0')}</b>
+                  <span>{s.name}</span>
+                </figcaption>
+              </figure>
+            ))}
+            <figure className="piece">
+              <video src="/v2/hero-loop.mp4" poster="/v2/hero-poster.jpg" autoPlay muted loop playsInline />
+              <figcaption><b>SPECIMEN 11</b><span>FIELD TAPE</span></figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section className="apply pad" id="knock">
+          <span className="kicker">THE DOOR</span>
+          <h2 className="h2 reveal">Knock.</h2>
+          <p className="apply-sub">
+            Rep or owner — tell us who you are and what you&apos;re chasing. We sort every
+            submission and knock back on the ones that fit.
+          </p>
+
+          {sent ? (
+            <div id="formOk">
+              <div className="big">Received.</div>
+              <p>We&apos;ll knock back if it fits. Keep your phone loud.</p>
+            </div>
+          ) : (
+            <form onSubmit={handleApply} autoComplete="on">
+              <div className="seg" role="radiogroup" aria-label="I am a">
+                {(['rep', 'owner', 'other'] as Role[]).map((r) => (
+                  <Fragment key={r}>
+                    <input
+                      type="radio" name="role" id={`r-${r}`} value={r}
+                      checked={role === r} onChange={() => setRole(r)}
+                    />
+                    <label htmlFor={`r-${r}`}>{r.toUpperCase()}</label>
+                  </Fragment>
+                ))}
+              </div>
+              <div className="frow">
+                <div className="field">
+                  <label htmlFor="f-name">NAME</label>
+                  <input id="f-name" name="name" autoComplete="name" required />
+                </div>
+                <div className="field">
+                  <label htmlFor="f-company">COMPANY / MARKET</label>
+                  <input id="f-company" name="company" autoComplete="organization" />
+                </div>
+              </div>
+              <div className="frow">
+                <div className="field">
+                  <label htmlFor="f-email">EMAIL</label>
+                  <input id="f-email" name="email" type="email" autoComplete="email" required />
+                </div>
+                <div className="field">
+                  <label htmlFor="f-phone">PHONE</label>
+                  <input id="f-phone" name="phone" type="tel" autoComplete="tel" required />
+                </div>
+              </div>
+              <div className="field">
+                <label htmlFor="f-msg">WHAT ARE YOU CHASING?</label>
+                <textarea id="f-msg" name="message" />
+              </div>
+              <div className="form-actions">
+                <button className="btn primary" type="submit" disabled={sending}>
+                  {sending ? '[ SENDING… ]' : '[ SEND IT ]'}
+                </button>
+                <span className="form-note">{'// we read everything.'}</span>
+              </div>
+              {formError && (
+                <p className="form-error">
+                  That didn&apos;t go through. Try again, or hit us straight at{' '}
+                  <a href="mailto:duncan@slabtraining.com">duncan@slabtraining.com</a>.
+                </p>
+              )}
+            </form>
+          )}
+        </section>
+      </main>
+
+      <footer className="site-foot">
+        <div className="foot-row">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/v2/logo-dark.png" alt="SLAB" />
+          <div className="foot-links">
+            <a href="#theory">THEORY</a>
+            <a href="#tapes">SOURCE MATERIAL</a>
+            <a href="#system">SYSTEM</a>
+            <a href="#knock">APPLY</a>
+            <Link href="/store">STORE</Link>
+            <Link href="/user/login">LOG IN</Link>
+            <Link href="/privacy">PRIVACY</Link>
+            <Link href="/terms">TERMS</Link>
+          </div>
+        </div>
+        <p className="foot-note">
+          © {new Date().getFullYear()} SLAB Training · slabtraining.com
+        </p>
+      </footer>
+    </div>
+  );
+}

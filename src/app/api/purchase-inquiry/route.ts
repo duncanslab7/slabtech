@@ -1,4 +1,5 @@
 import { createServiceRoleClient } from '@/utils/supabase/service-role'
+import { sendInquiryNotification } from '@/utils/notifications/inquiryNotification'
 import { NextRequest, NextResponse } from 'next/server'
 
 /**
@@ -77,40 +78,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // TODO: Send notification email/SMS to Duncan
-    // Options for notification:
-    // 1. Email: Use Resend, SendGrid, or similar service
-    // 2. SMS: Use Twilio or similar service
-    //
-    // Example with Resend (requires RESEND_API_KEY env var):
-    // await fetch('https://api.resend.com/emails', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-    //     'Content-Type': 'application/json',
-    //   },
-    //   body: JSON.stringify({
-    //     from: 'SLAB Store <noreply@slabtraining.com>',
-    //     to: 'duncan@slabtraining.com',
-    //     subject: `New ${productType} inquiry from ${name}`,
-    //     html: `<p>New purchase inquiry received...</p>`
-    //   })
-    // })
-    //
-    // Example with Twilio (requires TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER):
-    // const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`
-    // await fetch(twilioUrl, {
-    //   method: 'POST',
-    //   headers: {
-    //     'Authorization': `Basic ${Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64')}`,
-    //     'Content-Type': 'application/x-www-form-urlencoded',
-    //   },
-    //   body: new URLSearchParams({
-    //     From: process.env.TWILIO_PHONE_NUMBER,
-    //     To: '+15208341750',
-    //     Body: `New ${productType} inquiry from ${name} (${email})`
-    //   })
-    // })
+    // Notify by email. Awaited (a floating promise gets killed when the
+    // serverless response returns) but it can never fail the submission —
+    // the lead is already saved, so a mail problem stays a mail problem.
+    await sendInquiryNotification({
+      id: inquiry.id,
+      productType,
+      name,
+      email,
+      phone,
+      industry,
+      paymentPlan,
+      message,
+      customData,
+    })
 
     return NextResponse.json({
       success: true,

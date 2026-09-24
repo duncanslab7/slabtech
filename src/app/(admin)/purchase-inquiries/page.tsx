@@ -239,7 +239,29 @@ export default function PurchaseInquiriesPage() {
                   )}
                 </div>
 
-                {inquiry.custom_data && (
+                {/* Applications from the home page carry a different shape of
+                    custom_data than store orders — show the fields that exist. */}
+                {inquiry.custom_data?.source === 'home-apply' && (
+                  <div className="mb-4">
+                    <Text size="sm" className="text-gray-600 font-medium mb-2">Application</Text>
+                    <div className="bg-gray-50 rounded-lg p-3 space-y-1">
+                      <Text size="sm" className="text-gray-900">
+                        <strong>They are a:</strong>{' '}
+                        {String(inquiry.custom_data.role ?? 'unspecified').toUpperCase()}
+                      </Text>
+                      {inquiry.custom_data.company && (
+                        <Text size="sm" className="text-gray-900">
+                          <strong>Company / market:</strong> {inquiry.custom_data.company}
+                        </Text>
+                      )}
+                      <Text size="sm" className="text-gray-500">
+                        Came in from the home page apply form
+                      </Text>
+                    </div>
+                  </div>
+                )}
+
+                {inquiry.custom_data && inquiry.custom_data.source !== 'home-apply' && (
                   <div className="mb-4">
                     <Text size="sm" className="text-gray-600 font-medium mb-2">Custom Design</Text>
                     <div className="bg-gray-50 rounded-lg p-3">

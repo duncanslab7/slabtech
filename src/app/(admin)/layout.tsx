@@ -104,6 +104,12 @@ export default async function AdminLayout({
                     Config
                   </Link>
                   <Link
+                    href="/purchase-inquiries"
+                    className="text-midnight-blue hover:text-success-gold font-medium transition-colors"
+                  >
+                    Inquiries
+                  </Link>
+                  <Link
                     href="/big-five"
                     className="text-midnight-blue hover:text-success-gold font-medium transition-colors"
                   >
