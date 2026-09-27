@@ -51,6 +51,10 @@ const SPECIMENS = [
   { src: '/v2/poster-skeleton-rays.jpg', alt: 'SLAB skeleton hand poster', name: 'REACH' },
   { src: '/v2/poster-cowboy.jpg', alt: 'SLAB western poster', name: 'OUT WEST' },
   { src: '/v2/poster-viper.jpg', alt: 'SLAB logo over a red sports car above the city', name: 'NIGHT SHIFT' },
+  { src: '/v2/poster-bliss.jpg', alt: 'SLAB badge on a green hill under a blue sky', name: 'START UP' },
+  { src: '/v2/poster-cliff-dive.jpg', alt: 'SLAB logo over a cliff diver above turquoise water', name: 'SEND IT' },
+  { src: '/v2/poster-pixel-hands.jpg', alt: 'Pixelated reaching hands above the SLAB wordmark', name: 'CREATION' },
+  { src: '/v2/poster-red-hero.jpg', alt: 'Red neon SLAB badge above a figure on a mountain peak', name: 'THE SUMMIT' },
 ];
 
 const fmt = (s: number) =>
@@ -124,9 +128,133 @@ export default function HomeV2() {
     }
   }, []);
 
+  /* The wall: drifts sideways on its own in an endless loop. Grab it (mouse or
+     touch) to fling through it; let go and it coasts back into the drift.
+     Vertical page scroll is never hijacked — touch-action: pan-y hands
+     vertical swipes to the browser. Reduced motion gets a plain swipe strip. */
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      rail.classList.add('no-pin');
+      return;
+    }
+
+    const DRIFT = -45; // px/s, leftward
+    let x = 0;
+    let v = DRIFT;
+    let loop = 0;
+    let raf = 0;
+    let last = 0;
+    let onScreen = true;
+
+    let pid: number | null = null;
+    let dragged = false;
+    let startX = 0;
+    let startPos = 0;
+    let lastX = 0;
+    let lastT = 0;
+    let flingV = 0;
+
+    // Width of one full set of pieces; the second (aria-hidden) set starts here.
+    const measure = () => {
+      const first = rail.firstElementChild as HTMLElement | null;
+      const dupe = rail.querySelector<HTMLElement>('[data-loop-start]');
+      loop = first && dupe ? dupe.offsetLeft - first.offsetLeft : 0;
+    };
+    // Keep x inside (-loop, 0] so the two copies always cover the viewport.
+    const wrap = () => {
+      if (loop <= 0) return 0;
+      const before = x;
+      x = ((x % loop) - loop) % loop;
+      return x - before;
+    };
+    const paint = () => { rail.style.transform = `translate3d(${x}px,0,0)`; };
+
+    const tick = (t: number) => {
+      const dt = last ? Math.min(0.05, (t - last) / 1000) : 0;
+      last = t;
+      if (pid === null) {
+        v += (DRIFT - v) * (1 - Math.exp(-dt * 2.5)); // fling decays back into the drift
+        x += v * dt;
+        wrap();
+        paint();
+      }
+      raf = onScreen && !document.hidden ? requestAnimationFrame(tick) : 0;
+    };
+    const start = () => {
+      if (!raf && onScreen && !document.hidden) { last = 0; raf = requestAnimationFrame(tick); }
+    };
+
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      pid = e.pointerId;
+      dragged = false;
+      startX = lastX = e.clientX;
+      startPos = x;
+      lastT = performance.now();
+      flingV = 0;
+      rail.classList.add('grabbing');
+    };
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerId !== pid) return;
+      const dx = e.clientX - startX;
+      if (!dragged && Math.abs(dx) > 4) {
+        dragged = true;
+        rail.setPointerCapture(e.pointerId);
+      }
+      if (!dragged) return;
+      x = startPos + dx;
+      startPos += wrap();
+      paint();
+      const now = performance.now();
+      const dt = (now - lastT) / 1000;
+      if (dt > 0) flingV = 0.8 * ((e.clientX - lastX) / dt) + 0.2 * flingV;
+      lastX = e.clientX;
+      lastT = now;
+    };
+    const onUp = (e: PointerEvent) => {
+      if (e.pointerId !== pid) return;
+      pid = null;
+      rail.classList.remove('grabbing');
+      // a finger that stopped before lifting shouldn't fling
+      const idle = performance.now() - lastT > 90;
+      v = dragged && !idle ? Math.max(-3000, Math.min(3000, flingV)) : DRIFT;
+    };
+
+    measure();
+    paint();
+    start();
+
+    const ro = new ResizeObserver(() => { measure(); wrap(); paint(); });
+    ro.observe(rail);
+    const io = new IntersectionObserver(([entry]) => {
+      onScreen = entry.isIntersecting;
+      start();
+    });
+    io.observe(rail);
+    const onVis = () => start();
+    document.addEventListener('visibilitychange', onVis);
+
+    rail.addEventListener('pointerdown', onDown);
+    rail.addEventListener('pointermove', onMove);
+    rail.addEventListener('pointerup', onUp);
+    rail.addEventListener('pointercancel', onUp);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      io.disconnect();
+      document.removeEventListener('visibilitychange', onVis);
+      rail.removeEventListener('pointerdown', onDown);
+      rail.removeEventListener('pointermove', onMove);
+      rail.removeEventListener('pointerup', onUp);
+      rail.removeEventListener('pointercancel', onUp);
+    };
+  }, []);
+
   /* GSAP choreography. Loaded dynamically so a failure here can never take the
-     page down with it — reveals are un-clipped and the wall falls back to a
-     plain swipe strip. */
+     page down with it — reveals are un-clipped and the page stays static. */
   useEffect(() => {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const root = rootRef.current;
@@ -135,7 +263,6 @@ export default function HomeV2() {
     const showEverything = () => {
       root.querySelectorAll<HTMLElement>('.reveal').forEach((el) => (el.style.clipPath = 'none'));
       introRef.current?.remove();
-      railRef.current?.classList.add('no-pin');
     };
 
     if (reduce) {
@@ -196,20 +323,6 @@ export default function HomeV2() {
           y: 40, opacity: 0, duration: 0.45, ease: 'power3.out', stagger: 0.1,
           scrollTrigger: { trigger: '.sys-grid', start: 'top 80%' },
         });
-
-        // the wall: scrolling down pins it and scrubs you sideways
-        const rail = railRef.current;
-        if (rail) {
-          gsap.to(rail, {
-            x: () => -(rail.scrollWidth - window.innerWidth + 24),
-            ease: 'none',
-            scrollTrigger: {
-              trigger: '.gallery', start: 'top top',
-              end: () => '+=' + (rail.scrollWidth - window.innerWidth + 400),
-              pin: true, scrub: 1, invalidateOnRefresh: true, anticipatePin: 1,
-            },
-          });
-        }
 
         // the record: hard odometer roll into 1,730
         const rf = recordRef.current;
@@ -583,20 +696,33 @@ export default function HomeV2() {
             <h2 className="h2 reveal">Specimens from the lab.</h2>
           </div>
           <div className="rail" ref={railRef}>
-            {SPECIMENS.map((s, i) => (
-              <figure className="piece" key={s.src}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={s.src} alt={s.alt} />
-                <figcaption>
-                  <b>SPECIMEN {String(i + 1).padStart(2, '0')}</b>
-                  <span>{s.name}</span>
-                </figcaption>
-              </figure>
+            {/* two copies back to back so the drift loops seamlessly */}
+            {[0, 1].map((copy) => (
+              <Fragment key={copy}>
+                {SPECIMENS.map((s, i) => (
+                  <figure
+                    className="piece"
+                    key={s.src}
+                    aria-hidden={copy === 1 || undefined}
+                    data-loop-start={copy === 1 && i === 0 ? '' : undefined}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={s.src} alt={copy ? '' : s.alt} draggable={false} />
+                    <figcaption>
+                      <b>SPECIMEN {String(i + 1).padStart(2, '0')}</b>
+                      <span>{s.name}</span>
+                    </figcaption>
+                  </figure>
+                ))}
+                <figure className="piece" aria-hidden={copy === 1 || undefined}>
+                  <video src="/v2/hero-loop.mp4" poster="/v2/hero-poster.jpg" autoPlay muted loop playsInline />
+                  <figcaption>
+                    <b>SPECIMEN {String(SPECIMENS.length + 1).padStart(2, '0')}</b>
+                    <span>FIELD TAPE</span>
+                  </figcaption>
+                </figure>
+              </Fragment>
             ))}
-            <figure className="piece">
-              <video src="/v2/hero-loop.mp4" poster="/v2/hero-poster.jpg" autoPlay muted loop playsInline />
-              <figcaption><b>SPECIMEN 11</b><span>FIELD TAPE</span></figcaption>
-            </figure>
           </div>
         </section>
 
