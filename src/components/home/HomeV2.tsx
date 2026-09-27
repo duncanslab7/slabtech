@@ -228,11 +228,13 @@ export default function HomeV2() {
 
     const ro = new ResizeObserver(() => { measure(); wrap(); paint(); });
     ro.observe(rail);
+    // Watch the section, not the rail: the rail's own box slides off screen
+    // as it translates, which would read as "not visible" and stall the drift.
     const io = new IntersectionObserver(([entry]) => {
       onScreen = entry.isIntersecting;
       start();
     });
-    io.observe(rail);
+    io.observe(rail.parentElement ?? rail);
     const onVis = () => start();
     document.addEventListener('visibilitychange', onVis);
 
